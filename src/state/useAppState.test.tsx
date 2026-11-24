@@ -1,0 +1,159 @@
+import { act, renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { type AppState, DEFAULT_STATE } from '../../shared/types'
+import type { SaveResult } from './stateSync'
+import { useAppState } from './useAppState'
+
+type Reply = 'ok' | 'conflict' | 'failed'
+
+const makeApi = (initial: AppState = DEFAULT_STATE) => {
+  const box = { server: initial, reply: 'ok' as Reply, loadFails: false }
+  const puts: { state: AppState; keepalive: boolean }[] = []
+  const api = {
+    getState: vi.fn(async () => {
+      if (box.loadFails) throw new Error('sin servidor')
+      return box.server
+    }),
+    putState: vi.fn(async (sent: AppState, keepalive = false): Promise<SaveResult> => {
+      puts.push({ state: sent, keepalive })
+      if (box.reply === 'failed') return { kind: 'failed' }
+      if (box.reply === 'conflict') return { kind: 'conflict' }
+      box.server = { ...sent, rev: sent.rev + 1 }
+      return { kind: 'saved', rev: box.server.rev }
+    }),
+  }
+  return { api, box, puts }
+}
+
+const mount = async (setup = makeApi()) => {
+  const view = renderHook(() => useAppState(setup.api))
+  await act(async () => vi.advanceTimersByTimeAsync(0))
+  return { ...setup, ...view }
+}
+
+const wait = (ms: number) => act(async () => vi.advanceTimersByTimeAsync(ms))
+
+beforeEach(() => {
+  vi.useFakeTimers()
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+test('Should load the saved state', async () => {
+  const { result } = await mount()
+  expect(result.current.state).toEqual(DEFAULT_STATE)
+  expect(result.current.notice).toBe(null)
+})
+
+test('Should save a change 300 ms later with the revision it loaded', async () => {
+  const { result, puts } = await mount()
+  act(() => result.current.dispatch({ type: 'setTheme', theme: 'light' }))
+  await wait(299)
+  expect(puts).toHaveLength(0)
+  await wait(1)
+  expect(puts).toHaveLength(1)
+  expect(puts[0].state.theme).toBe('light')
+  expect(puts[0].state.rev).toBe(1)
+})
+
+test('Should use the new revision for the next save', async () => {
+  const { result, puts } = await mount()
+  act(() => result.current.dispatch({ type: 'setTheme', theme: 'light' }))
+  await wait(300)
+  act(() => result.current.dispatch({ type: 'setTimeframe', timeframe: 'W' }))
+  await wait(300)
+  expect(puts.map((put) => put.state.rev)).toEqual([1, 2])
+})
+
+test('Should not save when nothing changed', async () => {
+  const { result, puts } = await mount()
+  act(() => result.current.dispatch({ type: 'setTheme', theme: 'dark' }))
+  await wait(1000)
+  expect(puts).toHaveLength(0)
+})
+
+test('Should reload the state and say so when another tab saved first', async () => {
+  const { result, box } = await mount()
+  box.reply = 'conflict'
+  box.server = { ...DEFAULT_STATE, symbol: 'KO', rev: 9 }
+  act(() => result.current.dispatch({ type: 'setTheme', theme: 'light' }))
+  await wait(300)
+  expect(result.current.state?.symbol).toBe('KO')
+  expect(result.current.state?.theme).toBe('dark')
+  expect(result.current.notice).toBe('El estado cambió en otra pestaña y se ha recargado')
+})
+
+test('Should save with the reloaded revision after a conflict', async () => {
+  const { result, box, puts } = await mount()
+  box.reply = 'conflict'
+  box.server = { ...DEFAULT_STATE, symbol: 'KO', rev: 9 }
+  act(() => result.current.dispatch({ type: 'setTheme', theme: 'light' }))
+  await wait(300)
+  box.reply = 'ok'
+  act(() => result.current.dispatch({ type: 'setTheme', theme: 'light' }))
+  await wait(300)
+  expect(puts.at(-1)?.state.rev).toBe(9)
+  expect(puts.at(-1)?.state.symbol).toBe('KO')
+})
+
+test('Should warn when a save fails, retry, and clear the warning once saved', async () => {
+  const { result, box, puts } = await mount()
+  box.reply = 'failed'
+  act(() => result.current.dispatch({ type: 'setTheme', theme: 'light' }))
+  await wait(300)
+  expect(result.current.notice).toBe('No se pudieron guardar los cambios')
+  box.reply = 'ok'
+  await wait(5000)
+  expect(puts).toHaveLength(2)
+  expect(result.current.notice).toBe(null)
+})
+
+test('Should pick up what another tab saved when this one becomes visible again', async () => {
+  const { result, box } = await mount()
+  box.server = { ...DEFAULT_STATE, symbol: 'MSFT', rev: 5 }
+  await act(async () => {
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.advanceTimersByTimeAsync(0)
+  })
+  expect(result.current.state?.symbol).toBe('MSFT')
+  expect(result.current.notice).toBe(null)
+})
+
+test('Should not reload over a change that is still unsaved', async () => {
+  const { result, api } = await mount()
+  act(() => result.current.dispatch({ type: 'setTheme', theme: 'light' }))
+  await act(async () => {
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.advanceTimersByTimeAsync(0)
+  })
+  expect(api.getState).toHaveBeenCalledTimes(1)
+  expect(result.current.state?.theme).toBe('light')
+})
+
+test('Should send an unsaved change at once when the page is being left', async () => {
+  const { result, puts } = await mount()
+  act(() => result.current.dispatch({ type: 'setTheme', theme: 'light' }))
+  await act(async () => {
+    window.dispatchEvent(new Event('pagehide'))
+    await vi.advanceTimersByTimeAsync(0)
+  })
+  expect(puts).toHaveLength(1)
+  expect(puts[0].keepalive).toBe(true)
+})
+
+test('Should say when the state could not be loaded and load it on retry', async () => {
+  const setup = makeApi()
+  setup.box.loadFails = true
+  const { result, box } = await mount(setup)
+  expect(result.current.loadFailed).toBe(true)
+  expect(result.current.state).toBe(null)
+  box.loadFails = false
+  await act(async () => {
+    result.current.retry()
+    await vi.advanceTimersByTimeAsync(0)
+  })
+  expect(result.current.loadFailed).toBe(false)
+  expect(result.current.state).toEqual(DEFAULT_STATE)
+})

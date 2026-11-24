@@ -1,0 +1,320 @@
+import { useEffect, useRef, useState } from 'react'
+import { MAX_SMAS, SMA_COLORS, SMA_MAX_LENGTH, SMA_MIN_LENGTH } from '../../../shared/limits'
+import type {
+  ChartSettings,
+  ChartType,
+  CursorMode,
+  Indicators,
+  ScaleMode,
+  SmaConfig,
+  ThemeName,
+  Timeframe,
+} from '../../../shared/types'
+import { newId } from '../../domain/newId'
+import { SMA_WIDTHS, addSma } from '../../domain/smaConfig'
+import { NumberField } from './NumberField'
+import * as Styles from './styles'
+
+type TopBarProps = {
+  symbol: string
+  timeframe: Timeframe
+  theme: ThemeName
+  indicators: Indicators
+  notice: string | null
+  onOpenSearch: () => void
+  onTimeframe: (timeframe: Timeframe) => void
+  onTheme: (theme: ThemeName) => void
+  onIndicators: (indicators: Indicators) => void
+  chart: ChartSettings
+  onChart: (chart: ChartSettings) => void
+  onScreenshot: () => void
+}
+
+const TIMEFRAMES: Timeframe[] = ['D', 'W']
+const RSI_MIN_LENGTH = 2
+const RSI_MAX_LENGTH = 100
+
+const CHART_TYPES: [ChartType, string][] = [
+  ['candles', 'Velas'],
+  ['bars', 'Barras'],
+  ['line', 'Línea'],
+  ['area', 'Área'],
+  ['baseline', 'Línea base'],
+]
+const SCALE_MODES: [ScaleMode, string][] = [
+  ['normal', 'Normal'],
+  ['log', 'Logarítmica'],
+  ['percent', 'Porcentaje'],
+  ['indexed', 'Indexada a 100'],
+]
+const CURSOR_MODES: [CursorMode, string][] = [
+  ['normal', 'Libre'],
+  ['magnet', 'Imán al cierre'],
+  ['magnetOhlc', 'Imán a OHLC'],
+]
+
+type MenuName = 'indicators' | 'chart'
+
+const CameraIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+    <path d="M2.5 6h2.7l1.1-1.8h5.4L12.8 6h2.7v8h-13z" strokeLinejoin="round" />
+    <circle cx="9" cy="9.8" r="2.6" />
+  </svg>
+)
+
+const SearchIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+    <circle cx="8" cy="8" r="5" />
+    <path d="M12 12l4 4" strokeLinecap="round" />
+  </svg>
+)
+
+const SunIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+    <circle cx="9" cy="9" r="3.2" />
+    <path d="M9 1.5v2M9 14.5v2M1.5 9h2M14.5 9h2M3.7 3.7l1.4 1.4M12.9 12.9l1.4 1.4M3.7 14.3l1.4-1.4M12.9 5.1l1.4-1.4" strokeLinecap="round" />
+  </svg>
+)
+
+const MoonIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+    <path d="M15 10.5A6.5 6.5 0 0 1 7.5 3a6.5 6.5 0 1 0 7.5 7.5z" strokeLinejoin="round" />
+  </svg>
+)
+
+export const TopBar = ({
+  symbol,
+  timeframe,
+  theme,
+  indicators,
+  notice,
+  onOpenSearch,
+  onTimeframe,
+  onTheme,
+  onIndicators,
+  chart,
+  onChart,
+  onScreenshot,
+}: TopBarProps) => {
+  const [openMenu, setOpenMenu] = useState<MenuName | null>(null)
+  const [styleOpenId, setStyleOpenId] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const nextTheme: ThemeName = theme === 'dark' ? 'light' : 'dark'
+
+  useEffect(() => {
+    if (!openMenu) return undefined
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpenMenu(null)
+    }
+    const closeOnOutside = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setOpenMenu(null)
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    window.addEventListener('pointerdown', closeOnOutside)
+    return () => {
+      window.removeEventListener('keydown', closeOnEscape)
+      window.removeEventListener('pointerdown', closeOnOutside)
+    }
+  }, [openMenu])
+
+  const toggleMenu = (name: MenuName) => setOpenMenu((current) => (current === name ? null : name))
+
+  const setRsi = (patch: Partial<Indicators['rsi']>) => onIndicators({ ...indicators, rsi: { ...indicators.rsi, ...patch } })
+
+  const setSma = (sma: SmaConfig[]) => onIndicators({ ...indicators, sma })
+
+  const patchSma = (id: string, patch: Partial<SmaConfig>) =>
+    setSma(indicators.sma.map((item) => (item.id === id ? { ...item, ...patch } : item)))
+
+  const handleAddSma = () => {
+    const next = addSma(indicators.sma, newId)
+    if (next !== indicators.sma) setSma(next)
+  }
+
+  return (
+    <Styles.Bar>
+      <Styles.SymbolButton type="button" aria-label={symbol} onClick={onOpenSearch}>
+        <SearchIcon />
+        {symbol}
+      </Styles.SymbolButton>
+      <Styles.Divider />
+      {TIMEFRAMES.map((option) => (
+        <Styles.Button
+          key={option}
+          type="button"
+          aria-pressed={option === timeframe}
+          $active={option === timeframe}
+          onClick={() => onTimeframe(option)}
+        >
+          {option}
+        </Styles.Button>
+      ))}
+      <Styles.Divider />
+      <Styles.Menus ref={menuRef}>
+      <Styles.MenuAnchor>
+        <Styles.Button type="button" aria-expanded={openMenu === 'indicators'} onClick={() => toggleMenu('indicators')}>
+          Indicadores
+        </Styles.Button>
+        {openMenu === 'indicators' && (
+          <Styles.Menu>
+            <Styles.MenuRow>
+              <input
+                type="checkbox"
+                checked={indicators.volume.visible}
+                onChange={(event) => onIndicators({ ...indicators, volume: { visible: event.target.checked } })}
+              />
+              <Styles.RowLabel>Volumen</Styles.RowLabel>
+            </Styles.MenuRow>
+            <Styles.MenuRow>
+              <input
+                type="checkbox"
+                checked={indicators.rsi.visible}
+                onChange={(event) => setRsi({ visible: event.target.checked })}
+              />
+              <Styles.RowLabel>RSI</Styles.RowLabel>
+            </Styles.MenuRow>
+            {indicators.rsi.visible && (
+              <>
+                <Styles.MenuItem $indented>
+                  <Styles.RowLabel>Periodo</Styles.RowLabel>
+                  <NumberField
+                    label="Periodo"
+                    value={indicators.rsi.length}
+                    min={RSI_MIN_LENGTH}
+                    max={RSI_MAX_LENGTH}
+                    onChange={(length) => setRsi({ length })}
+                  />
+                </Styles.MenuItem>
+                <Styles.MenuRow $indented>
+                  <input
+                    type="checkbox"
+                    checked={indicators.rsi.showMa}
+                    onChange={(event) => setRsi({ showMa: event.target.checked })}
+                  />
+                  <Styles.RowLabel>Media del RSI</Styles.RowLabel>
+                </Styles.MenuRow>
+              </>
+            )}
+            <Styles.MenuSection>Medias móviles (SMA)</Styles.MenuSection>
+            {indicators.sma.map((item, index) => (
+              <Styles.SmaBlock key={item.id}>
+              <Styles.MenuItem>
+                <Styles.ColorDot
+                  type="button"
+                  title="Color y grosor"
+                  aria-label={`Estilo de la media ${index + 1}`}
+                  aria-expanded={styleOpenId === item.id}
+                  $color={item.color}
+                  onClick={() => setStyleOpenId((current) => (current === item.id ? null : item.id))}
+                />
+                <Styles.RowLabel>Periodo</Styles.RowLabel>
+                <NumberField
+                  label={`Periodo de la media ${index + 1}`}
+                  value={item.length}
+                  min={SMA_MIN_LENGTH}
+                  max={SMA_MAX_LENGTH}
+                  onChange={(length) => patchSma(item.id, { length })}
+                />
+                <Styles.SmallButton
+                  type="button"
+                  title="Quitar"
+                  aria-label={`Quitar media ${index + 1}`}
+                  onClick={() => setSma(indicators.sma.filter((other) => other.id !== item.id))}
+                >
+                  ×
+                </Styles.SmallButton>
+              </Styles.MenuItem>
+              {styleOpenId === item.id && (
+                <Styles.StylePanel>
+                  <Styles.Swatches>
+                    {SMA_COLORS.map((color) => (
+                      <Styles.Swatch
+                        key={color}
+                        type="button"
+                        aria-label={`Color ${color} de la media ${index + 1}`}
+                        aria-pressed={item.color.toUpperCase() === color}
+                        $color={color}
+                        onClick={() => patchSma(item.id, { color })}
+                      />
+                    ))}
+                    <Styles.ColorInput
+                      type="color"
+                      title="Otro color"
+                      aria-label={`Otro color para la media ${index + 1}`}
+                      value={item.color}
+                      onChange={(event) => patchSma(item.id, { color: event.target.value.toUpperCase() })}
+                    />
+                  </Styles.Swatches>
+                  <Styles.Widths>
+                    {SMA_WIDTHS.map((width) => (
+                      <Styles.WidthButton
+                        key={width}
+                        type="button"
+                        aria-label={`Grosor ${width} de la media ${index + 1}`}
+                        aria-pressed={item.width === width}
+                        onClick={() => patchSma(item.id, { width })}
+                      >
+                        <Styles.WidthSample $width={width} />
+                      </Styles.WidthButton>
+                    ))}
+                  </Styles.Widths>
+                </Styles.StylePanel>
+              )}
+              </Styles.SmaBlock>
+            ))}
+            <Styles.AddButton type="button" disabled={indicators.sma.length >= MAX_SMAS} onClick={handleAddSma}>
+              Añadir media móvil
+            </Styles.AddButton>
+          </Styles.Menu>
+        )}
+      </Styles.MenuAnchor>
+      <Styles.MenuAnchor>
+        <Styles.Button type="button" aria-expanded={openMenu === 'chart'} onClick={() => toggleMenu('chart')}>
+          Gráfico
+        </Styles.Button>
+        {openMenu === 'chart' && (
+          <Styles.Menu>
+            <Styles.MenuSection $first>Tipo</Styles.MenuSection>
+            {CHART_TYPES.map(([type, label]) => (
+              <Styles.MenuRow key={type}>
+                <input type="radio" name="chart-type" checked={chart.type === type} onChange={() => onChart({ ...chart, type })} />
+                <Styles.RowLabel>{label}</Styles.RowLabel>
+              </Styles.MenuRow>
+            ))}
+            <Styles.MenuSection>Escala de precios</Styles.MenuSection>
+            {SCALE_MODES.map(([scale, label]) => (
+              <Styles.MenuRow key={scale}>
+                <input type="radio" name="chart-scale" checked={chart.scale === scale} onChange={() => onChart({ ...chart, scale })} />
+                <Styles.RowLabel>{label}</Styles.RowLabel>
+              </Styles.MenuRow>
+            ))}
+            <Styles.MenuRow>
+              <input type="checkbox" checked={chart.invert} onChange={(event) => onChart({ ...chart, invert: event.target.checked })} />
+              <Styles.RowLabel>Invertir escala</Styles.RowLabel>
+            </Styles.MenuRow>
+            <Styles.MenuSection>Cursor</Styles.MenuSection>
+            {CURSOR_MODES.map(([cursor, label]) => (
+              <Styles.MenuRow key={cursor}>
+                <input type="radio" name="chart-cursor" checked={chart.cursor === cursor} onChange={() => onChart({ ...chart, cursor })} />
+                <Styles.RowLabel>{label}</Styles.RowLabel>
+              </Styles.MenuRow>
+            ))}
+          </Styles.Menu>
+        )}
+      </Styles.MenuAnchor>
+      </Styles.Menus>
+      <Styles.Spacer />
+      {notice && <Styles.Warning role="status">{notice}</Styles.Warning>}
+      <Styles.Button type="button" title="Guardar imagen" aria-label="Guardar imagen" onClick={onScreenshot}>
+        <CameraIcon />
+      </Styles.Button>
+      <Styles.Button
+        type="button"
+        aria-label={nextTheme === 'light' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
+        onClick={() => onTheme(nextTheme)}
+      >
+        {nextTheme === 'light' ? <SunIcon /> : <MoonIcon />}
+      </Styles.Button>
+    </Styles.Bar>
+  )
+}

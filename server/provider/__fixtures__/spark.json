@@ -1,0 +1,250 @@
+{
+ "spark": {
+  "result": [
+   {
+    "symbol": "MSFT",
+    "response": [
+     {
+      "meta": {
+       "currency": "USD",
+       "symbol": "MSFT",
+       "exchangeName": "NMS",
+       "fullExchangeName": "NasdaqGS",
+       "instrumentType": "EQUITY",
+       "firstTradeDate": 511108200,
+       "regularMarketTime": 1795462088,
+       "hasPrePostMarketData": true,
+       "gmtoffset": -18000,
+       "timezone": "EST",
+       "exchangeTimezoneName": "America/New_York",
+       "regularMarketPrice": 496.175,
+       "regularMarketChangePercent": 2.405,
+       "fulldayPrice": 496.175,
+       "fulldayChange": 11.655,
+       "fulldayChangePercent": 2.405,
+       "fiftyTwoWeekHigh": 559.15,
+       "fiftyTwoWeekLow": 349.2,
+       "regularMarketDayHigh": 509.15,
+       "regularMarketDayLow": 495.22,
+       "regularMarketVolume": 16052514,
+       "longName": "Microsoft Corporation",
+       "shortName": "Microsoft Corporation",
+       "chartPreviousClose": 484.52,
+       "priceHint": 2,
+       "currentTradingPeriod": {
+        "pre": {
+         "timezone": "EST",
+         "end": 1795444200,
+         "start": 1795424400,
+         "gmtoffset": -18000
+        },
+        "regular": {
+         "timezone": "EST",
+         "end": 1795467600,
+         "start": 1795444200,
+         "gmtoffset": -18000
+        },
+        "post": {
+         "timezone": "EST",
+         "end": 1795482000,
+         "start": 1795467600,
+         "gmtoffset": -18000
+        }
+       },
+       "dataGranularity": "1d",
+       "range": "1d",
+       "validRanges": [
+        "1d",
+        "5d",
+        "1mo",
+        "3mo",
+        "6mo",
+        "1y",
+        "2y",
+        "5y",
+        "10y",
+        "ytd",
+        "max"
+       ]
+      },
+      "timestamp": [
+       1795462088
+      ],
+      "indicators": {
+       "quote": [
+        {
+         "close": [
+          496.175
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "symbol": "BRK-B",
+    "response": [
+     {
+      "meta": {
+       "currency": "USD",
+       "symbol": "BRK-B",
+       "exchangeName": "NYQ",
+       "fullExchangeName": "NYSE",
+       "instrumentType": "EQUITY",
+       "firstTradeDate": 831648600,
+       "regularMarketTime": 1795462084,
+       "hasPrePostMarketData": true,
+       "gmtoffset": -18000,
+       "timezone": "EST",
+       "exchangeTimezoneName": "America/New_York",
+       "regularMarketPrice": 572.71,
+       "regularMarketChangePercent": 0.475,
+       "fulldayPrice": 572.71,
+       "fulldayChange": 2.71,
+       "fulldayChangePercent": 0.475,
+       "fiftyTwoWeekHigh": 596.92,
+       "fiftyTwoWeekLow": 464.01,
+       "regularMarketDayHigh": 575.6,
+       "regularMarketDayLow": 568.35,
+       "regularMarketVolume": 2491716,
+       "longName": "Berkshire Hathaway Inc.",
+       "shortName": "Berkshire Hathaway Inc. New",
+       "chartPreviousClose": 570,
+       "priceHint": 2,
+       "currentTradingPeriod": {
+        "pre": {
+         "timezone": "EST",
+         "end": 1795444200,
+         "start": 1795424400,
+         "gmtoffset": -18000
+        },
+        "regular": {
+         "timezone": "EST",
+         "end": 1795467600,
+         "start": 1795444200,
+         "gmtoffset": -18000
+        },
+        "post": {
+         "timezone": "EST",
+         "end": 1795482000,
+         "start": 1795467600,
+         "gmtoffset": -18000
+        }
+       },
+       "dataGranularity": "1d",
+       "range": "1d",
+       "validRanges": [
+        "1d",
+        "5d",
+        "1mo",
+        "3mo",
+        "6mo",
+        "1y",
+        "2y",
+        "5y",
+        "10y",
+        "ytd",
+        "max"
+       ]
+      },
+      "timestamp": [
+       1795462084
+      ],
+      "indicators": {
+       "quote": [
+        {
+         "close": [
+          572.71
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "symbol": "AAPL",
+    "response": [
+     {
+      "meta": {
+       "currency": "USD",
+       "symbol": "AAPL",
+       "exchangeName": "NMS",
+       "fullExchangeName": "NasdaqGS",
+       "instrumentType": "EQUITY",
+       "firstTradeDate": 345479400,
+       "regularMarketTime": 1795462089,
+       "hasPrePostMarketData": true,
+       "gmtoffset": -18000,
+       "timezone": "EST",
+       "exchangeTimezoneName": "America/New_York",
+       "regularMarketPrice": 350.265,
+       "regularMarketChangePercent": 2.249,
+       "fulldayPrice": 350.265,
+       "fulldayChange": 7.705,
+       "fulldayChangePercent": 2.249,
+       "fiftyTwoWeekHigh": 360.83,
+       "fiftyTwoWeekLow": 243.42,
+       "regularMarketDayHigh": 352.6,
+       "regularMarketDayLow": 345.442,
+       "regularMarketVolume": 28536742,
+       "longName": "Apple Inc.",
+       "shortName": "Apple Inc.",
+       "chartPreviousClose": 342.56,
+       "priceHint": 2,
+       "currentTradingPeriod": {
+        "pre": {
+         "timezone": "EST",
+         "end": 1795444200,
+         "start": 1795424400,
+         "gmtoffset": -18000
+        },
+        "regular": {
+         "timezone": "EST",
+         "end": 1795467600,
+         "start": 1795444200,
+         "gmtoffset": -18000
+        },
+        "post": {
+         "timezone": "EST",
+         "end": 1795482000,
+         "start": 1795467600,
+         "gmtoffset": -18000
+        }
+       },
+       "dataGranularity": "1d",
+       "range": "1d",
+       "validRanges": [
+        "1d",
+        "5d",
+        "1mo",
+        "3mo",
+        "6mo",
+        "1y",
+        "2y",
+        "5y",
+        "10y",
+        "ytd",
+        "max"
+       ]
+      },
+      "timestamp": [
+       1795462089
+      ],
+      "indicators": {
+       "quote": [
+        {
+         "close": [
+          350.265
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   }
+  ],
+  "error": null
+ }
+}
