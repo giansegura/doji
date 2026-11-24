@@ -1,6 +1,6 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { LIST_NAME_MAX_LENGTH, MAX_LISTS } from '../../../shared/limits'
-import { LIST_ICONS, toListIcon } from '../../../shared/listIcon'
+import { LIST_ICON_GROUPS, toListIcon } from '../../../shared/listIcon'
 import type { SymbolList } from '../../../shared/types'
 import * as Styles from './styles'
 
@@ -251,25 +251,35 @@ export const ListPicker = ({ lists, activeId, onSelect, onCreate, onRename, onDe
             </Styles.Row>
             {mode.kind === 'icon' && mode.id === list.id && (
               <Styles.Palette role="group" aria-label={`Icons for ${list.name}`} onKeyDown={(event) => handlePaletteKey(event, list.id)}>
-                <Styles.PaletteGrid>
-                  {LIST_ICONS.map((icon) => (
-                    <Styles.PaletteIcon
-                      key={icon}
-                      type="button"
-                      aria-label={icon}
-                      aria-pressed={list.icon === icon}
-                      onClick={() => chooseIcon(list.id, icon)}
-                    >
-                      {icon}
-                    </Styles.PaletteIcon>
+                <Styles.PaletteScroll>
+                  {LIST_ICON_GROUPS.map((group) => (
+                    <div key={group.name}>
+                      <Styles.PaletteHeading role="heading" aria-level={3}>
+                        {group.name}
+                      </Styles.PaletteHeading>
+                      <Styles.PaletteGrid>
+                        {group.icons.map((icon) => (
+                          <Styles.PaletteIcon
+                            key={icon}
+                            type="button"
+                            aria-label={icon}
+                            aria-pressed={list.icon === icon}
+                            onClick={() => chooseIcon(list.id, icon)}
+                          >
+                            {icon}
+                          </Styles.PaletteIcon>
+                        ))}
+                      </Styles.PaletteGrid>
+                    </div>
                   ))}
-                </Styles.PaletteGrid>
+                </Styles.PaletteScroll>
                 <Styles.PaletteFooter>
                   <Styles.Input
                     type="text"
                     autoFocus
                     aria-label={`Any emoji for ${list.name}`}
-                    placeholder="Any emoji, then Enter"
+                    placeholder="Any emoji (⌃⌘Space)"
+                    title="Type any emoji and press Enter. On a Mac, Control + Command + Space opens every emoji."
                     value={text}
                     onChange={(event) => setText(event.target.value)}
                     onKeyDown={(event) => handleIconKey(event, list.id)}
