@@ -1,4 +1,6 @@
-import type { Drawing } from '../../shared/types'
+import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
+import { LINE_TEXT_MAX_LENGTH, MIN_LINE_OPACITY } from '../../shared/limits'
+import type { Drawing, LineStyle } from '../../shared/types'
 import { LINE_COLORS } from '../theme/tokens'
 import * as Styles from './styles'
 
@@ -10,6 +12,102 @@ type LineToolbarProps = {
 }
 
 const WIDTHS = [1, 2, 3, 4]
+const FULL = 100
+const OPACITY_STEP = 5
+
+const STROKES: { style: LineStyle; label: string; dash?: string }[] = [
+  { style: 'solid', label: 'Solid line' },
+  { style: 'dashed', label: 'Dashed line', dash: '4 3' },
+  { style: 'dotted', label: 'Dotted line', dash: '1.5 2.5' },
+]
+
+const withStroke = (line: Drawing, style: LineStyle): Drawing => {
+  const { lineStyle: _old, ...rest } = line
+  return (style === 'solid' ? rest : { ...rest, lineStyle: style }) as Drawing
+}
+
+const withOpacity = (line: Drawing, percent: number): Drawing => {
+  const { opacity: _old, ...rest } = line
+  return (percent >= FULL ? rest : { ...rest, opacity: percent / FULL }) as Drawing
+}
+
+const withPriceShown = (line: Drawing, shown: boolean): Drawing => {
+  if (line.kind !== 'hline') return line
+  const { hidePrice: _old, ...rest } = line
+  return shown ? rest : { ...rest, hidePrice: true as const }
+}
+
+const withText = (line: Drawing, text: string): Drawing => {
+  if (line.kind !== undefined && line.kind !== 'trend' && line.kind !== 'hline') return line
+  const { text: _old, ...rest } = line
+  return (text ? { ...rest, text } : rest) as Drawing
+}
+
+const takesText = (line: Drawing): boolean => line.kind === undefined || line.kind === 'trend' || line.kind === 'hline'
+
+const LineTextField = ({ line, onChange }: { line: Drawing; onChange: (line: Drawing) => void }) => {
+  const saved = 'text' in line ? (line.text ?? '') : ''
+  const [draft, setDraft] = useState(saved)
+  const fieldRef = useRef<HTMLInputElement>(null)
+  const saveRef = useRef<() => void>(() => undefined)
+  const sentRef = useRef(saved)
+
+  const save = () => {
+    const text = draft.trim()
+    if (text === sentRef.current) return
+    sentRef.current = text
+    onChange(withText(line, text))
+  }
+
+  useEffect(() => {
+    saveRef.current = save
+  })
+
+  useEffect(() => {
+    sentRef.current = saved
+  }, [saved])
+
+  useEffect(() => {
+    const saveOnPressElsewhere = (event: PointerEvent) => {
+      if (event.target !== fieldRef.current) saveRef.current()
+    }
+    window.addEventListener('pointerdown', saveOnPressElsewhere, true)
+    return () => window.removeEventListener('pointerdown', saveOnPressElsewhere, true)
+  }, [])
+
+  const handleKey = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') event.currentTarget.blur()
+    if (event.key === 'Escape') setDraft(saved)
+  }
+
+  return (
+    <Styles.LineText
+      ref={fieldRef}
+      type="text"
+      aria-label="Text on the line"
+      title="Text on the line"
+      placeholder="Text"
+      maxLength={LINE_TEXT_MAX_LENGTH}
+      value={draft}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={save}
+      onKeyDown={handleKey}
+    />
+  )
+}
+
+const StrokeIcon = ({ dash }: { dash?: string }) => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+    <path d="M3 10h14" strokeDasharray={dash} />
+  </svg>
+)
+
+const PriceIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">
+    <path d="M2.5 10h6" strokeLinecap="round" />
+    <path d="M10 6.5h5.5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H10L8 10l2-3.5z" strokeLinejoin="round" />
+  </svg>
+)
 
 const ExtendIcon = () => (
   <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
@@ -31,58 +129,126 @@ const TrashIcon = () => (
   </svg>
 )
 
-export const LineToolbar = ({ line, onChange, onDelete, onArm }: LineToolbarProps) => (
-  <Styles.Toolbar role="toolbar" aria-label="Selected line">
-    {LINE_COLORS.map((color) => (
-      <Styles.Swatch
-        key={color}
-        type="button"
-        aria-label={`Color ${color}`}
-        aria-pressed={line.color === color}
-        $color={color}
-        onClick={() => onChange({ ...line, color })}
-      />
-    ))}
-    <Styles.ToolbarDivider />
-    {WIDTHS.map((width) => (
-      <Styles.ToolbarButton
-        key={width}
-        type="button"
-        aria-label={`Width ${width}`}
-        aria-pressed={line.width === width}
-        onClick={() => onChange({ ...line, width })}
-      >
-        <Styles.WidthSample $width={width} />
+const StylePanel = ({ line, onChange }: { line: Drawing; onChange: (line: Drawing) => void }) => {
+  const stroke = line.lineStyle ?? 'solid'
+  const opacity = Math.round((line.opacity ?? 1) * FULL)
+
+  return (
+    <Styles.StylePanel role="group" aria-label="Line style">
+      <Styles.StyleRow>
+        {WIDTHS.map((width) => (
+          <Styles.ToolbarButton
+            key={width}
+            type="button"
+            aria-label={`Width ${width}`}
+            aria-pressed={line.width === width}
+            onClick={() => onChange({ ...line, width })}
+          >
+            <Styles.WidthSample $width={width} />
+          </Styles.ToolbarButton>
+        ))}
+      </Styles.StyleRow>
+      <Styles.StyleRow>
+        {STROKES.map(({ style, label, dash }) => (
+          <Styles.ToolbarButton
+            key={style}
+            type="button"
+            title={label}
+            aria-label={label}
+            aria-pressed={stroke === style}
+            onClick={() => onChange(withStroke(line, style))}
+          >
+            <StrokeIcon dash={dash} />
+          </Styles.ToolbarButton>
+        ))}
+      </Styles.StyleRow>
+      <Styles.StyleRow>
+        <Styles.OpacitySlider
+          type="range"
+          aria-label="Opacity"
+          title="Opacity"
+          min={MIN_LINE_OPACITY * FULL}
+          max={FULL}
+          step={OPACITY_STEP}
+          value={opacity}
+          onChange={(event) => onChange(withOpacity(line, Number(event.target.value)))}
+        />
+        <Styles.OpacityValue aria-hidden="true">{`${opacity}%`}</Styles.OpacityValue>
+      </Styles.StyleRow>
+    </Styles.StylePanel>
+  )
+}
+
+export const LineToolbar = ({ line, onChange, onDelete, onArm }: LineToolbarProps) => {
+  const [styling, setStyling] = useState(false)
+  const dash = STROKES.find(({ style }) => style === (line.lineStyle ?? 'solid'))?.dash
+
+  return (
+    <Styles.Toolbar role="toolbar" aria-label="Selected line">
+      {LINE_COLORS.map((color) => (
+        <Styles.Swatch
+          key={color}
+          type="button"
+          aria-label={`Color ${color}`}
+          aria-pressed={line.color === color}
+          $color={color}
+          onClick={() => onChange({ ...line, color })}
+        />
+      ))}
+      <Styles.ToolbarDivider />
+      <Styles.StyleAnchor>
+        <Styles.ToolbarButton
+          type="button"
+          title="Width, stroke and opacity"
+          aria-label="Line style"
+          aria-expanded={styling}
+          onClick={() => setStyling((open) => !open)}
+        >
+          <StrokeIcon dash={dash} />
+        </Styles.ToolbarButton>
+        {styling && <StylePanel line={line} onChange={onChange} />}
+      </Styles.StyleAnchor>
+      <Styles.ToolbarDivider />
+      {takesText(line) && <LineTextField key={line.id} line={line} onChange={onChange} />}
+      {(line.kind === undefined || line.kind === 'trend') && (
+        <Styles.ToolbarButton
+          type="button"
+          title="Extend right"
+          aria-label="Extend right"
+          aria-pressed={line.extendRight}
+          onClick={() => onChange({ ...line, extendRight: !line.extendRight })}
+        >
+          <ExtendIcon />
+        </Styles.ToolbarButton>
+      )}
+      {line.pane === 'price' && (line.kind === undefined || line.kind === 'trend' || line.kind === 'hline') && (
+        <Styles.ToolbarButton
+          type="button"
+          title="Alert when the price crosses it"
+          aria-label="Alert"
+          aria-pressed={line.alert === true}
+          onClick={() => {
+            if (!line.alert) onArm?.()
+            onChange({ ...line, alert: !line.alert })
+          }}
+        >
+          <BellIcon />
+        </Styles.ToolbarButton>
+      )}
+      {line.kind === 'hline' && (
+        <Styles.ToolbarButton
+          type="button"
+          title="Show the price on the axis"
+          aria-label="Price on the axis"
+          aria-pressed={!line.hidePrice}
+          onClick={() => onChange(withPriceShown(line, line.hidePrice === true))}
+        >
+          <PriceIcon />
+        </Styles.ToolbarButton>
+      )}
+      <Styles.ToolbarButton type="button" title="Delete line" aria-label="Delete line" onClick={onDelete}>
+        <TrashIcon />
       </Styles.ToolbarButton>
-    ))}
-    <Styles.ToolbarDivider />
-    {(line.kind === undefined || line.kind === 'trend') && (
-      <Styles.ToolbarButton
-        type="button"
-        title="Extend right"
-        aria-label="Extend right"
-        aria-pressed={line.extendRight}
-        onClick={() => onChange({ ...line, extendRight: !line.extendRight })}
-      >
-        <ExtendIcon />
-      </Styles.ToolbarButton>
-    )}
-    {line.pane === 'price' && (line.kind === undefined || line.kind === 'trend' || line.kind === 'hline') && (
-      <Styles.ToolbarButton
-        type="button"
-        title="Alert when the price crosses it"
-        aria-label="Alert"
-        aria-pressed={line.alert === true}
-        onClick={() => {
-          if (!line.alert) onArm?.()
-          onChange({ ...line, alert: !line.alert })
-        }}
-      >
-        <BellIcon />
-      </Styles.ToolbarButton>
-    )}
-    <Styles.ToolbarButton type="button" title="Delete line" aria-label="Delete line" onClick={onDelete}>
-      <TrashIcon />
-    </Styles.ToolbarButton>
-  </Styles.Toolbar>
-)
+    </Styles.Toolbar>
+  )
+}

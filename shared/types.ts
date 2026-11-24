@@ -67,6 +67,8 @@ export type PaneId = 'price' | 'rsi'
 
 export type LinePoint = { date: string; value: number }
 
+export type LineStyle = 'solid' | 'dashed' | 'dotted'
+
 export type DrawingBase = {
   id: string
   pane: PaneId
@@ -74,6 +76,8 @@ export type DrawingBase = {
   color: string
   width: number
   pricedAt: string
+  lineStyle?: Exclude<LineStyle, 'solid'>
+  opacity?: number
 }
 
 export type TrendLine = DrawingBase & {
@@ -82,15 +86,20 @@ export type TrendLine = DrawingBase & {
   p2: LinePoint
   extendRight: boolean
   alert?: boolean
+  text?: string
 }
 
-export type HorizontalLine = DrawingBase & { kind: 'hline'; value: number; alert?: boolean }
+export type HorizontalLine = DrawingBase & { kind: 'hline'; value: number; alert?: boolean; hidePrice?: true; text?: string }
 
 export type Channel = DrawingBase & { kind: 'channel'; p1: LinePoint; p2: LinePoint; offset: number }
 
 export type Rectangle = DrawingBase & { kind: 'rect'; p1: LinePoint; p2: LinePoint }
 
 export type Drawing = TrendLine | HorizontalLine | Channel | Rectangle
+
+export type DrawingKind = 'trend' | 'hline' | 'channel' | 'rect'
+
+export type LineLook = Pick<DrawingBase, 'color' | 'width' | 'lineStyle' | 'opacity'> & { hidePrice?: true }
 
 export type SmaConfig = { id: string; length: number; color: string; width: number; kind?: 'ema' }
 
@@ -126,6 +135,7 @@ export type AppState = {
   notes: Record<string, string>
   secondChart: Timeframe | null
   watchlistSort: WatchlistSort | null
+  lineLooks: Partial<Record<DrawingKind, LineLook>>
 }
 
 export const DEFAULT_STATE: AppState = {
@@ -165,4 +175,5 @@ export const DEFAULT_STATE: AppState = {
   notes: {},
   secondChart: null,
   watchlistSort: null,
+  lineLooks: {},
 }

@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
-import type { Channel, Drawing, HorizontalLine, Rectangle, Timeframe, TrendLine } from '../../shared/types'
+import type { Channel, Drawing, DrawingKind, HorizontalLine, LineLook, Rectangle, Timeframe, TrendLine } from '../../shared/types'
 import { type Draft, type PaneGeometry, createDrawingController, isLineVisible } from './drawingController'
+import type { Measure } from './measure'
 
 const geometry: PaneGeometry = {
   toPoint: ({ x, y }) => ({ date: `d${Math.round(x)}`, value: y }),
@@ -40,6 +41,7 @@ type Options = {
   missingPane?: boolean
   weekly?: boolean
   noValues?: boolean
+  looks?: Partial<Record<DrawingKind, LineLook>>
 }
 
 const geometryFor = (options: Options): PaneGeometry | null => {
@@ -52,6 +54,7 @@ const harness = (options: Options = {}) => {
   const record = {
     lines: (options.lines ?? []) as TrendLine[],
     draft: null as Draft | null,
+    measure: null as Measure | null,
     selected: null as string | null,
     toolDone: 0,
     emitted: 0,
@@ -72,6 +75,9 @@ const harness = (options: Options = {}) => {
     onDraft: (draft) => {
       record.draft = draft
     },
+    onMeasure: (measure) => {
+      record.measure = measure
+    },
     onToolDone: () => {
       record.toolDone += 1
     },
@@ -80,7 +86,7 @@ const harness = (options: Options = {}) => {
       return `id${counter}`
     },
     priceBasis: () => '2020-08-31',
-    defaults: { color: '#2962FF', width: 2 },
+    lookFor: (kind) => options.looks?.[kind] ?? { color: '#2962FF', width: 2 },
   })
   return { record, controller, options }
 }
@@ -688,4 +694,70 @@ test('Should not arm an alert again when a drag is cancelled after it was disarm
   }) as TrendLine[]
   controller.cancel()
   expect(record.lines).toEqual([hline()])
+})
+
+test('Should draw each new shape with the look remembered for its kind', () => {
+  const white = { color: '#FFFFFF', width: 1, lineStyle: 'dashed' as const, opacity: 0.5, hidePrice: true as const }
+  const red = { color: '#F23645', width: 3, lineStyle: 'dotted' as const }
+  const { record, controller } = harness({ looks: { hline: white, trend: red } })
+  controller.setTool('hline')
+  controller.pointerDown('price', { x: 40, y: 90 })
+  controller.setTool('trendline')
+  controller.pointerDown('price', { x: 10, y: 10 })
+  controller.pointerDown('price', { x: 50, y: 30 })
+  controller.setTool('rect')
+  controller.pointerDown('price', { x: 10, y: 10 })
+  controller.pointerDown('price', { x: 50, y: 30 })
+  const [hline, trend, rect] = record.lines as Drawing[]
+  expect(hline).toMatchObject({ kind: 'hline', ...white })
+  expect(trend).toMatchObject(red)
+  expect(trend).not.toHaveProperty('hidePrice')
+  expect(rect).toMatchObject({ kind: 'rect', color: '#2962FF', width: 2 })
+  expect(rect).not.toHaveProperty('lineStyle')
+})
+
+test('Should measure between two clicks, keep the measure on screen and go back to the cursor without drawing anything', () => {
+  const { record, controller } = harness()
+  controller.setTool('measure')
+  expect(controller.pointerDown('price', { x: 10, y: 100 })).toBe(true)
+  controller.pointerUp('price', { x: 10, y: 100 })
+  expect(controller.pointerMove('price', { x: 40, y: 130 })).toBe('crosshair')
+  expect(record.measure).toEqual({ pane: 'price', p1: { date: 'd10', value: 100 }, p2: { date: 'd40', value: 130 } })
+  expect(controller.pointerDown('price', { x: 60, y: 150 })).toBe(true)
+  expect(record.measure).toEqual({ pane: 'price', p1: { date: 'd10', value: 100 }, p2: { date: 'd60', value: 150 } })
+  expect(record.toolDone).toBe(1)
+  expect(record.lines).toEqual([])
+  controller.pointerMove('price', { x: 90, y: 190 })
+  expect(record.measure?.p2).toEqual({ date: 'd60', value: 150 })
+})
+
+test('Should measure by dragging and releasing', () => {
+  const { record, controller } = harness()
+  controller.setTool('measure')
+  controller.pointerDown('price', { x: 10, y: 100 })
+  controller.pointerMove('price', { x: 50, y: 80 })
+  controller.pointerUp('price', { x: 50, y: 80 })
+  expect(record.measure).toEqual({ pane: 'price', p1: { date: 'd10', value: 100 }, p2: { date: 'd50', value: 80 } })
+  expect(record.toolDone).toBe(1)
+})
+
+test('Should clear a measure with the next click or with Escape', () => {
+  const { record, controller } = harness()
+  controller.setTool('measure')
+  controller.pointerDown('price', { x: 10, y: 100 })
+  controller.pointerDown('price', { x: 60, y: 150 })
+  controller.setTool('cursor')
+  controller.pointerDown('price', { x: 300, y: 300 })
+  expect(record.measure).toBeNull()
+  controller.setTool('measure')
+  controller.pointerDown('price', { x: 10, y: 100 })
+  controller.key('Escape')
+  expect(record.measure).toBeNull()
+})
+
+test('Should measure only on the price pane', () => {
+  const { record, controller } = harness()
+  controller.setTool('measure')
+  expect(controller.pointerDown('rsi', { x: 10, y: 50 })).toBe(false)
+  expect(record.measure).toBeNull()
 })

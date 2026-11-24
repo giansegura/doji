@@ -205,6 +205,12 @@ const timeAxisPixels = async (): Promise<string> => {
   return image.toString('base64')
 }
 
+const regionShot = async (box: Box): Promise<string> => {
+  await page.mouse.move(700, 10)
+  await page.waitForTimeout(400)
+  return (await page.screenshot({ clip: box })).toString('base64')
+}
+
 const chooseTheme = async (label: 'Doji' | 'Midnight' | 'Light'): Promise<void> => {
   await button('Theme').click()
   await page.getByRole('menuitemradio', { name: label }).click()
@@ -451,10 +457,16 @@ await step('cambia color, grosor y extensión de la línea', async () => {
   const middle = at(price, 0.45, 0.4)
   await page.mouse.click(middle[0] + 60, middle[1] + 40)
   await button('Color #F23645').click()
+  await button('Line style').click()
   await button('Width 4').click()
   await button('Extend right').click()
   const [line] = await linesOf('AAPL')
   check(line.color === '#F23645' && line.width === 4 && line.extendRight, 'el estilo no se guardó')
+  const remembered = async () => JSON.stringify((await savedState()).lineLooks.trend)
+  check((await remembered()) === JSON.stringify({ color: '#F23645', width: 4 }), 'no se recordó el aspecto de la línea de tendencia')
+  await button('Color #2962FF').click()
+  await button('Width 2').click()
+  check((await remembered()) === JSON.stringify({ color: '#2962FF', width: 2 }), 'no se recordó el aspecto de vuelta')
 })
 
 await step('borra la línea del precio con Supr', async () => {
@@ -604,6 +616,92 @@ await step('una línea horizontal se pone con un clic y se arrastra', async () =
   check((await button('Auto').count()) === 0, 'arrastrar la línea horizontal soltó el ajuste automático')
   await page.keyboard.press('Delete')
   check((await levels()).length === 0, 'la línea horizontal no se borró')
+})
+
+await step('una línea horizontal se deja blanca, fina, discontinua, tenue y sin precio en el eje', async () => {
+  const { price } = await panes()
+  const levels = async () => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'hline')
+  const y = price.y + price.height * 0.3
+  const axis = { x: price.x + price.width - 58, y: y - 5, width: 50, height: 10 }
+  await button('Horizontal line').click()
+  await page.mouse.click(price.x + price.width * 0.4, y)
+  await page.mouse.click(price.x + price.width * 0.15, y)
+  await page.getByRole('toolbar', { name: 'Selected line' }).waitFor({ timeout: 2000 })
+  await button('Color #FFFFFF').click()
+  await button('Line style').click()
+  await button('Width 1').click()
+  await button('Dashed line').click()
+  await page.getByRole('slider', { name: 'Opacity' }).fill('50')
+  await page.mouse.move(700, 10)
+  await page.waitForTimeout(300)
+  check(await hasColor(axis, [255, 255, 255], EXACT_TOLERANCE), 'el precio de la línea blanca no se ve en el eje')
+  await button('Price on the axis').click()
+  await page.mouse.move(700, 10)
+  await page.waitForTimeout(300)
+  const [line] = await levels()
+  check(
+    line?.color === '#FFFFFF' && line.width === 1 && line.lineStyle === 'dashed' && line.opacity === 0.5 && line.hidePrice === true,
+    `la línea no guardó su aspecto: ${JSON.stringify(line)}`,
+  )
+  check(!(await hasColor(axis, [255, 255, 255], EXACT_TOLERANCE)), 'el precio sigue en el eje tras ocultarlo')
+  await page.getByRole('textbox', { name: 'Text on the line' }).fill('R1')
+  await page.keyboard.press('Enter')
+  const [named] = await levels()
+  check(named?.kind === 'hline' && named.text === 'R1', `la línea no guardó su texto: ${JSON.stringify(named)}`)
+  await page.mouse.click(price.x + price.width * 0.15, y)
+  await page.keyboard.press('Delete')
+  check((await levels()).length === 0, 'la línea blanca no se borró')
+})
+
+await step('una línea nueva sale con el último aspecto que se dio a una de su tipo', async () => {
+  const { price } = await panes()
+  const levels = async () => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'hline')
+  const y = price.y + price.height * 0.45
+  await button('Horizontal line').click()
+  await page.mouse.click(price.x + price.width * 0.4, y)
+  const [fresh] = await levels()
+  check(
+    fresh?.kind === 'hline' &&
+      fresh.color === '#FFFFFF' &&
+      fresh.width === 1 &&
+      fresh.lineStyle === 'dashed' &&
+      fresh.opacity === 0.5 &&
+      fresh.hidePrice === true &&
+      fresh.text === undefined,
+    `la línea nueva no recordó el aspecto: ${JSON.stringify(fresh)}`,
+  )
+  await page.mouse.click(price.x + price.width * 0.15, y)
+  await page.getByRole('toolbar', { name: 'Selected line' }).waitFor({ timeout: 2000 })
+  await button('Color #2962FF').click()
+  await button('Line style').click()
+  await button('Width 2').click()
+  await button('Solid line').click()
+  await page.getByRole('slider', { name: 'Opacity' }).fill('100')
+  await button('Price on the axis').click()
+  check(
+    JSON.stringify((await savedState()).lineLooks.hline) === JSON.stringify({ color: '#2962FF', width: 2 }),
+    `no se recordó el aspecto de vuelta: ${JSON.stringify((await savedState()).lineLooks)}`,
+  )
+  await page.keyboard.press('Delete')
+  check((await levels()).length === 0, 'la línea de prueba no se borró')
+})
+
+await step('la regla mide entre dos puntos sin guardar nada y se quita con Esc', async () => {
+  const { price } = await panes()
+  const before = (await drawingsOf('AAPL')).length
+  const area = { x: price.x + price.width * 0.25, y: price.y + price.height * 0.2, width: price.width * 0.4, height: price.height * 0.6 }
+  const clean = await regionShot(area)
+  await button('Measure').click()
+  await page.mouse.click(...at(price, 0.3, 0.6))
+  await page.mouse.click(...at(price, 0.6, 0.3))
+  check((await button('Cursor').getAttribute('aria-pressed')) === 'true', 'la regla no volvió al cursor')
+  check((await drawingsOf('AAPL')).length === before, 'la regla guardó un dibujo')
+  check((await regionShot(area)) !== clean, 'la medida no se ve en el gráfico')
+  await page.keyboard.press('Escape')
+  check((await regionShot(area)) === clean, 'la medida sigue en el gráfico tras Esc')
+  await page.keyboard.press('Alt+m')
+  check((await button('Measure').getAttribute('aria-pressed')) === 'true', 'Alt+M no armó la regla')
+  await page.keyboard.press('Escape')
 })
 
 await step('un rectángulo se dibuja con dos clics y se cambia por una esquina', async () => {

@@ -5,22 +5,40 @@ import type {
   ISeriesPrimitiveAxisView,
   Time,
 } from 'lightweight-charts'
+import { textOn } from '../theme/alpha'
+import type { LineStyle } from '../../shared/types'
 import type { ShapeView } from './drawingViews'
-import { HANDLE_RADIUS } from './lineGeometry'
+import { HANDLE_RADIUS, type XY } from './lineGeometry'
 
 export type DrawingsPrimitive = ISeriesPrimitive<Time> & { redraw: () => void }
+
+export type MeasureView = { from: XY; to: XY; color: string; lines: [string, string] }
+
+type Size = { width: number; height: number }
 
 const HANDLE_BORDER = 1.5
 const FULL_CIRCLE = Math.PI * 2
 const FILL_ALPHA = 0.12
-const LABEL_TEXT = '#FFFFFF'
 const ALERT_RING = 6
 const ALERT_DOT = 2.5
+const MEASURE_FILL = 0.15
+const ARROW_HEAD = 6
+const LABEL_GAP = 8
+const LABEL_PADDING = 8
+const LABEL_LINE = 16
+const LABEL_HEIGHT = LABEL_LINE * 2 + LABEL_GAP
+const TEXT_FONT = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+
+const DASHES: Record<LineStyle, (width: number) => number[]> = {
+  solid: () => [],
+  dashed: (width) => [width * 5, width * 4],
+  dotted: (width) => [width, width * 2],
+}
 
 const fillArea = (context: CanvasRenderingContext2D, view: ShapeView): void => {
   if (!view.fill) return
   const [first, ...rest] = view.fill
-  context.globalAlpha = FILL_ALPHA
+  context.globalAlpha = FILL_ALPHA * view.opacity
   context.fillStyle = view.color
   context.beginPath()
   context.moveTo(first.x, first.y)
@@ -31,15 +49,66 @@ const fillArea = (context: CanvasRenderingContext2D, view: ShapeView): void => {
 }
 
 const strokeSegments = (context: CanvasRenderingContext2D, view: ShapeView): void => {
-  context.lineCap = 'round'
+  context.lineCap = view.lineStyle === 'solid' ? 'round' : 'butt'
   context.strokeStyle = view.color
   context.lineWidth = view.width
+  context.globalAlpha = view.opacity
+  context.setLineDash(DASHES[view.lineStyle](view.width))
   context.beginPath()
   view.segments.forEach(([from, to]) => {
     context.moveTo(from.x, from.y)
     context.lineTo(to.x, to.y)
   })
   context.stroke()
+  context.globalAlpha = 1
+  context.setLineDash([])
+}
+
+const writeText = (context: CanvasRenderingContext2D, view: ShapeView): void => {
+  if (!view.text) return
+  context.font = TEXT_FONT
+  context.textAlign = view.text.align
+  context.textBaseline = 'bottom'
+  context.fillStyle = view.color
+  context.fillText(view.text.value, view.text.x, view.text.y)
+}
+
+const arrow = (context: CanvasRenderingContext2D, from: XY, to: XY): void => {
+  const angle = Math.atan2(to.y - from.y, to.x - from.x)
+  context.moveTo(from.x, from.y)
+  context.lineTo(to.x, to.y)
+  ;[-1, 1].forEach((side) => {
+    context.moveTo(to.x, to.y)
+    context.lineTo(to.x - ARROW_HEAD * Math.cos(angle + (side * Math.PI) / 6), to.y - ARROW_HEAD * Math.sin(angle + (side * Math.PI) / 6))
+  })
+}
+
+const drawMeasure = (context: CanvasRenderingContext2D, measure: MeasureView, size: Size): void => {
+  const { from, to, color, lines } = measure
+  const left = Math.min(from.x, to.x)
+  const top = Math.min(from.y, to.y)
+  const bottom = Math.max(from.y, to.y)
+  const middle = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 }
+  context.globalAlpha = MEASURE_FILL
+  context.fillStyle = color
+  context.fillRect(left, top, Math.abs(to.x - from.x), bottom - top)
+  context.globalAlpha = 1
+  context.strokeStyle = color
+  context.lineWidth = 1
+  context.beginPath()
+  arrow(context, { x: middle.x, y: from.y }, { x: middle.x, y: to.y })
+  arrow(context, { x: from.x, y: middle.y }, { x: to.x, y: middle.y })
+  context.stroke()
+  context.font = TEXT_FONT
+  const width = Math.max(...lines.map((line) => context.measureText(line).width)) + LABEL_PADDING * 2
+  const below = bottom + LABEL_GAP
+  const y = below + LABEL_HEIGHT <= size.height ? below : top - LABEL_GAP - LABEL_HEIGHT
+  context.fillStyle = color
+  context.fillRect(middle.x - width / 2, y, width, LABEL_HEIGHT)
+  context.fillStyle = textOn(color)
+  context.textAlign = 'center'
+  context.textBaseline = 'top'
+  lines.forEach((line, index) => context.fillText(line, middle.x, y + LABEL_GAP / 2 + index * LABEL_LINE))
 }
 
 const drawHandles = (context: CanvasRenderingContext2D, view: ShapeView, handleFill: string): void => {
@@ -70,20 +139,30 @@ const drawAlert = (context: CanvasRenderingContext2D, view: ShapeView, handleFil
   context.fill()
 }
 
-export const createDrawingsPrimitive = (getViews: () => ShapeView[], getHandleFill: () => string): DrawingsPrimitive => {
+export const createDrawingsPrimitive = (
+  getViews: () => ShapeView[],
+  getHandleFill: () => string,
+  getMeasure: () => MeasureView | null = () => null,
+): DrawingsPrimitive => {
   let requestUpdate: (() => void) | null = null
 
   const renderer: IPrimitivePaneRenderer = {
     draw: (target) => {
-      target.useMediaCoordinateSpace(({ context }) => {
+      target.useMediaCoordinateSpace(({ context, mediaSize }) => {
         getViews().forEach((view) => {
           context.save()
           fillArea(context, view)
           strokeSegments(context, view)
+          writeText(context, view)
           drawAlert(context, view, getHandleFill())
           drawHandles(context, view, getHandleFill())
           context.restore()
         })
+        const measure = getMeasure()
+        if (!measure) return
+        context.save()
+        drawMeasure(context, measure, mediaSize)
+        context.restore()
       })
     },
   }
@@ -93,7 +172,7 @@ export const createDrawingsPrimitive = (getViews: () => ShapeView[], getHandleFi
   const axisLabels = (): ISeriesPrimitiveAxisView[] =>
     getViews().flatMap(({ label, color }) =>
       label
-        ? [{ coordinate: () => label.y, text: () => label.text, textColor: () => LABEL_TEXT, backColor: () => color }]
+        ? [{ coordinate: () => label.y, text: () => label.text, textColor: () => textOn(color), backColor: () => color }]
         : [],
     )
 

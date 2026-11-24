@@ -3,7 +3,9 @@ import {
   BAND_MAX_MULTIPLIER,
   BAND_MIN_MULTIPLIER,
   LIST_NAME_MAX_LENGTH,
+  LINE_TEXT_MAX_LENGTH,
   MAX_LISTS,
+  MIN_LINE_OPACITY,
   NOTE_MAX_LENGTH,
   MAX_SMAS,
   SMA_COLORS,
@@ -17,7 +19,9 @@ import {
   type AppState,
   type ChartSettings,
   DEFAULT_STATE,
+  type DrawingKind,
   type Indicators,
+  type LineLook,
   type LinePoint,
   type SmaConfig,
   type ListItem,
@@ -126,6 +130,45 @@ const toWidth = (value: unknown): number => {
   return width !== null && width >= 1 && width <= 4 ? width : DEFAULT_LINE_WIDTH
 }
 
+const toLineStyle = (value: unknown): Pick<DrawingBase, 'lineStyle'> =>
+  value === 'dashed' || value === 'dotted' ? { lineStyle: value } : {}
+
+const toOpacity = (value: unknown): Pick<DrawingBase, 'opacity'> => {
+  const opacity = asFinite(value)
+  return opacity !== null && opacity >= MIN_LINE_OPACITY && opacity < 1 ? { opacity } : {}
+}
+
+const toLineText = (value: unknown): { text?: string } => {
+  const text = typeof value === 'string' ? value.trim().slice(0, LINE_TEXT_MAX_LENGTH) : ''
+  return text ? { text } : {}
+}
+
+const DRAWING_KINDS: DrawingKind[] = ['trend', 'hline', 'channel', 'rect']
+
+const toLook = (raw: unknown, kind: DrawingKind): LineLook | null => {
+  const item = asRecord(raw)
+  const color = asText(item.color)
+  const width = asFinite(item.width)
+  if (color === null || !HEX_COLOR.test(color) || width === null || !Number.isInteger(width) || width < 1 || width > 4) return null
+  return {
+    color,
+    width,
+    ...toLineStyle(item.lineStyle),
+    ...toOpacity(item.opacity),
+    ...(kind === 'hline' && item.hidePrice === true ? { hidePrice: true as const } : {}),
+  }
+}
+
+const toLineLooks = (raw: unknown): AppState['lineLooks'] => {
+  const source = asRecord(raw)
+  return Object.fromEntries(
+    DRAWING_KINDS.flatMap((kind) => {
+      const look = toLook(source[kind], kind)
+      return look ? [[kind, look]] : []
+    }),
+  )
+}
+
 const toBase = (item: Raw): DrawingBase | null => {
   const id = asText(item.id)
   if (!id || (item.pane !== 'price' && item.pane !== 'rsi')) return null
@@ -136,6 +179,8 @@ const toBase = (item: Raw): DrawingBase | null => {
     color: asText(item.color) ?? DEFAULT_LINE_COLOR,
     width: toWidth(item.width),
     pricedAt: asDate(item.pricedAt) ?? NEVER_ADJUST,
+    ...toLineStyle(item.lineStyle),
+    ...toOpacity(item.opacity),
   }
 }
 
@@ -148,12 +193,14 @@ const toDrawing = (raw: unknown): Drawing | null => {
   const offset = asFinite(item.offset)
   if (!base) return null
   const alert = item.alert === true ? { alert: true as const } : {}
-  if (item.kind === 'hline') return value === null ? null : { ...base, kind: 'hline', value, ...alert }
+  const hidePrice = item.hidePrice === true ? { hidePrice: true as const } : {}
+  const text = toLineText(item.text)
+  if (item.kind === 'hline') return value === null ? null : { ...base, kind: 'hline', value, ...alert, ...hidePrice, ...text }
   if (!p1 || !p2) return null
   if (item.kind === 'channel') return offset === null ? null : { ...base, kind: 'channel', p1, p2, offset }
   if (item.kind === 'rect') return { ...base, kind: 'rect', p1, p2 }
   if (item.kind !== undefined && item.kind !== 'trend') return null
-  return { ...base, p1, p2, extendRight: asBoolean(item.extendRight, false), ...alert }
+  return { ...base, p1, p2, extendRight: asBoolean(item.extendRight, false), ...alert, ...text }
 }
 
 const toLines = (raw: unknown): Record<string, Drawing[]> =>
@@ -292,5 +339,6 @@ export const normalizeState = (raw: unknown): AppState => {
     notes: toNotes(source.notes),
     secondChart: asTimeframe(source.secondChart),
     watchlistSort: toSort(source.watchlistSort),
+    lineLooks: toLineLooks(source.lineLooks),
   }
 }

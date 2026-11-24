@@ -267,6 +267,25 @@ test('Should complete the style of the new drawings like it does for lines', () 
   ])
 })
 
+test('Should keep the dash, the opacity and the hidden price of a line', () => {
+  const styled = { ...hline, lineStyle: 'dashed', opacity: 0.45, hidePrice: true }
+  const dotted = { ...rect, lineStyle: 'dotted', opacity: 0.8 }
+  expect(normalizeState({ lines: { KO: [styled, dotted] } }).lines.KO).toEqual([styled, dotted])
+})
+
+test('Should leave a line solid, fully opaque and with its price when those settings cannot be read', () => {
+  const odd = { ...hline, lineStyle: 'wavy', opacity: 7, hidePrice: 'yes' }
+  const faint = { ...hline, id: 'f', opacity: 0 }
+  const plain = { ...hline, id: 'p', lineStyle: 'solid', opacity: 1, hidePrice: false }
+  const onTrend = { ...validLine, hidePrice: true }
+  expect(normalizeState({ lines: { KO: [odd, faint, plain, onTrend] } }).lines.KO).toEqual([
+    hline,
+    { ...hline, id: 'f' },
+    { ...hline, id: 'p' },
+    validLine,
+  ])
+})
+
 test('Should keep a trend line that says it is one, without the mark', () => {
   expect(normalizeState({ lines: { KO: [{ ...validLine, kind: 'trend' }] } }).lines.KO).toEqual([validLine])
 })
@@ -392,4 +411,40 @@ test('Should keep the icon of a watchlist and drop one that is not valid', () =>
   }).watchlists
   expect(lists.map((list) => list.icon)).toEqual(['🏦', undefined, undefined])
   expect('icon' in lists[1]).toBe(false)
+})
+
+test('Should keep the look remembered for each kind of drawing and drop what it cannot read', () => {
+  const lineLooks = {
+    hline: { color: '#FFFFFF', width: 1, lineStyle: 'dashed', opacity: 0.5, hidePrice: true },
+    trend: { color: '#F23645', width: 3, hidePrice: true },
+    channel: { color: 'blue', width: 9 },
+    circle: { color: '#FFFFFF', width: 1 },
+  }
+  expect(normalizeState({ lineLooks }).lineLooks).toEqual({
+    hline: { color: '#FFFFFF', width: 1, lineStyle: 'dashed', opacity: 0.5, hidePrice: true },
+    trend: { color: '#F23645', width: 3 },
+  })
+  expect(normalizeState({}).lineLooks).toEqual({})
+})
+
+test('Should keep the text of a line, trimmed and no longer than sixty characters', () => {
+  const long = 'x'.repeat(80)
+  const out = normalizeState({
+    lines: {
+      KO: [
+        { ...hline, text: '  Soporte semanal  ' },
+        { ...hline, id: 'l', text: long },
+        { ...hline, id: 'e', text: '   ' },
+        { ...validLine, text: 'R1' },
+        { ...rect, text: 'caja' },
+      ],
+    },
+  }).lines.KO
+  expect(out.map((drawing) => ('text' in drawing ? drawing.text : undefined))).toEqual([
+    'Soporte semanal',
+    'x'.repeat(60),
+    undefined,
+    'R1',
+    undefined,
+  ])
 })

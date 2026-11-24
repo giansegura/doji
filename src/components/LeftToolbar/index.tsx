@@ -44,12 +44,20 @@ const RectangleIcon = () => (
   </svg>
 )
 
+const RulerIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">
+    <path d="M4.5 13.5l9-9 4 4-9 9-4-4z" strokeLinejoin="round" />
+    <path d="M7.5 10.5l1.6 1.6M10 8l1.6 1.6M12.5 5.5l1.6 1.6" strokeLinecap="round" />
+  </svg>
+)
+
 const TOOLS: { tool: Tool; label: string; icon: ReactNode }[] = [
   { tool: 'cursor', label: 'Cursor', icon: <CursorIcon /> },
   { tool: 'trendline', label: 'Trend line', icon: <TrendLineIcon /> },
   { tool: 'hline', label: 'Horizontal line', icon: <HorizontalLineIcon /> },
   { tool: 'channel', label: 'Parallel channel', icon: <ChannelIcon /> },
   { tool: 'rect', label: 'Rectangle', icon: <RectangleIcon /> },
+  { tool: 'measure', label: 'Measure', icon: <RulerIcon /> },
 ]
 
 export const LeftToolbar = ({ tool, onTool }: LeftToolbarProps) => (

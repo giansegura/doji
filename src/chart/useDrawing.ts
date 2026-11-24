@@ -1,6 +1,7 @@
 import type { Logical } from 'lightweight-charts'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Drawing, PaneId, Timeframe } from '../../shared/types'
+import type { Drawing, DrawingKind, LineLook, PaneId, Timeframe } from '../../shared/types'
+import { kindOf, withLook } from '../domain/lineLooks'
 import { newId } from '../domain/newId'
 import { isTyping } from '../domain/typing'
 import type { Tool } from '../state/appReducer'
@@ -12,7 +13,8 @@ import {
   isLineVisible,
 } from './drawingController'
 import { DRAFT_ID, type ShapeView, draftDrawing, viewOf } from './drawingViews'
-import { type DrawingsPrimitive, createDrawingsPrimitive } from './drawingsPrimitive'
+import { type DrawingsPrimitive, type MeasureView, createDrawingsPrimitive } from './drawingsPrimitive'
+import { type Measure, measureLines, readMeasure } from './measure'
 import { createPaneGeometry } from './paneGeometry'
 import { type PaneBox, createPointerSession } from './pointerSession'
 import type { ChartHandles } from './useChart'
@@ -28,6 +30,8 @@ type UseDrawingArgs = {
   onLinesChange: (lines: Drawing[]) => void
   onVerticalDrag: (pane: PaneId) => void
   defaultColor: string
+  looks: Partial<Record<DrawingKind, LineLook>>
+  measureColors: { up: string; down: string }
   handleFill: string
   priceBasis: string
 }
@@ -42,6 +46,7 @@ export const useDrawing = (args: UseDrawingArgs) => {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const latest = useRef(args)
   const draftRef = useRef<Draft | null>(null)
+  const measureRef = useRef<Measure | null>(null)
   const selectedRef = useRef<string | null>(null)
   const primitivesRef = useRef<DrawingsPrimitive[]>([])
   const container = handles?.container ?? null
@@ -49,6 +54,9 @@ export const useDrawing = (args: UseDrawingArgs) => {
   const rsi = handles?.rsi ?? null
 
   const [tools] = useState(() => {
+    const lookFor = (kind: DrawingKind): LineLook =>
+      latest.current.looks[kind] ?? { color: latest.current.defaultColor, width: DEFAULT_WIDTH }
+
     const redraw = () => primitivesRef.current.forEach((primitive) => primitive.redraw())
 
     const seriesFor = (pane: PaneId) => (pane === 'price' ? latest.current.handles?.main : latest.current.handles?.rsi) ?? null
@@ -76,10 +84,24 @@ export const useDrawing = (args: UseDrawingArgs) => {
         (line) => line.pane === pane && isLineVisible(line, current.timeframe, current.rsiVisible),
       )
       const style = { timeframe: current.timeframe, color: current.defaultColor, width: DEFAULT_WIDTH, pricedAt: current.priceBasis }
-      const drafted = draft && draft.pane === pane ? [draftDrawing(draft, style)] : []
+      const drafted = draft && draft.pane === pane ? [draftDrawing(draft, style)].map((shape) => withLook(shape, lookFor(kindOf(shape)))) : []
       return [...saved, ...drafted]
         .map((drawing) => viewOf(drawing, geometry, drawing.id === selectedRef.current || drawing.id === DRAFT_ID, current.symbol))
         .filter(notNull)
+    }
+
+    const measureFor = (pane: PaneId): MeasureView | null => {
+      const current = latest.current
+      const measuring = measureRef.current
+      const geometry = measuring && measuring.pane === pane ? geometryFor(pane) : null
+      const from = measuring && geometry ? geometry.toXY(measuring.p1) : null
+      const to = measuring && geometry ? geometry.toXY(measuring.p2) : null
+      const timeIndex = current.handles?.timeIndex
+      if (!measuring || !from || !to || !timeIndex) return null
+      const bars = timeIndex.dateToIndex(measuring.p2.date) - timeIndex.dateToIndex(measuring.p1.date)
+      const reading = readMeasure(measuring.p1, measuring.p2, bars)
+      const color = reading.change >= 0 ? current.measureColors.up : current.measureColors.down
+      return { from, to, color, lines: measureLines(reading, current.symbol) }
     }
 
     const measure = (pane: PaneId): PaneBox | null => {
@@ -109,13 +131,17 @@ export const useDrawing = (args: UseDrawingArgs) => {
         draftRef.current = draft
         redraw()
       },
+      onMeasure: (next) => {
+        measureRef.current = next
+        redraw()
+      },
       onToolDone: () => latest.current.onToolDone(),
       newId,
       priceBasis: () => latest.current.priceBasis,
-      defaults: { color: latest.current.defaultColor, width: DEFAULT_WIDTH },
+      lookFor,
     })
 
-    return { controller, redraw, viewsFor, measure }
+    return { controller, redraw, viewsFor, measureFor, measure }
   })
 
   useEffect(() => {
@@ -135,7 +161,7 @@ export const useDrawing = (args: UseDrawingArgs) => {
     if (!main) return undefined
     const fill = () => latest.current.handleFill
     const attachments = [
-      { series: main, primitive: createDrawingsPrimitive(() => tools.viewsFor('price'), fill) },
+      { series: main, primitive: createDrawingsPrimitive(() => tools.viewsFor('price'), fill, () => tools.measureFor('price')) },
       ...(rsi ? [{ series: rsi, primitive: createDrawingsPrimitive(() => tools.viewsFor('rsi'), fill) }] : []),
     ]
     attachments.forEach(({ series, primitive }) => series.attachPrimitive(primitive))

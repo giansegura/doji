@@ -1,6 +1,6 @@
 import { type RefObject, useState } from 'react'
 import { displaySymbol } from '../../../shared/symbols'
-import type { ChartSettings, History, Indicators, Timeframe, Drawing } from '../../../shared/types'
+import type { ChartSettings, Drawing, DrawingKind, History, Indicators, LineLook, Timeframe } from '../../../shared/types'
 import { ChartView } from '../../chart/ChartView'
 import type { LivePrice } from '../../domain/liveBar'
 import type { Tool } from '../../state/appReducer'
@@ -20,6 +20,8 @@ type ChartAreaProps = {
   lines: Drawing[]
   tool: Tool
   onLinesChange: (lines: Drawing[]) => void
+  looks: Partial<Record<DrawingKind, LineLook>>
+  onLook: (kind: DrawingKind, look: LineLook) => void
   onToolDone: () => void
   onRetry: () => void
 }
@@ -44,6 +46,8 @@ export const ChartArea = ({
   lines,
   tool,
   onLinesChange,
+  looks,
+  onLook,
   onToolDone,
   onRetry,
 }: ChartAreaProps) => {
@@ -83,6 +87,8 @@ export const ChartArea = ({
         lines={loading ? NO_LINES : lines}
         tool={loading ? 'cursor' : tool}
         onLinesChange={loading ? ignore : onLinesChange}
+        looks={looks}
+        onLook={loading ? ignore : onLook}
         onToolDone={loading ? ignore : onToolDone}
       />
       {loading && <Styles.Veil role="status">{`Loading ${displaySymbol(symbol)}…`}</Styles.Veil>}

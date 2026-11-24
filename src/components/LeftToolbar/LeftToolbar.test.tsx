@@ -34,3 +34,12 @@ test('Should mark whichever drawing tool is armed', () => {
   expect(screen.getByRole('button', { name: 'Parallel channel' }).getAttribute('aria-pressed')).toBe('true')
   expect(screen.getByRole('button', { name: 'Trend line' }).getAttribute('aria-pressed')).toBe('false')
 })
+
+test('Should offer the ruler to measure and mark it while armed', async () => {
+  const onTool = vi.fn()
+  renderWithTheme(<LeftToolbar tool="measure" onTool={onTool} />)
+  const ruler = screen.getByRole('button', { name: 'Measure' })
+  expect(ruler.getAttribute('aria-pressed')).toBe('true')
+  await userEvent.setup().click(ruler)
+  expect(onTool).toHaveBeenCalledWith('measure')
+})

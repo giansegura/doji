@@ -25,6 +25,35 @@ test('Should label a horizontal line with its level on the price axis', () => {
   expect(viewOf(hline, geometry, false)?.label).toEqual({ y: 120.5, text: '120.50' })
 })
 
+test('Should paint a drawing solid and fully opaque unless it says otherwise', () => {
+  expect(viewOf(trend, geometry, false)).toMatchObject({ lineStyle: 'solid', opacity: 1 })
+  expect(viewOf({ ...trend, lineStyle: 'dashed', opacity: 0.5 }, geometry, false)).toMatchObject({ lineStyle: 'dashed', opacity: 0.5 })
+})
+
+test('Should leave the price axis alone for a horizontal line that hides its price', () => {
+  expect(viewOf({ ...hline, hidePrice: true } as Drawing, geometry, false)?.label).toBeNull()
+})
+
+test('Should write the text of a horizontal line above it at the right, clear of its alert mark', () => {
+  expect(viewOf({ ...hline, text: 'R1' } as Drawing, geometry, false)?.text).toEqual({ x: 492, y: 115.5, value: 'R1', align: 'right' })
+  expect(viewOf({ ...hline, text: 'R1', alert: true } as Drawing, geometry, false)?.text).toEqual({
+    x: 468,
+    y: 115.5,
+    value: 'R1',
+    align: 'right',
+  })
+})
+
+test('Should write the text of a trend line above its middle and nothing for a line without text', () => {
+  expect(viewOf({ ...trend, text: 'Tendencia' } as Drawing, geometry, false)?.text).toEqual({
+    x: 150,
+    y: 60,
+    value: 'Tendencia',
+    align: 'center',
+  })
+  expect(viewOf(trend, geometry, false)?.text).toBeNull()
+})
+
 test('Should paint nothing where the pane cannot place the drawing', () => {
   expect(viewOf(hline, { ...geometry, toY: () => null }, false)).toBeNull()
 })

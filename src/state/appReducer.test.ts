@@ -335,3 +335,17 @@ test('Should copy the icon when duplicating a watchlist', () => {
   const copied = appReducer(withIcon, { type: 'duplicateWatchlist', id, newId: 'copia' })
   expect(copied.watchlists.find((list) => list.id === 'copia')?.icon).toBe('🏦')
 })
+
+test('Should remember the look of each kind of drawing apart', () => {
+  const look = { color: '#FFFFFF', width: 1, lineStyle: 'dashed' as const, opacity: 0.5, hidePrice: true as const }
+  const remembered = appReducer(base, { type: 'rememberLook', kind: 'hline', look })
+  expect(remembered.lineLooks).toEqual({ hline: look })
+  const both = appReducer(remembered, { type: 'rememberLook', kind: 'trend', look: { color: '#F23645', width: 3 } })
+  expect(both.lineLooks).toEqual({ hline: look, trend: { color: '#F23645', width: 3 } })
+})
+
+test('Should keep the same state when the look to remember is the one already remembered', () => {
+  const look = { color: '#FFFFFF', width: 1 }
+  const remembered = appReducer(base, { type: 'rememberLook', kind: 'hline', look })
+  expect(appReducer(remembered, { type: 'rememberLook', kind: 'hline', look: { ...look } })).toBe(remembered)
+})

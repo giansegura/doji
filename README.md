@@ -32,7 +32,9 @@ Para otro puerto: `PORT=4790 npm start`.
 - **Cada acción recuerda su vista:** al volver a una acción, el gráfico enseña el mismo tramo de fechas y, si lo habías movido en vertical, la misma altura. Se guarda en el navegador, así que también sobrevive a recargar la página; el segundo gráfico tiene su propia memoria. Si vuelves en otro periodo (semanal en vez de diario), se enseñan las mismas fechas y el ajuste vertical vuelve a automático.
 - **Línea de tendencia:** elige la herramienta en la barra izquierda y haz clic en dos puntos, sobre el precio o sobre el RSI.
   - Clic en una línea para seleccionarla; arrastra un extremo o el cuerpo para moverla.
-  - Con la línea seleccionada aparece una barra para cambiar color, grosor, extenderla a la derecha o borrarla.
+  - Con la línea seleccionada aparece una barra para cambiar el color (incluido el blanco), extenderla a la derecha o borrarla. Su botón "Line style" abre un panel con el grosor, el trazo (continuo, discontinuo o de puntos) y la opacidad. En una línea horizontal, el botón de la etiqueta muestra u oculta su precio en el eje.
+  - En la misma barra, "Text" escribe un texto sobre la línea (por ejemplo "R1" o "soporte semanal"); se guarda al pulsar `Enter` o al salir del campo. En la horizontal va a la derecha, encima de la línea; en la de tendencia, encima de su punto medio.
+  - doji recuerda el último aspecto que diste a cada tipo de dibujo: si dejas una horizontal blanca, discontinua y al 50 %, la siguiente horizontal sale igual.
   - `Supr` borra la línea seleccionada; `Esc` cancela una línea a medias o suelta la herramienta.
   - Una línea puede acabar más allá de la última vela. Ese tramo se cuenta en días de bolsa: sin fines de semana y, en acciones de EE. UU., sin los festivos de su bolsa.
 - **Otras herramientas de dibujo**, en la misma barra izquierda. Se seleccionan, mueven, colorean y borran igual que una línea de tendencia.
@@ -45,8 +47,9 @@ Para otro puerto: `PORT=4790 npm start`.
   - Cuentan también los precios de pre y post mercado.
   - Una línea de tendencia que no se extiende a la derecha deja de avisar pasada su última fecha.
   - El nivel de una línea de tendencia se calcula contando días laborables entre sus extremos. En semanas con festivos puede quedar ligeramente por encima o por debajo de lo que se ve dibujado.
+- **Regla:** "Measure" en la barra izquierda (o `Alt+M`). Un clic marca el inicio y otro el final, o arrastra. Muestra el cambio de precio y en %, el número de velas y los días naturales. No se guarda: desaparece con el siguiente clic o con `Esc`.
 - **Deshacer:** `Cmd+Z` (o `Ctrl+Z`) deshace el último cambio en los dibujos de la acción que estás viendo; con `Shift`, lo rehace. Un arrastre entero cuenta como un solo cambio.
-- **Atajos:** las flechas arriba y abajo recorren la lista. `Alt+T` arma la línea de tendencia, `Alt+H` la horizontal, `Alt+C` el canal y `Alt+R` el rectángulo; `Esc` vuelve al cursor.
+- **Atajos:** las flechas arriba y abajo recorren la lista. `Alt+T` arma la línea de tendencia, `Alt+H` la horizontal, `Alt+C` el canal, `Alt+R` el rectángulo y `Alt+M` la regla; `Esc` vuelve al cursor.
 - **Listas:** el nombre de la lista (arriba a la derecha) abre el desplegable para cambiar de lista, crear una nueva, renombrarla, duplicarla o borrarla (pide confirmación). Siempre queda al menos una.
 - **Símbolos de la lista:** `+` abre el buscador para añadir a la lista activa; puedes añadir varios seguidos escribiendo el ticker y pulsando `Enter`, y cerrarlo con `Esc`. Añadir no cambia el gráfico. Pasa el ratón por una fila para quitarla; arrastra las filas para reordenar.
 - **Icono de una lista:** en el desplegable de listas, el botón de la cara abre una paleta de emojis; también puedes escribir cualquier otro y pulsar `Enter`, o quitarlo con «No icon». El icono se ve delante del nombre.
