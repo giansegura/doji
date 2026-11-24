@@ -32,6 +32,8 @@ type UseDrawingArgs = {
   defaultColor: string
   looks: Partial<Record<DrawingKind, LineLook>>
   measureColors: { up: string; down: string }
+  levels: number[]
+  levelLook: LineLook
   handleFill: string
   priceBasis: string
 }
@@ -139,6 +141,8 @@ export const useDrawing = (args: UseDrawingArgs) => {
       newId,
       priceBasis: () => latest.current.priceBasis,
       lookFor,
+      levels: () => latest.current.levels,
+      levelLook: () => latest.current.levelLook,
     })
 
     return { controller, redraw, viewsFor, measureFor, measure }

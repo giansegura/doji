@@ -1,6 +1,7 @@
 import {
   BAND_MAX_MULTIPLIER,
   BAND_MIN_MULTIPLIER,
+  LEVELS_MAX_PER_SIDE,
   PROFILE_MAX_ROWS,
   PROFILE_MIN_ROWS,
   SMA_MAX_LENGTH,
@@ -22,12 +23,14 @@ const MACD_FIELDS = [
 ] as const
 
 export const StudiesPanel = ({ indicators, onIndicators }: StudiesPanelProps) => {
-  const { bollinger, macd, volumeProfile } = indicators
+  const { bollinger, macd, volumeProfile, levels } = indicators
 
   const setBollinger = (patch: Partial<Indicators['bollinger']>) =>
     onIndicators({ ...indicators, bollinger: { ...bollinger, ...patch } })
 
   const setMacd = (patch: Partial<Indicators['macd']>) => onIndicators({ ...indicators, macd: { ...macd, ...patch } })
+
+  const setLevels = (patch: Partial<Indicators['levels']>) => onIndicators({ ...indicators, levels: { ...levels, ...patch } })
 
   const setProfile = (patch: Partial<Indicators['volumeProfile']>) =>
     onIndicators({ ...indicators, volumeProfile: { ...volumeProfile, ...patch } })
@@ -63,6 +66,22 @@ export const StudiesPanel = ({ indicators, onIndicators }: StudiesPanelProps) =>
             />
           </Styles.MenuItem>
         </>
+      )}
+      <Styles.MenuRow>
+        <input type="checkbox" checked={levels.visible} onChange={(event) => setLevels({ visible: event.target.checked })} />
+        <Styles.RowLabel>Support & resistance</Styles.RowLabel>
+      </Styles.MenuRow>
+      {levels.visible && (
+        <Styles.MenuItem $indented>
+          <Styles.RowLabel>Per side</Styles.RowLabel>
+          <NumberField
+            label="Levels per side"
+            value={levels.perSide}
+            min={1}
+            max={LEVELS_MAX_PER_SIDE}
+            onChange={(perSide) => setLevels({ perSide })}
+          />
+        </Styles.MenuItem>
       )}
       <Styles.MenuRow>
         <input

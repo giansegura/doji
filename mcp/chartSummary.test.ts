@@ -179,6 +179,30 @@ test('Should carry the note and say when the data could not be refreshed', () =>
   expect(summary.data).toEqual({ fetchedAt: '2026-11-24T10:00:00.000Z', stale: true, source: 'Yahoo Finance, may be delayed' })
 })
 
+const ranging = Array.from({ length: 900 }, (_, index) => {
+  const phase = (index % 100) / 100
+  return 100 + 20 * (phase < 0.5 ? phase * 2 : (1 - phase) * 2)
+})
+
+test('Should give the support and resistance levels around the close with their distance', () => {
+  const summary = summarizeChart(input({ history: historyOf([...ranging, 109, 110]) }))
+  expect(summary.levels.supports.length).toBeGreaterThan(0)
+  expect(summary.levels.resistances.length).toBeGreaterThan(0)
+  summary.levels.supports.forEach((level) => {
+    expect(level.price).toBeLessThanOrEqual(110)
+    expect(level.distancePercent).toBeCloseTo(((level.price - 110) / 110) * 100, 1)
+  })
+  expect(summary.levels.resistances.every((level) => level.price > 110 && level.touches >= 1)).toBe(true)
+})
+
+test('Should give the distance to the nearest support and resistance in a scan row', () => {
+  const summary = summarizeChart(input({ history: historyOf([...ranging, 109, 110]) }))
+  const row = scanRow(summary)
+  expect(row.nearestSupportPercent).toBe(summary.levels.supports[0].distancePercent)
+  expect(row.nearestResistancePercent).toBe(summary.levels.resistances[0].distancePercent)
+  expect(scanRow(summarizeChart(input({ history: historyOf([100, 101]) }))).nearestSupportPercent).toBeNull()
+})
+
 test('Should reduce a chart to one row of its main readings', () => {
   const quote: Quote = { symbol: 'KO', price: 249.5, change: 0.5, changePercent: 0.2, extended: { session: 'pre', price: 250, changePercent: 0.2 } }
   const summary = summarizeChart(input({ quote, note: 'Tesis', drawings: [{ id: 'h', kind: 'hline', pane: 'price', timeframe: 'D', value: 230, color: '#2962FF', width: 2, pricedAt: '2020-01-01', alert: true }] }))
@@ -195,6 +219,8 @@ test('Should reduce a chart to one row of its main readings', () => {
     volumeRatio: 1.01,
     alerts: 1,
     hasNote: true,
+    nearestSupportPercent: summary.levels.supports[0]?.distancePercent ?? null,
+    nearestResistancePercent: summary.levels.resistances[0]?.distancePercent ?? null,
   })
 })
 

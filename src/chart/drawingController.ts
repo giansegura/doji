@@ -2,7 +2,7 @@ import type { Drawing, DrawingBase, DrawingKind, LineLook, LinePoint, PaneId, Ti
 import { withLook } from '../domain/lineLooks'
 import type { Tool } from '../state/appReducer'
 import { type ShapeGeometry, hitTestOutline, moveDrawing, offsetAt, outlineOf } from './drawingShapes'
-import type { XY } from './lineGeometry'
+import { HIT_TOLERANCE, type XY } from './lineGeometry'
 import type { Measure } from './measure'
 
 export type PaneGeometry = ShapeGeometry
@@ -24,6 +24,8 @@ export type ControllerDeps = {
   newId: () => string
   priceBasis: () => string
   lookFor: (kind: DrawingKind) => LineLook
+  levels?: () => number[]
+  levelLook?: () => LineLook
 }
 
 export type DrawingController = {
@@ -100,6 +102,17 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
       if (part) return { line, part }
     }
     return null
+  }
+
+  const levelAt = (pane: PaneId, xy: XY): number | null => {
+    const geometry = pane === 'price' ? deps.geometry(pane) : null
+    if (!geometry) return null
+    return (
+      (deps.levels?.() ?? []).find((price) => {
+        const y = geometry.toY(price)
+        return y !== null && Math.abs(y - xy.y) <= HIT_TOLERANCE
+      }) ?? null
+    )
   }
 
   const selectedVisible = (): boolean =>
@@ -255,6 +268,12 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
     if (tool === 'hline') return placeLevel(pane, xy)
     if (tool !== 'cursor') return startPlacing(tool, pane, xy)
     const hit = hitAt(pane, xy)
+    const level = hit ? null : levelAt(pane, xy)
+    if (!hit && level !== null && deps.levelLook) {
+      const look = deps.levelLook()
+      add(withLook({ ...baseOf(pane, look), kind: 'hline', value: level }, look))
+      return true
+    }
     if (!hit) {
       select(null)
       return false
@@ -278,7 +297,7 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
       return 'crosshair'
     }
     if (tool !== 'cursor') return 'crosshair'
-    return hitAt(pane, xy) ? 'pointer' : 'default'
+    return hitAt(pane, xy) || levelAt(pane, xy) !== null ? 'pointer' : 'default'
   }
 
   const pointerUp = (pane: PaneId, xy: XY): void => {

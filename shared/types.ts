@@ -113,6 +113,7 @@ export type Indicators = {
   bollinger: { visible: boolean; length: number; multiplier: number }
   macd: { visible: boolean; fast: number; slow: number; signal: number }
   volumeProfile: { visible: boolean; rows: number }
+  levels: { visible: boolean; perSide: number }
 }
 
 export type ChartType = 'candles' | 'bars' | 'line' | 'area' | 'baseline'
@@ -172,6 +173,7 @@ export const DEFAULT_STATE: AppState = {
     bollinger: { visible: false, length: 20, multiplier: 2 },
     macd: { visible: false, fast: 12, slow: 26, signal: 9 },
     volumeProfile: { visible: false, rows: 24 },
+    levels: { visible: false, perSide: 3 },
   },
   chart: { type: 'candles', scale: 'normal', invert: false, cursor: 'normal' },
   listWidth: LIST_DEFAULT_WIDTH,

@@ -144,7 +144,7 @@ export const createDojiServer = ({ api, newId, version }: ServerDeps): McpServer
     {
       title: 'Scan a watchlist',
       description:
-        'Reads every symbol of a watchlist in one go: close, change, extended-hours change, RSI 14, distance to SMA 50 and SMA 200, position in the 52-week range, MACD histogram, volume against its average, armed alerts and whether it has a note. Use it to compare symbols or find the ones that meet a condition.',
+        'Reads every symbol of a watchlist in one go: close, change, extended-hours change, RSI 14, distance to SMA 50 and SMA 200, position in the 52-week range, MACD histogram, volume against its average, armed alerts, whether it has a note, and the distance to the nearest support and resistance. Use it to compare symbols or find the ones that meet a condition.',
       inputSchema: {
         watchlist: z.string().optional().describe('Name or id of the watchlist. Defaults to the active one.'),
         timeframe: timeframeField.optional(),
@@ -159,7 +159,7 @@ export const createDojiServer = ({ api, newId, version }: ServerDeps): McpServer
     {
       title: 'Chart summary',
       description:
-        'Summarizes the chart of one symbol: last price and change, extended hours, 52-week range, SMA 20/50/200 and EMA 21 plus the averages the user set, RSI 14, MACD 12/26/9, Bollinger Bands 20/2, volume, recent swing highs and lows, recent candles, the drawings of the user with their ids, and the note of the user for that symbol.',
+        'Summarizes the chart of one symbol: last price and change, extended hours, 52-week range, SMA 20/50/200 and EMA 21 plus the averages the user set, RSI 14, MACD 12/26/9, Bollinger Bands 20/2, volume, recent swing highs and lows, the support and resistance levels around the price (found by doji from the weekly turns and how often the price bounced there), recent candles, the drawings of the user with their ids, and the note of the user for that symbol.',
       inputSchema: {
         symbol: symbolField,
         timeframe: timeframeField.optional(),

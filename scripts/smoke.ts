@@ -211,6 +211,27 @@ const regionShot = async (box: Box): Promise<string> => {
   return (await page.screenshot({ clip: box })).toString('base64')
 }
 
+const canvasRows = (box: Box): Promise<number[]> =>
+  page.evaluate((area) => {
+    const sums = Array.from({ length: Math.floor(area.height) }, () => 0)
+    document.querySelectorAll('.tv-lightweight-charts canvas').forEach((element) => {
+      const canvas = element as HTMLCanvasElement
+      const rect = canvas.getBoundingClientRect()
+      if (area.x < rect.left || area.x + area.width > rect.right || area.y < rect.top || area.y + area.height > rect.bottom) return
+      const scale = canvas.width / rect.width
+      const data = canvas
+        .getContext('2d')
+        ?.getImageData(Math.round((area.x - rect.left) * scale), Math.round((area.y - rect.top) * scale), Math.floor(area.width * scale), Math.floor(area.height * scale)).data
+      if (!data) return
+      const columns = Math.floor(area.width * scale)
+      for (let index = 0; index < data.length; index += 4) {
+        const row = Math.floor(Math.floor(index / 4 / columns) / scale)
+        if (row < sums.length) sums[row] += data[index] + data[index + 1] + data[index + 2]
+      }
+    })
+    return sums
+  }, box)
+
 const chooseTheme = async (label: 'Doji' | 'Midnight' | 'Light'): Promise<void> => {
   await button('Theme').click()
   await page.getByRole('menuitemradio', { name: label }).click()
@@ -702,6 +723,41 @@ await step('la regla mide entre dos puntos sin guardar nada y se quita con Esc',
   await page.keyboard.press('Alt+m')
   check((await button('Measure').getAttribute('aria-pressed')) === 'true', 'Alt+M no armó la regla')
   await page.keyboard.press('Escape')
+})
+
+await step('los soportes y resistencias se activan, se fijan con un clic y se quitan', async () => {
+  const { price } = await panes()
+  const strip = { x: price.x + price.width * 0.05, y: price.y + 20, width: price.width * 0.3, height: price.height * 0.6 }
+  const before = (await drawingsOf('AAPL')).length
+  await page.mouse.move(700, 10)
+  const clean = await canvasRows(strip)
+  await button('Indicators').click()
+  await page.getByRole('checkbox', { name: 'Support & resistance' }).click()
+  await page.keyboard.press('Escape')
+  await page.mouse.move(700, 10)
+  await page.waitForTimeout(400)
+  check((await savedState()).indicators.levels.visible, 'el indicador de niveles no se guardó')
+  const shown = await canvasRows(strip)
+  const changed = shown.flatMap((sum, row) => (sum !== clean[row] ? [row] : []))
+  check(changed.length > 0, 'no se ve ningún nivel en el gráfico')
+  const y = strip.y + changed[0] + 0.5
+  await page.mouse.click(price.x + price.width * 0.2, y)
+  const pinned = (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'hline')
+  check((await drawingsOf('AAPL')).length === before + 1, 'el clic no fijó el nivel como línea')
+  const [line] = pinned
+  check(
+    line?.kind === 'hline' && line.lineStyle === 'dashed' && line.opacity === 0.5 && line.hidePrice === true && line.width === 1,
+    `el nivel fijado no tiene el aspecto de los niveles: ${JSON.stringify(line)}`,
+  )
+  await page.keyboard.press('Delete')
+  check((await drawingsOf('AAPL')).length === before, 'el nivel fijado no se borró')
+  await button('Indicators').click()
+  await page.getByRole('checkbox', { name: 'Support & resistance' }).click()
+  await page.keyboard.press('Escape')
+  await page.mouse.move(700, 10)
+  await page.waitForTimeout(400)
+  check(!(await savedState()).indicators.levels.visible, 'el indicador de niveles no se quitó')
+  check(JSON.stringify(await canvasRows(strip)) === JSON.stringify(clean), 'quedan niveles en el gráfico')
 })
 
 await step('el perfil de volumen aparece a la derecha del gráfico y se quita', async () => {

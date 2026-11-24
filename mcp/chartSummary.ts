@@ -1,4 +1,5 @@
 import { addDays } from '../shared/dates'
+import { type Level, supportsAndResistances } from '../shared/levels'
 import { priceDigits } from '../shared/symbols'
 import type { Bar, Drawing, History, LinePoint, Quote, SmaConfig, Timeframe } from '../shared/types'
 import { alertLevel } from '../src/domain/alerts'
@@ -28,6 +29,7 @@ const BANDS = { length: 20, multiplier: 2 }
 const VOLUME_AVERAGE = 20
 const SWING_REACH = 3
 const SWINGS_SHOWN = 5
+const LEVELS_PER_SIDE = 3
 const YEAR_DAYS = 365
 const PERCENT_DIGITS = 2
 const SOURCE = 'Yahoo Finance, may be delayed'
@@ -120,6 +122,13 @@ export const summarizeChart = ({ history, timeframe, bars: count, averages, draw
   const volumeAverage = lastOf(sma(bars.map((bar) => bar.volume), VOLUME_AVERAGE))
   const lastVolume = (bars.at(-1) as Bar).volume
   const extended = quote?.extended ?? null
+  const found = supportsAndResistances(history.info.symbol, daily, LEVELS_PER_SIDE)
+  const describeLevel = (level: Level) => ({
+    price: level.price,
+    touches: level.touches,
+    allTimeHigh: level.ath,
+    distancePercent: roundTo(((level.price - close) / close) * 100, PERCENT_DIGITS),
+  })
   return {
     symbol: history.info.symbol,
     name: history.info.name,
@@ -170,6 +179,10 @@ export const summarizeChart = ({ history, timeframe, bars: count, averages, draw
       average20: volumeAverage === null ? null : Math.round(volumeAverage),
       ratio: volumeAverage ? roundTo(lastVolume / volumeAverage, PERCENT_DIGITS) : null,
     },
+    levels: {
+      resistances: (found?.resistances ?? []).map(describeLevel),
+      supports: (found?.supports ?? []).map(describeLevel),
+    },
     swingHighs: swingsOf(bars, true, digits),
     swingLows: swingsOf(bars, false, digits),
     recentBars: {
@@ -206,4 +219,6 @@ export const scanRow = (summary: ChartSummary) => ({
   volumeRatio: summary.volume.ratio,
   alerts: summary.drawings.filter((drawing) => 'alert' in drawing && drawing.alert).length,
   hasNote: summary.note !== null && summary.note.length > 0,
+  nearestSupportPercent: summary.levels.supports[0]?.distancePercent ?? null,
+  nearestResistancePercent: summary.levels.resistances[0]?.distancePercent ?? null,
 })
