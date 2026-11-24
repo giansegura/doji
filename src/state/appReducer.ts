@@ -27,6 +27,7 @@ export type Action =
   | { type: 'setIndicators'; indicators: Indicators }
   | { type: 'setChart'; chart: ChartSettings }
   | { type: 'setLines'; symbol: string; lines: TrendLine[] }
+  | { type: 'importConfig'; config: AppState }
 
 const COPY_SUFFIXES = [' (copia)', ...Array.from({ length: MAX_LISTS }, (_, index) => ` (copia ${index + 2})`)]
 
@@ -147,5 +148,6 @@ export const appReducer = (state: AppState, action: Action): AppState => {
   if (action.type === 'selectWatchlist') return selectWatchlist(state, action.id)
   if (action.type === 'setIndicators') return { ...state, indicators: action.indicators }
   if (action.type === 'setChart') return { ...state, chart: action.chart }
+  if (action.type === 'importConfig') return { ...action.config, rev: state.rev }
   return setLines(state, action.symbol, action.lines)
 }

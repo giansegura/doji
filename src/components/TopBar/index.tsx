@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { MAX_SMAS, SMA_COLORS, SMA_MAX_LENGTH, SMA_MIN_LENGTH } from '../../../shared/limits'
 import type {
+  AppState,
   ChartSettings,
   ChartType,
   CursorMode,
@@ -12,6 +13,7 @@ import type {
 } from '../../../shared/types'
 import { newId } from '../../domain/newId'
 import { SMA_WIDTHS, addSma } from '../../domain/smaConfig'
+import { ConfigPanel } from './ConfigPanel'
 import { NumberField } from './NumberField'
 import * as Styles from './styles'
 
@@ -28,6 +30,8 @@ type TopBarProps = {
   chart: ChartSettings
   onChart: (chart: ChartSettings) => void
   onScreenshot: () => void
+  onExportConfig: () => void
+  onImportConfig: (config: AppState) => void
 }
 
 const TIMEFRAMES: Timeframe[] = ['D', 'W']
@@ -53,7 +57,7 @@ const CURSOR_MODES: [CursorMode, string][] = [
   ['magnetOhlc', 'Imán a OHLC'],
 ]
 
-type MenuName = 'indicators' | 'chart'
+type MenuName = 'indicators' | 'chart' | 'config'
 
 const CameraIcon = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
@@ -95,6 +99,8 @@ export const TopBar = ({
   chart,
   onChart,
   onScreenshot,
+  onExportConfig,
+  onImportConfig,
 }: TopBarProps) => {
   const [openMenu, setOpenMenu] = useState<MenuName | null>(null)
   const [styleOpenId, setStyleOpenId] = useState<string | null>(null)
@@ -299,6 +305,16 @@ export const TopBar = ({
                 <Styles.RowLabel>{label}</Styles.RowLabel>
               </Styles.MenuRow>
             ))}
+          </Styles.Menu>
+        )}
+      </Styles.MenuAnchor>
+      <Styles.MenuAnchor>
+        <Styles.Button type="button" aria-expanded={openMenu === 'config'} onClick={() => toggleMenu('config')}>
+          Configuración
+        </Styles.Button>
+        {openMenu === 'config' && (
+          <Styles.Menu>
+            <ConfigPanel onExport={onExportConfig} onImport={onImportConfig} />
           </Styles.Menu>
         )}
       </Styles.MenuAnchor>

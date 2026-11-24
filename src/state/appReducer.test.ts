@@ -207,3 +207,17 @@ test('Should keep the same state when nothing changes', () => {
   expect(appReducer(base, { type: 'setTimeframe', timeframe: 'D' })).toBe(base)
   expect(appReducer(base, { type: 'removeFromWatchlist', symbol: 'ZZZ' })).toBe(base)
 })
+
+test('Should replace everything with an imported configuration and keep its own revision', () => {
+  const config: AppState = {
+    ...DEFAULT_STATE,
+    rev: 3,
+    theme: 'light',
+    symbol: 'KO',
+    timeframe: 'W',
+    watchlists: [{ id: 'otra', name: 'Importada', items: [info('KO')] }],
+    activeWatchlistId: 'otra',
+    lines: { KO: [line('l1')] },
+  }
+  expect(appReducer({ ...base, rev: 12 }, { type: 'importConfig', config })).toEqual({ ...config, rev: 12 })
+})

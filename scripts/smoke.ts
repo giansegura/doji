@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises'
+import { mkdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { chromium } from 'playwright-core'
 import type { AppState, TrendLine } from '../shared/types'
@@ -574,6 +574,71 @@ await step('borra la lista tras confirmar', async () => {
   await page.keyboard.press('Escape')
   const state = await savedState()
   check(state.watchlists.length === 1 && state.watchlists[0].name === 'Lista', 'no quedó solo la primera lista')
+})
+
+const exportedPath = join(outDir, 'config-exportada.json')
+
+const chooseConfigFile = async (file: string | { name: string; mimeType: string; buffer: Buffer }): Promise<void> => {
+  await button('Configuración').click()
+  await page.getByLabel('Archivo de configuración').setInputFiles(file)
+}
+
+const jsonFile = (name: string, text: string) => ({ name, mimeType: 'application/json', buffer: Buffer.from(text) })
+
+await step('exporta la configuración a un archivo', async () => {
+  await button('Configuración').click()
+  const [download] = await Promise.all([
+    page.waitForEvent('download', { timeout: 5000 }),
+    button('Exportar configuración').click(),
+  ])
+  const name = download.suggestedFilename()
+  check(/^doji-config-\d{4}-\d{2}-\d{2}\.json$/.test(name), `nombre de archivo inesperado: ${name}`)
+  await download.saveAs(exportedPath)
+  await page.keyboard.press('Escape')
+  const exported = JSON.parse(await readFile(exportedPath, 'utf8')) as AppState
+  const { rev: _rev, ...current } = await savedState()
+  check(JSON.stringify(exported) === JSON.stringify(current), 'el archivo no coincide con la configuración guardada')
+})
+
+await step('un archivo que no es una configuración no cambia nada', async () => {
+  const before = await savedState()
+  await chooseConfigFile(jsonFile('nota.json', 'hola'))
+  await page.getByRole('alert').getByText('Ese archivo no es una configuración de doji.').waitFor({ timeout: 3000 })
+  check(!(await button('Reemplazar').isVisible()), 'se ofreció importar un archivo inválido')
+  await page.keyboard.press('Escape')
+  check((await savedState()).rev === before.rev, 'el archivo inválido cambió el estado')
+})
+
+await step('importa una configuración solo tras confirmar', async () => {
+  const exported = JSON.parse(await readFile(exportedPath, 'utf8')) as AppState
+  const other = {
+    ...exported,
+    theme: exported.theme === 'dark' ? 'light' : 'dark',
+    symbol: 'MSFT',
+    watchlists: [{ id: 'importada', name: 'Importada', items: [{ symbol: 'MSFT', name: 'Microsoft Corporation', exchange: 'NASDAQ' }] }],
+    activeWatchlistId: 'importada',
+  }
+  await chooseConfigFile(jsonFile('otra.json', JSON.stringify(other)))
+  await page.getByText(/«otra\.json»/).waitFor({ timeout: 3000 })
+  check((await savedState()).watchlists[0].name === 'Lista', 'se importó sin confirmar')
+  await button('Reemplazar').click()
+  await page.getByText('Configuración importada.').waitFor({ timeout: 3000 })
+  await page.keyboard.press('Escape')
+  await button('Listas de seguimiento').getByText('Importada').waitFor({ timeout: 3000 })
+  await button('MSFT').first().waitFor({ timeout: 3000 })
+  const state = await savedState()
+  check(state.watchlists.length === 1 && state.watchlists[0].name === 'Importada', 'no se guardó la lista importada')
+  check(state.theme === other.theme && state.symbol === 'MSFT', 'no se guardaron el tema y el símbolo importados')
+})
+
+await step('importar lo exportado devuelve la configuración anterior', async () => {
+  const exported = JSON.parse(await readFile(exportedPath, 'utf8')) as AppState
+  await chooseConfigFile(exportedPath)
+  await button('Reemplazar').click()
+  await page.getByText('Configuración importada.').waitFor({ timeout: 3000 })
+  await page.keyboard.press('Escape')
+  const { rev: _rev, ...current } = await savedState()
+  check(JSON.stringify(current) === JSON.stringify(exported), 'la configuración no volvió a ser la exportada')
 })
 
 await step('la API rechaza las peticiones hechas desde otras webs', async () => {

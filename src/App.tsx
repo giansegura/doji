@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ThemeProvider } from 'styled-components'
+import { todayIso } from '../shared/dates'
 import type { AppState, SymbolInfo } from '../shared/types'
 import { ChartArea } from './components/ChartArea'
 import { LeftToolbar } from './components/LeftToolbar'
@@ -7,6 +8,8 @@ import { ListPicker } from './components/ListPicker'
 import { SymbolSearch } from './components/SymbolSearch'
 import { TopBar } from './components/TopBar'
 import { Watchlist } from './components/Watchlist'
+import { configFileName, serializeConfig } from './domain/configFile'
+import { downloadText } from './domain/download'
 import { newId } from './domain/newId'
 import { adjustLinesForSplits } from './domain/splits'
 import { useHistory } from './hooks/useHistory'
@@ -66,6 +69,8 @@ const Workspace = ({ state, dispatch, notice }: WorkspaceProps) => {
           chart={state.chart}
           onChart={(chart) => dispatch({ type: 'setChart', chart })}
           onScreenshot={() => screenshotRef.current?.()}
+          onExportConfig={() => downloadText(serializeConfig(state), configFileName(todayIso()))}
+          onImportConfig={(config) => dispatch({ type: 'importConfig', config })}
         />
       </Styles.Top>
       <Styles.Tools>

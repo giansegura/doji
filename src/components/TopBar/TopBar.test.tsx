@@ -14,6 +14,8 @@ const setup = (indicators: Indicators = DEFAULT_STATE.indicators) => {
     onIndicators: vi.fn(),
     onChart: vi.fn(),
     onScreenshot: vi.fn(),
+    onExportConfig: vi.fn(),
+    onImportConfig: vi.fn(),
   }
   renderWithTheme(
     <TopBar
@@ -289,8 +291,74 @@ test('Should show a notice about saving when there is one', () => {
       chart={DEFAULT_STATE.chart}
       onChart={noop}
       onScreenshot={noop}
+      onExportConfig={noop}
+      onImportConfig={noop}
     />,
   )
   expect(screen.getByRole('status').textContent).toBe('No se pudieron guardar los cambios')
   expect(screen.getByRole('button', { name: 'Cambiar a tema oscuro' })).toBeTruthy()
+})
+
+const configFile = (content: unknown, name = 'mi-config.json'): File =>
+  new File([typeof content === 'string' ? content : JSON.stringify(content)], name, { type: 'application/json' })
+
+const openConfigMenu = (user: ReturnType<typeof userEvent.setup>) =>
+  user.click(screen.getByRole('button', { name: 'Configuración' }))
+
+test('Should keep the configuration menu closed until asked', async () => {
+  const { user } = setup()
+  expect(screen.queryByRole('button', { name: 'Exportar configuración' })).toBeNull()
+  await openConfigMenu(user)
+  expect(screen.getByRole('button', { name: 'Exportar configuración' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Importar configuración…' })).toBeTruthy()
+})
+
+test('Should ask for the configuration to be exported', async () => {
+  const { handlers, user } = setup()
+  await openConfigMenu(user)
+  await user.click(screen.getByRole('button', { name: 'Exportar configuración' }))
+  expect(handlers.onExportConfig).toHaveBeenCalledTimes(1)
+})
+
+test('Should ask before replacing the configuration with the one in a file', async () => {
+  const { handlers, user } = setup()
+  const imported = { ...DEFAULT_STATE, theme: 'light', symbol: 'KO' }
+  await openConfigMenu(user)
+  await user.upload(screen.getByLabelText('Archivo de configuración'), configFile(imported))
+  expect(await screen.findByText(/«mi-config\.json»/)).toBeTruthy()
+  expect(handlers.onImportConfig).not.toHaveBeenCalled()
+  await user.click(screen.getByRole('button', { name: 'Reemplazar' }))
+  expect(handlers.onImportConfig).toHaveBeenCalledTimes(1)
+  expect(handlers.onImportConfig).toHaveBeenCalledWith(imported)
+  expect(screen.getByRole('status').textContent).toBe('Configuración importada.')
+  expect(screen.queryByRole('button', { name: 'Reemplazar' })).toBeNull()
+})
+
+test('Should leave the configuration alone when the import is cancelled', async () => {
+  const { handlers, user } = setup()
+  await openConfigMenu(user)
+  await user.upload(screen.getByLabelText('Archivo de configuración'), configFile(DEFAULT_STATE))
+  await user.click(await screen.findByRole('button', { name: 'Cancelar' }))
+  expect(handlers.onImportConfig).not.toHaveBeenCalled()
+  expect(screen.queryByRole('button', { name: 'Reemplazar' })).toBeNull()
+})
+
+test('Should refuse a file that is not a configuration', async () => {
+  const { handlers, user } = setup()
+  await openConfigMenu(user)
+  await user.upload(screen.getByLabelText('Archivo de configuración'), configFile('hola'))
+  expect((await screen.findByRole('alert')).textContent).toBe('Ese archivo no es una configuración de doji.')
+  expect(screen.queryByRole('button', { name: 'Reemplazar' })).toBeNull()
+  expect(handlers.onImportConfig).not.toHaveBeenCalled()
+})
+
+test('Should accept the same file again after refusing or cancelling it', async () => {
+  const { handlers, user } = setup()
+  const file = configFile(DEFAULT_STATE)
+  await openConfigMenu(user)
+  await user.upload(screen.getByLabelText('Archivo de configuración'), file)
+  await user.click(await screen.findByRole('button', { name: 'Cancelar' }))
+  await user.upload(screen.getByLabelText('Archivo de configuración'), file)
+  await user.click(await screen.findByRole('button', { name: 'Reemplazar' }))
+  expect(handlers.onImportConfig).toHaveBeenCalledTimes(1)
 })

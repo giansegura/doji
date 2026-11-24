@@ -1,8 +1,9 @@
+import { normalizeState } from '../shared/normalizeState'
 import { type StateChanges, applyChanges } from '../shared/stateChanges'
 import type { HistoryCache } from './historyCache'
 import type { Logo, LogoStore } from './logoStore'
 import { type DataProvider, isProviderError } from './provider/yahoo'
-import { type StateStore, normalizeState } from './stateStore'
+import type { StateStore } from './stateStore'
 
 export type ApiRequest = { method: string; path: string; query: URLSearchParams; body: unknown }
 

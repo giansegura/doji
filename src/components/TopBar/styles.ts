@@ -236,3 +236,49 @@ export const WidthSample = styled.div<{ $width: number }>`
   border-radius: 2px;
   background: currentColor;
 `
+
+export const MenuAction = styled.button`
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 4px;
+  text-align: left;
+  white-space: nowrap;
+
+  &:hover {
+    background: ${(props) => props.theme.ui.hover};
+  }
+`
+
+export const HiddenInput = styled.input`
+  display: none;
+`
+
+export const MenuNote = styled.div<{ $danger?: boolean }>`
+  max-width: 250px;
+  padding: 6px 8px;
+  color: ${(props) => (props.$danger ? props.theme.ui.down : props.theme.ui.text)};
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+`
+
+export const ConfirmBox = styled.div`
+  margin-top: 4px;
+  border-top: 1px solid ${(props) => props.theme.ui.border};
+`
+
+export const ConfirmActions = styled.div`
+  display: flex;
+  gap: 4px;
+  padding: 0 0 2px;
+`
+
+export const TextButton = styled.button<{ $danger?: boolean }>`
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 4px;
+  color: ${(props) => (props.$danger ? props.theme.ui.down : props.theme.ui.textMuted)};
+
+  &:hover {
+    background: ${(props) => props.theme.ui.hover};
+  }
+`

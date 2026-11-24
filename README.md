@@ -20,6 +20,7 @@ Para otro puerto: `PORT=4790 npm start`.
 - **Indicadores:** volumen y RSI se activan o quitan desde el menú; el periodo del RSI y su media se ajustan ahí.
 - **Medias móviles (SMA):** en el mismo menú, "Añadir media móvil" (hasta seis). Se calculan sobre el cierre. Cada una tiene su periodo; el círculo de color abre la paleta (16 colores, o cualquier otro con el selector) y el grosor; la `×` la quita.
 - **Gráfico:** el menú "Gráfico" cambia el tipo (velas, barras, línea, área, línea base), la escala de precios (normal, logarítmica, porcentaje, indexada a 100, invertida) y el cursor (libre o imán). El icono de la cámara guarda una imagen del gráfico.
+- **Configuración:** el menú "Configuración" exporta todo (listas, líneas, indicadores, tema y ajustes del gráfico) a un archivo `doji-config-AAAA-MM-DD.json` y lo vuelve a importar. Importar reemplaza la configuración actual entera, por eso pide confirmación.
 - **Línea de tendencia:** elige la herramienta en la barra izquierda y haz clic en dos puntos, sobre el precio o sobre el RSI.
   - Clic en una línea para seleccionarla; arrastra un extremo o el cuerpo para moverla.
   - Con la línea seleccionada aparece una barra para cambiar color, grosor, extenderla a la derecha o borrarla.
@@ -32,7 +33,7 @@ Para otro puerto: `PORT=4790 npm start`.
 
 En la carpeta `data/` del proyecto, que no se versiona:
 
-- `data/state.json`: listas de seguimiento, líneas, tema e indicadores. Es el archivo que conviene copiar si quieres una copia de seguridad.
+- `data/state.json`: listas de seguimiento, líneas, tema e indicadores. Es el archivo que conviene copiar si quieres una copia de seguridad. "Exportar configuración" te da esa misma copia desde la app, y es la forma de llevar tu configuración a otro ordenador. Se puede importar tanto un archivo exportado como una copia de `state.json`.
 - `data/state.json.bak-AAAA-MM-DD`: copia automática del estado tal como estaba antes del primer cambio de cada día. Se conservan las siete últimas.
 - `data/state.json.corrupt-…`: si alguna vez el archivo no se puede leer como JSON, se guarda aparte con este nombre y la app arranca con valores por defecto.
 - `data/cache/`: histórico descargado de cada acción y logos de las empresas. Se puede borrar sin perder nada.

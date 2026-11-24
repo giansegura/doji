@@ -1,5 +1,6 @@
 import type { IChartApi } from 'lightweight-charts'
 import type { Timeframe } from '../../shared/types'
+import { downloadBlob } from '../domain/download'
 
 const twoDigits = (value: number): string => String(value).padStart(2, '0')
 
@@ -10,12 +11,6 @@ export const imageName = (symbol: string, timeframe: Timeframe, date: Date): str
 
 export const saveChartImage = (chart: IChartApi, name: string): void => {
   chart.takeScreenshot(true).toBlob((blob) => {
-    if (!blob) return
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = name
-    link.click()
-    URL.revokeObjectURL(url)
+    if (blob) downloadBlob(blob, name)
   })
 }
