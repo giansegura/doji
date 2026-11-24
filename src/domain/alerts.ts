@@ -27,9 +27,9 @@ export const alertLevel = (drawing: Drawing, today: string): number | null => {
   return trendLevel(drawing, today)
 }
 
-export const crossing = (previous: number, current: number, level: number): Direction | null => {
-  if (previous < level && current >= level) return 'up'
-  if (previous > level && current <= level) return 'down'
+export const sideChange = (before: number, after: number): Direction | null => {
+  if (before < 0 && after >= 0) return 'up'
+  if (before > 0 && after <= 0) return 'down'
   return null
 }
 
@@ -41,21 +41,22 @@ export const armedSymbols = (lines: Record<string, Drawing[]>): string[] =>
     .map(([symbol]) => symbol)
 
 export const createAlertWatcher = (): AlertWatcher => {
-  const seen = new Map<string, number>()
+  const seen = new Map<string, { price: number; day: string }>()
 
   const firedFor = (symbol: string, drawings: Drawing[], price: number, today: string): FiredAlert[] => {
     const previous = seen.get(symbol)
     if (previous === undefined) return []
     return drawings.filter(isArmed).flatMap((drawing) => {
+      const before = alertLevel(drawing, previous.day)
       const level = alertLevel(drawing, today)
-      const direction = level === null ? null : crossing(previous, price, level)
+      const direction = before === null || level === null ? null : sideChange(previous.price - before, price - level)
       return level !== null && direction ? [{ symbol, drawingId: drawing.id, level, price, direction }] : []
     })
   }
 
   const check = (lines: Record<string, Drawing[]>, prices: Record<string, number>, today: string): FiredAlert[] => {
     const fired = Object.entries(prices).flatMap(([symbol, price]) => firedFor(symbol, lines[symbol] ?? [], price, today))
-    Object.entries(prices).forEach(([symbol, price]) => seen.set(symbol, price))
+    Object.entries(prices).forEach(([symbol, price]) => seen.set(symbol, { price, day: today }))
     return fired
   }
 

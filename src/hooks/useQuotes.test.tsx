@@ -110,3 +110,21 @@ test('Should keep refreshing while the tab is hidden when asked to work in the b
   visibility.mockRestore()
   vi.useRealTimers()
 })
+
+test('Should not let a slow answer replace the quotes of a later one', async () => {
+  vi.useFakeTimers()
+  const pending: ((quotes: Quote[]) => void)[] = []
+  const fetcher = vi.fn(() => new Promise<Quote[]>((resolve) => pending.push(resolve)))
+  const { result } = renderHook(() => useQuotes(['AAPL'], fetcher))
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(15_000)
+  })
+  expect(pending).toHaveLength(2)
+  await act(async () => {
+    pending[1]([quote('AAPL', 20)])
+  })
+  await act(async () => {
+    pending[0]([quote('AAPL', 10)])
+  })
+  expect(result.current.AAPL?.price).toBe(20)
+})

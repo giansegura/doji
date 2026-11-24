@@ -652,3 +652,40 @@ test('Should hide the new drawings of the RSI pane outside their timeframe like 
   expect(isLineVisible(hline({ pane: 'rsi', timeframe: 'D' }), 'D', true)).toBe(true)
   expect(isLineVisible(rect({ timeframe: 'D' }), 'M', true)).toBe(true)
 })
+
+test('Should not take a vertical base line for a channel', () => {
+  const { record, controller } = harness()
+  controller.setTool('channel')
+  controller.pointerDown('price', { x: 100, y: 100 })
+  controller.pointerUp('price', { x: 100, y: 100 })
+  controller.pointerDown('price', { x: 100, y: 180 })
+  controller.pointerUp('price', { x: 100, y: 180 })
+  controller.pointerMove('price', { x: 200, y: 150 })
+  expect(record.draft).toMatchObject({ p2: { date: 'd200', value: 150 }, offset: 0 })
+})
+
+test('Should keep an alert that was disarmed while its line was being dragged', () => {
+  const armed = hline({ alert: true })
+  const { record, controller } = harness({ lines: [armed] })
+  controller.pointerDown('price', { x: 20, y: 120 })
+  controller.pointerMove('price', { x: 20, y: 130 })
+  record.lines = record.lines.map((drawing) => {
+    const { alert: _alert, ...quiet } = drawing
+    return quiet
+  }) as TrendLine[]
+  controller.pointerMove('price', { x: 20, y: 150 })
+  expect(record.lines).toEqual([hline({ value: 150, pricedAt: '2020-08-31' })])
+})
+
+test('Should not arm an alert again when a drag is cancelled after it was disarmed', () => {
+  const armed = hline({ alert: true })
+  const { record, controller } = harness({ lines: [armed] })
+  controller.pointerDown('price', { x: 20, y: 120 })
+  controller.pointerMove('price', { x: 20, y: 130 })
+  record.lines = record.lines.map((drawing) => {
+    const { alert: _alert, ...quiet } = drawing
+    return quiet
+  }) as TrendLine[]
+  controller.cancel()
+  expect(record.lines).toEqual([hline()])
+})

@@ -474,3 +474,25 @@ test('Should ask for a second chart and say that there is none yet', async () =>
   await user.click(toggle)
   expect(handlers.onSplit).toHaveBeenCalledTimes(1)
 })
+
+test('Should accept a Bollinger multiplier with decimals and keep it within its limits', async () => {
+  const { handlers, user } = setup({ ...DEFAULT_STATE.indicators, bollinger: { visible: true, length: 20, multiplier: 2 } })
+  await openIndicators(user)
+  await typeInto(user, 'Bollinger multiplier', '1.5')
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(
+    expect.objectContaining({ bollinger: { visible: true, length: 20, multiplier: 1.5 } }),
+  )
+  await typeInto(user, 'Bollinger multiplier', '0.1')
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(
+    expect.objectContaining({ bollinger: { visible: true, length: 20, multiplier: 0.5 } }),
+  )
+})
+
+test('Should keep the lengths of the indicators whole', async () => {
+  const { handlers, user } = setup({ ...DEFAULT_STATE.indicators, bollinger: { visible: true, length: 20, multiplier: 2 } })
+  await openIndicators(user)
+  await typeInto(user, 'Bollinger length', '30.7')
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(
+    expect.objectContaining({ bollinger: { visible: true, length: 30, multiplier: 2 } }),
+  )
+})

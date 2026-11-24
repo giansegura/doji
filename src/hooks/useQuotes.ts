@@ -20,15 +20,21 @@ export const useQuotes = (
   useEffect(() => {
     if (!key) return undefined
     let active = true
+    let issued = 0
+    let applied = 0
     const list = key.split(',')
-    const load = () =>
-      fetchRef
+    const load = () => {
+      issued += 1
+      const order = issued
+      return fetchRef
         .current(list)
         .then((received) => {
-          if (!active) return
+          if (!active || order < applied) return
+          applied = order
           setQuotes((current) => ({ ...current, ...Object.fromEntries(received.map((quote) => [quote.symbol, quote])) }))
         })
         .catch(() => undefined)
+    }
     load()
     const timer = setInterval(() => {
       if (background || document.visibilityState === 'visible') load()

@@ -124,3 +124,8 @@ test('Should say that an alert has just been armed, and not when it is disarmed'
   await user.click(screen.getByRole('button', { name: 'Alert' }))
   expect(onArm).toHaveBeenCalledTimes(1)
 })
+
+test('Should not offer an alert on a drawing of the RSI pane', () => {
+  setup({ pane: 'rsi' })
+  expect(screen.queryByRole('button', { name: 'Alert' })).toBeNull()
+})

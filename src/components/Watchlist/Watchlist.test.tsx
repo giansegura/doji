@@ -245,3 +245,21 @@ test('Should report a move when a section is dropped on another row', () => {
   fireEvent.drop(rows[0], { dataTransfer })
   expect(handlers.onMove).toHaveBeenCalledWith(2, 0)
 })
+
+test('Should rename a section whose id looks like the mark of a new one', async () => {
+  const { user } = setup({ items: [{ kind: 'section', id: 'new', title: 'Rara' }] })
+  await user.click(screen.getByRole('button', { name: 'Rename section Rara' }))
+  expect(screen.getAllByRole('textbox')).toHaveLength(1)
+  expect(screen.getByRole('textbox', { name: 'Section name' })).toBeTruthy()
+})
+
+test('Should not close the section field on the Enter or Escape that belong to composing a character', async () => {
+  const { handlers, user } = setup()
+  await user.click(screen.getByRole('button', { name: 'Add section' }))
+  const field = screen.getByRole('textbox', { name: 'New section name' })
+  await user.type(field, 'En')
+  fireEvent.keyDown(field, { key: 'Enter', isComposing: true })
+  fireEvent.keyDown(field, { key: 'Escape', isComposing: true })
+  expect(handlers.onAddSection).not.toHaveBeenCalled()
+  expect(screen.getByRole('textbox', { name: 'New section name' })).toBeTruthy()
+})

@@ -345,3 +345,14 @@ test('Should keep the timeframe of a second chart and have none by default', () 
   expect(normalizeState({ secondChart: 'Y' }).secondChart).toBeNull()
   expect(normalizeState({ secondChart: true }).secondChart).toBeNull()
 })
+
+test('Should keep only the first of several sections that share an id within a list', () => {
+  const items = [
+    { kind: 'section', id: 's1', title: 'Primera' },
+    { symbol: 'KO', name: 'Coca-Cola', exchange: 'NYSE' },
+    { kind: 'section', id: 's1', title: 'Repetida' },
+  ]
+  const out = normalizeState({ watchlists: [{ id: 'a', name: 'Una', items }, { id: 'b', name: 'Otra', items: [items[2]] }] })
+  expect(out.watchlists[0].items).toEqual([items[0], items[1]])
+  expect(out.watchlists[1].items).toEqual([items[2]])
+})

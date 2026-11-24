@@ -48,6 +48,13 @@ const IDLE: Mode = { kind: 'idle' }
 
 const samePoint = (a: LinePoint, b: LinePoint): boolean => a.date === b.date && a.value === b.value
 
+const withAlertOf = (drawing: Drawing, stored: Drawing): Drawing => {
+  if (drawing.kind === 'channel' || drawing.kind === 'rect') return drawing
+  const { alert: _alert, ...quiet } = drawing
+  const armed = stored.kind !== 'channel' && stored.kind !== 'rect' && stored.alert === true
+  return armed ? { ...quiet, alert: true } : quiet
+}
+
 const draftOf = (placing: Placing, p2: LinePoint, offset: number): Draft => {
   const { pane, p1, tool } = placing
   if (tool === 'rect') return { pane, kind: 'rect', p1, p2 }
@@ -98,6 +105,8 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
   const replace = (updated: Drawing): void =>
     deps.onLinesChange(deps.getLines().map((line) => (line.id === updated.id ? updated : line)))
 
+  const storedOf = (drawing: Drawing): Drawing => deps.getLines().find((line) => line.id === drawing.id) ?? drawing
+
   const cancelDraft = (): void => {
     mode = IDLE
     tool = 'cursor'
@@ -140,6 +149,7 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
     }
     const p2 = pointAt(placing.pane, xy)
     if (!p2 || samePoint(placing.p1, p2)) return
+    if (placing.tool === 'channel' && placing.p1.date === p2.date) return
     if (placing.tool !== 'channel') {
       add(shapeOf(placing, p2, 0))
       return
@@ -178,7 +188,7 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
   const dragTo = (dragging: Dragging, xy: XY): void => {
     const geometry = deps.geometry(dragging.original.pane)
     const moved = geometry ? moveDrawing(geometry, dragging.original, dragging.part, dragging.start, xy) : null
-    if (moved) replace({ ...moved, pricedAt: deps.priceBasis() })
+    if (moved) replace(withAlertOf({ ...moved, pricedAt: deps.priceBasis() }, storedOf(dragging.original)))
   }
 
   const setTool = (next: Tool): void => {
@@ -230,7 +240,7 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
     if (mode.kind !== 'dragging') return
     const { original } = mode
     mode = IDLE
-    if (!deps.getLines().includes(original)) replace(original)
+    if (!deps.getLines().includes(original)) replace(withAlertOf(original, storedOf(original)))
   }
 
   const key = (pressed: 'Escape' | 'Delete'): void => {

@@ -12,6 +12,7 @@ export const SectionField = ({ label, initial, onCommit, onCancel }: SectionFiel
   const [text, setText] = useState(initial)
 
   const handleKey = (event: KeyboardEvent) => {
+    if (event.nativeEvent.isComposing) return
     if (event.key === 'Escape') onCancel()
     if (event.key !== 'Enter') return
     const title = text.trim()

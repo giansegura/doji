@@ -20,8 +20,10 @@ type WatchlistProps = {
   header?: ReactNode
 }
 
+type Editing = { kind: 'new' } | { kind: 'rename'; id: string } | null
+
 const DRAG_FORMAT = 'application/x-doji-symbol'
-const NEW_SECTION = 'new'
+const NEW_SECTION: Editing = { kind: 'new' }
 
 const keyOf = (item: ListItem): string => (isSection(item) ? `section:${item.id}` : item.symbol)
 
@@ -45,7 +47,7 @@ export const Watchlist = ({
   header,
 }: WatchlistProps) => {
   const [dragIndex, setDragIndex] = useState<number | null>(null)
-  const [editing, setEditing] = useState<string | null>(null)
+  const [editing, setEditing] = useState<Editing>(null)
   const activeRef = useRef<HTMLLIElement>(null)
 
   useEffect(() => {
@@ -113,8 +115,8 @@ export const Watchlist = ({
             {isSection(item) ? (
               <SectionRow
                 section={item}
-                editing={editing === item.id}
-                onEdit={() => setEditing(item.id)}
+                editing={editing?.kind === 'rename' && editing.id === item.id}
+                onEdit={() => setEditing({ kind: 'rename', id: item.id })}
                 onRename={(title) => handleRename(item.id, title)}
                 onCancel={() => setEditing(null)}
                 onRemove={() => onRemoveSection(item.id)}
@@ -130,7 +132,7 @@ export const Watchlist = ({
             )}
           </Styles.Row>
         ))}
-        {editing === NEW_SECTION && (
+        {editing?.kind === 'new' && (
           <Styles.Row $dragging={false}>
             <Styles.Section>
               <SectionField label="New section name" initial="" onCommit={handleNewSection} onCancel={() => setEditing(null)} />

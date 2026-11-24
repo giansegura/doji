@@ -61,6 +61,8 @@ export const Menu = styled.div`
   flex-direction: column;
   gap: 2px;
   min-width: 210px;
+  max-height: calc(100vh - 56px);
+  overflow-y: auto;
   padding: 6px;
   background: ${(props) => props.theme.ui.panel};
   border: 1px solid ${(props) => props.theme.ui.border};
@@ -69,6 +71,7 @@ export const Menu = styled.div`
 `
 
 export const MenuRow = styled.label<{ $indented?: boolean }>`
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -100,6 +103,7 @@ export const NumberInput = styled.input`
 `
 
 export const MenuItem = styled.div<{ $indented?: boolean }>`
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 8px;

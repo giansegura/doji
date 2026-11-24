@@ -4,6 +4,7 @@ export type LinesHistory = {
   record: (symbol: string, before: Drawing[]) => void
   undo: (symbol: string, current: Drawing[]) => Drawing[] | null
   redo: (symbol: string, current: Drawing[]) => Drawing[] | null
+  clear: () => void
 }
 
 type Stacks = { undone: Drawing[][]; redone: Drawing[][] }
@@ -48,5 +49,9 @@ export const createLinesHistory = ({ now, mergeMs = MERGE_MS, limit = LIMIT }: H
     record,
     undo: (symbol, current) => swap(stacksOf(symbol).undone, stacksOf(symbol).redone, current),
     redo: (symbol, current) => swap(stacksOf(symbol).redone, stacksOf(symbol).undone, current),
+    clear: () => {
+      stacks.clear()
+      last = null
+    },
   }
 }

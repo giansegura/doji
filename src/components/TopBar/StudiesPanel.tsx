@@ -1,4 +1,4 @@
-import { SMA_MAX_LENGTH, SMA_MIN_LENGTH } from '../../../shared/limits'
+import { BAND_MAX_MULTIPLIER, BAND_MIN_MULTIPLIER, SMA_MAX_LENGTH, SMA_MIN_LENGTH } from '../../../shared/limits'
 import type { Indicators } from '../../../shared/types'
 import { NumberField } from './NumberField'
 import * as Styles from './styles'
@@ -7,9 +7,6 @@ type StudiesPanelProps = {
   indicators: Indicators
   onIndicators: (indicators: Indicators) => void
 }
-
-const MIN_MULTIPLIER = 1
-const MAX_MULTIPLIER = 5
 
 const MACD_FIELDS = [
   ['fast', 'Fast', 'MACD fast length'],
@@ -49,8 +46,9 @@ export const StudiesPanel = ({ indicators, onIndicators }: StudiesPanelProps) =>
             <NumberField
               label="Bollinger multiplier"
               value={bollinger.multiplier}
-              min={MIN_MULTIPLIER}
-              max={MAX_MULTIPLIER}
+              min={BAND_MIN_MULTIPLIER}
+              max={BAND_MAX_MULTIPLIER}
+              decimal
               onChange={(multiplier) => setBollinger({ multiplier })}
             />
           </Styles.MenuItem>

@@ -83,3 +83,15 @@ test('Should ignore the keys typed into a field', () => {
   expect(onTool).not.toHaveBeenCalled()
   field.remove()
 })
+
+test('Should have nothing to undo after the drawings are replaced from outside', () => {
+  const before = [level('a', 10)]
+  const after = [level('a', 20)]
+  const { dispatch, result, rerender } = setup(before)
+  act(() => result.current.changeDrawings(after))
+  rerender({ drawings: after, symbol: 'MSFT' })
+  act(() => result.current.forgetDrawings())
+  dispatch.mockClear()
+  fireEvent.keyDown(window, { code: 'KeyZ', key: 'z', metaKey: true })
+  expect(dispatch).not.toHaveBeenCalled()
+})

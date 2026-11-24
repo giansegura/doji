@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import type { Drawing, HorizontalLine, TrendLine } from '../../shared/types'
-import { alertLevel, createAlertWatcher, crossing, latestPrice } from './alerts'
+import { alertLevel, createAlertWatcher, latestPrice, sideChange } from './alerts'
 
 const base = { id: 'a', pane: 'price' as const, timeframe: 'D' as const, color: '#2962FF', width: 2, pricedAt: '2020-01-01' }
 
@@ -42,18 +42,18 @@ test('Should give no level before a trend line starts, for a line with no length
   expect(alertLevel(box, '2026-11-09')).toBeNull()
 })
 
-test('Should tell when a price crosses a level and in which direction', () => {
-  expect(crossing(99, 101, 100)).toBe('up')
-  expect(crossing(101, 99, 100)).toBe('down')
-  expect(crossing(99, 100, 100)).toBe('up')
-  expect(crossing(101, 100, 100)).toBe('down')
+test('Should tell when a price changes side of a level and in which direction', () => {
+  expect(sideChange(-1, 1)).toBe('up')
+  expect(sideChange(1, -1)).toBe('down')
+  expect(sideChange(-1, 0)).toBe('up')
+  expect(sideChange(1, 0)).toBe('down')
 })
 
 test('Should not count a price that stays on one side or starts on the level', () => {
-  expect(crossing(98, 99, 100)).toBeNull()
-  expect(crossing(102, 101, 100)).toBeNull()
-  expect(crossing(100, 101, 100)).toBeNull()
-  expect(crossing(100, 100, 100)).toBeNull()
+  expect(sideChange(-2, -1)).toBeNull()
+  expect(sideChange(2, 1)).toBeNull()
+  expect(sideChange(0, 1)).toBeNull()
+  expect(sideChange(0, 0)).toBeNull()
 })
 
 test('Should take the price outside regular hours when there is one', () => {
@@ -110,4 +110,27 @@ test('Should keep the last price of a symbol that a later answer leaves out', ()
 test('Should list the symbols that have an armed drawing', () => {
   const watcher = createAlertWatcher()
   expect(watcher.symbols({ KO: [level()], PEP: [level({ alert: false })], MSFT: [trend()], NVDA: [] })).toEqual(['KO', 'MSFT'])
+})
+
+test('Should not fire when a price stays above a rising line from one day to the next', () => {
+  const watcher = createAlertWatcher()
+  const lines = { KO: [trend({ extendRight: true })] }
+  watcher.check(lines, { KO: 111 }, '2026-11-09')
+  expect(watcher.check(lines, { KO: 112.5 }, '2026-11-10')).toEqual([])
+})
+
+test('Should fire when a rising line climbs through a price that did not move', () => {
+  const watcher = createAlertWatcher()
+  const lines = { KO: [trend({ extendRight: true })] }
+  watcher.check(lines, { KO: 111 }, '2026-11-09')
+  expect(watcher.check(lines, { KO: 111 }, '2026-11-10')).toEqual([
+    { symbol: 'KO', drawingId: 'a', level: 112, price: 111, direction: 'down' },
+  ])
+})
+
+test('Should not fire for a line that was not there yet when the previous price was seen', () => {
+  const watcher = createAlertWatcher()
+  const lines = { KO: [trend()] }
+  watcher.check(lines, { KO: 90 }, '2026-10-30')
+  expect(watcher.check(lines, { KO: 105 }, '2026-11-02')).toEqual([])
 })

@@ -29,7 +29,11 @@ const disarmed = (drawings: Drawing[], ids: string[]): Drawing[] =>
 
 export const notifyDesktop = (title: string, body: string): void => {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
-  new Notification(title, { body })
+  try {
+    new Notification(title, { body })
+  } catch {
+    return
+  }
 }
 
 export const askToNotify = (): void => {
@@ -53,10 +57,17 @@ export const useAlerts = ({ lines, quotes, dispatch, notify = notifyDesktop, now
     const prices = Object.fromEntries(Object.values(quotes).map((quote) => [quote.symbol, latestPrice(quote)]))
     const hits = watcher.check(current.lines, prices, dayOf(moment))
     if (hits.length === 0) return
+    const announce = (title: string, body: string): void => {
+      try {
+        current.notify(title, body)
+      } catch {
+        return
+      }
+    }
     const describe = (hit: FiredAlert): FiredNotice => {
       counter.current += 1
       const level = formatPrice(hit.level)
-      current.notify(
+      announce(
         `${hit.symbol} crossed ${level}`,
         `${hit.direction === 'up' ? 'Up' : 'Down'} through ${level}, now at ${formatPrice(hit.price)}`,
       )

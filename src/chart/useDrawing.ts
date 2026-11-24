@@ -181,6 +181,14 @@ export const useDrawing = (args: UseDrawingArgs) => {
       if (event.key === 'Delete' || event.key === 'Backspace') tools.controller.key('Delete')
     }
 
+    const handleElsewhere = (event: PointerEvent) => {
+      const target = event.target
+      const other = target instanceof Element ? target.closest('[data-chart]') : null
+      if (other && other !== container) tools.controller.select(null)
+    }
+
+    container.dataset.chart = ''
+    window.addEventListener('pointerdown', handleElsewhere, true)
     container.addEventListener('pointerdown', session.down, true)
     container.addEventListener('mousedown', session.mouseDown, true)
     window.addEventListener('pointermove', session.move)
@@ -188,6 +196,8 @@ export const useDrawing = (args: UseDrawingArgs) => {
     window.addEventListener('pointercancel', session.cancel)
     window.addEventListener('keydown', handleKey)
     return () => {
+      window.removeEventListener('pointerdown', handleElsewhere, true)
+      delete container.dataset.chart
       container.removeEventListener('pointerdown', session.down, true)
       container.removeEventListener('mousedown', session.mouseDown, true)
       window.removeEventListener('pointermove', session.move)

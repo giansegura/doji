@@ -68,7 +68,12 @@ const toSection = (item: Raw): ListItem | null => {
 const toItem = (raw: unknown): ListItem | null =>
   asRecord(raw).kind === 'section' ? toSection(asRecord(raw)) : toSymbolInfo(raw)
 
-const toItems = (raw: unknown): ListItem[] => (Array.isArray(raw) ? raw.map(toItem).filter(notNull) : [])
+const toItems = (raw: unknown): ListItem[] => {
+  const sections = new Set<string>()
+  return (Array.isArray(raw) ? raw.map(toItem).filter(notNull) : []).filter(
+    (item) => !('kind' in item) || (!sections.has(item.id) && sections.add(item.id)),
+  )
+}
 
 const toNotes = (raw: unknown): Record<string, string> =>
   Object.fromEntries(

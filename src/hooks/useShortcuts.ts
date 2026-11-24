@@ -52,5 +52,7 @@ export const useShortcuts = (args: ShortcutsArgs) => {
     [history],
   )
 
-  return { changeDrawings }
+  const forgetDrawings = useCallback(() => history.clear(), [history])
+
+  return { changeDrawings, forgetDrawings }
 }

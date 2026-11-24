@@ -49,7 +49,7 @@ const Workspace = ({ state, dispatch, notice }: WorkspaceProps) => {
   const { fired, dismiss } = useAlerts({ lines: state.lines, quotes, dispatch })
   usePrefetchHistories(listSymbols)
   const drawings = state.lines[state.symbol] ?? NO_DRAWINGS
-  const { changeDrawings } = useShortcuts({ symbol: state.symbol, drawings, symbols: listSymbols, dispatch, onTool: setTool })
+  const { changeDrawings, forgetDrawings } = useShortcuts({ symbol: state.symbol, drawings, symbols: listSymbols, dispatch, onTool: setTool })
 
   useEffect(() => {
     const decision = resolvePendingAdd(pendingAdd, { status, history, errorCode })
@@ -101,7 +101,10 @@ const Workspace = ({ state, dispatch, notice }: WorkspaceProps) => {
           onChart={(chart) => dispatch({ type: 'setChart', chart })}
           onScreenshot={() => screenshotRef.current?.()}
           onExportConfig={() => downloadText(serializeConfig(state), configFileName(todayIso()))}
-          onImportConfig={(config) => dispatch({ type: 'importConfig', config })}
+          onImportConfig={(config) => {
+            forgetDrawings()
+            dispatch({ type: 'importConfig', config })
+          }}
           split={state.secondChart !== null}
           onSplit={() => dispatch({ type: 'toggleSecondChart' })}
         />

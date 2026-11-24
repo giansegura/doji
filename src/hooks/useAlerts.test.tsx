@@ -68,3 +68,19 @@ test('Should let a fired alert be dismissed from the list', () => {
   act(() => result.current.dismiss('KO:a:1'))
   expect(result.current.fired).toEqual([])
 })
+
+test('Should still list and disarm the alert when the notification fails', () => {
+  const lines = { KO: [level('a', 100)] }
+  const dispatch = vi.fn()
+  const notify = vi.fn(() => {
+    throw new Error('blocked')
+  })
+  const { result, rerender } = renderHook(
+    (props: { quotes: Record<string, Quote> }) => useAlerts({ lines, ...props, dispatch, notify, now: () => new Date(2026, 10, 24, 15, 32) }),
+    { initialProps: { quotes: {} } },
+  )
+  rerender({ quotes: quoteOf('KO', 99) })
+  rerender({ quotes: quoteOf('KO', 101) })
+  expect(result.current.fired).toHaveLength(1)
+  expect(dispatch).toHaveBeenCalledWith({ type: 'setLines', symbol: 'KO', lines: [level('a', 100, false)] })
+})

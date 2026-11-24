@@ -6,15 +6,16 @@ type NumberFieldProps = {
   value: number
   min: number
   max: number
+  decimal?: boolean
   onChange: (value: number) => void
 }
 
-export const NumberField = ({ label, value, min, max, onChange }: NumberFieldProps) => {
+export const NumberField = ({ label, value, min, max, decimal = false, onChange }: NumberFieldProps) => {
   const [text, setText] = useState(String(value))
 
   const handleChange = (next: string) => {
     setText(next)
-    const parsed = Number.parseInt(next, 10)
+    const parsed = decimal ? Number.parseFloat(next) : Number.parseInt(next, 10)
     if (Number.isNaN(parsed)) return
     onChange(Math.min(max, Math.max(min, parsed)))
   }
@@ -25,6 +26,7 @@ export const NumberField = ({ label, value, min, max, onChange }: NumberFieldPro
       aria-label={label}
       min={min}
       max={max}
+      step={decimal ? 'any' : undefined}
       value={text}
       onChange={(event) => handleChange(event.target.value)}
       onBlur={() => setText(String(value))}

@@ -8,6 +8,8 @@ export const Stack = styled.div`
   display: flex;
   flex-direction: column;
   gap: 6px;
+  max-height: calc(100% - 80px);
+  overflow-y: auto;
 `
 
 export const Toast = styled.div`

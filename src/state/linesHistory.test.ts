@@ -109,3 +109,13 @@ test('Should remember only the latest changes once there are too many', () => {
   expect(history.undo('KO', moved)).toBe(one)
   expect(history.undo('KO', one)).toBeNull()
 })
+
+test('Should have nothing left to undo or redo once it is cleared', () => {
+  const { history } = setup()
+  history.record('KO', none)
+  history.undo('KO', one)
+  history.record('PEP', one)
+  history.clear()
+  expect(history.undo('PEP', two)).toBeNull()
+  expect(history.redo('KO', none)).toBeNull()
+})

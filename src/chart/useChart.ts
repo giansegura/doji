@@ -336,6 +336,7 @@ const syncSmas = (chart: IChartApi, series: SeriesSet, configs: SmaConfig[]): vo
 }
 
 const syncIndicators = (chart: IChartApi, series: SeriesSet, indicators: Indicators, theme: Theme): void => {
+  const panesBefore = chart.panes().length
   syncSmas(chart, series, indicators.sma)
   if (indicators.volume.visible && !series.volume) series.volume = addVolume(chart)
   if (!indicators.volume.visible && series.volume) {
@@ -373,6 +374,7 @@ const syncIndicators = (chart: IChartApi, series: SeriesSet, indicators: Indicat
     series.rsi = null
   }
   if (indicators.macd.visible && !series.macd) series.macd = addMacd(chart, theme, series.rsi ? 2 : 1)
+  if (chart.panes().length === panesBefore) return
   chart.panes().forEach((pane, index) => pane.setStretchFactor(index === 0 ? PRICE_PANE_STRETCH : RSI_PANE_STRETCH))
 }
 
