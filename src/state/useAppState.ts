@@ -11,8 +11,8 @@ type StateApi = {
 
 const SAVE_DELAY_MS = 300
 const RETRY_DELAY_MS = 5000
-const SAVE_FAILED = 'No se pudieron guardar los cambios'
-const RELOADED = 'El estado cambió en otra pestaña y se ha recargado'
+const SAVE_FAILED = 'Could not save your changes'
+const RELOADED = 'The settings changed in another tab and were reloaded'
 const DEFAULT_API: StateApi = { getState, putState }
 
 export const useAppState = (api: StateApi = DEFAULT_API) => {

@@ -39,22 +39,22 @@ const RSI_MIN_LENGTH = 2
 const RSI_MAX_LENGTH = 100
 
 const CHART_TYPES: [ChartType, string][] = [
-  ['candles', 'Velas'],
-  ['bars', 'Barras'],
-  ['line', 'Línea'],
-  ['area', 'Área'],
-  ['baseline', 'Línea base'],
+  ['candles', 'Candles'],
+  ['bars', 'Bars'],
+  ['line', 'Line'],
+  ['area', 'Area'],
+  ['baseline', 'Baseline'],
 ]
 const SCALE_MODES: [ScaleMode, string][] = [
   ['normal', 'Normal'],
-  ['log', 'Logarítmica'],
-  ['percent', 'Porcentaje'],
-  ['indexed', 'Indexada a 100'],
+  ['log', 'Logarithmic'],
+  ['percent', 'Percent'],
+  ['indexed', 'Indexed to 100'],
 ]
 const CURSOR_MODES: [CursorMode, string][] = [
-  ['normal', 'Libre'],
-  ['magnet', 'Imán al cierre'],
-  ['magnetOhlc', 'Imán a OHLC'],
+  ['normal', 'Free'],
+  ['magnet', 'Magnet to close'],
+  ['magnetOhlc', 'Magnet to OHLC'],
 ]
 
 type MenuName = 'indicators' | 'chart' | 'config'
@@ -159,7 +159,7 @@ export const TopBar = ({
       <Styles.Menus ref={menuRef}>
       <Styles.MenuAnchor>
         <Styles.Button type="button" aria-expanded={openMenu === 'indicators'} onClick={() => toggleMenu('indicators')}>
-          Indicadores
+          Indicators
         </Styles.Button>
         {openMenu === 'indicators' && (
           <Styles.Menu>
@@ -169,7 +169,7 @@ export const TopBar = ({
                 checked={indicators.volume.visible}
                 onChange={(event) => onIndicators({ ...indicators, volume: { visible: event.target.checked } })}
               />
-              <Styles.RowLabel>Volumen</Styles.RowLabel>
+              <Styles.RowLabel>Volume</Styles.RowLabel>
             </Styles.MenuRow>
             <Styles.MenuRow>
               <input
@@ -182,9 +182,9 @@ export const TopBar = ({
             {indicators.rsi.visible && (
               <>
                 <Styles.MenuItem $indented>
-                  <Styles.RowLabel>Periodo</Styles.RowLabel>
+                  <Styles.RowLabel>Length</Styles.RowLabel>
                   <NumberField
-                    label="Periodo"
+                    label="Length"
                     value={indicators.rsi.length}
                     min={RSI_MIN_LENGTH}
                     max={RSI_MAX_LENGTH}
@@ -197,25 +197,25 @@ export const TopBar = ({
                     checked={indicators.rsi.showMa}
                     onChange={(event) => setRsi({ showMa: event.target.checked })}
                   />
-                  <Styles.RowLabel>Media del RSI</Styles.RowLabel>
+                  <Styles.RowLabel>RSI moving average</Styles.RowLabel>
                 </Styles.MenuRow>
               </>
             )}
-            <Styles.MenuSection>Medias móviles (SMA)</Styles.MenuSection>
+            <Styles.MenuSection>Moving averages (SMA)</Styles.MenuSection>
             {indicators.sma.map((item, index) => (
               <Styles.SmaBlock key={item.id}>
               <Styles.MenuItem>
                 <Styles.ColorDot
                   type="button"
-                  title="Color y grosor"
-                  aria-label={`Estilo de la media ${index + 1}`}
+                  title="Color and width"
+                  aria-label={`Style of average ${index + 1}`}
                   aria-expanded={styleOpenId === item.id}
                   $color={item.color}
                   onClick={() => setStyleOpenId((current) => (current === item.id ? null : item.id))}
                 />
-                <Styles.RowLabel>Periodo</Styles.RowLabel>
+                <Styles.RowLabel>Length</Styles.RowLabel>
                 <NumberField
-                  label={`Periodo de la media ${index + 1}`}
+                  label={`Length of average ${index + 1}`}
                   value={item.length}
                   min={SMA_MIN_LENGTH}
                   max={SMA_MAX_LENGTH}
@@ -223,8 +223,8 @@ export const TopBar = ({
                 />
                 <Styles.SmallButton
                   type="button"
-                  title="Quitar"
-                  aria-label={`Quitar media ${index + 1}`}
+                  title="Remove"
+                  aria-label={`Remove average ${index + 1}`}
                   onClick={() => setSma(indicators.sma.filter((other) => other.id !== item.id))}
                 >
                   ×
@@ -237,7 +237,7 @@ export const TopBar = ({
                       <Styles.Swatch
                         key={color}
                         type="button"
-                        aria-label={`Color ${color} de la media ${index + 1}`}
+                        aria-label={`Color ${color} of average ${index + 1}`}
                         aria-pressed={item.color.toUpperCase() === color}
                         $color={color}
                         onClick={() => patchSma(item.id, { color })}
@@ -245,8 +245,8 @@ export const TopBar = ({
                     ))}
                     <Styles.ColorInput
                       type="color"
-                      title="Otro color"
-                      aria-label={`Otro color para la media ${index + 1}`}
+                      title="Other color"
+                      aria-label={`Other color for average ${index + 1}`}
                       value={item.color}
                       onChange={(event) => patchSma(item.id, { color: event.target.value.toUpperCase() })}
                     />
@@ -256,7 +256,7 @@ export const TopBar = ({
                       <Styles.WidthButton
                         key={width}
                         type="button"
-                        aria-label={`Grosor ${width} de la media ${index + 1}`}
+                        aria-label={`Width ${width} of average ${index + 1}`}
                         aria-pressed={item.width === width}
                         onClick={() => patchSma(item.id, { width })}
                       >
@@ -269,25 +269,25 @@ export const TopBar = ({
               </Styles.SmaBlock>
             ))}
             <Styles.AddButton type="button" disabled={indicators.sma.length >= MAX_SMAS} onClick={handleAddSma}>
-              Añadir media móvil
+              Add moving average
             </Styles.AddButton>
           </Styles.Menu>
         )}
       </Styles.MenuAnchor>
       <Styles.MenuAnchor>
         <Styles.Button type="button" aria-expanded={openMenu === 'chart'} onClick={() => toggleMenu('chart')}>
-          Gráfico
+          Chart
         </Styles.Button>
         {openMenu === 'chart' && (
           <Styles.Menu>
-            <Styles.MenuSection $first>Tipo</Styles.MenuSection>
+            <Styles.MenuSection $first>Type</Styles.MenuSection>
             {CHART_TYPES.map(([type, label]) => (
               <Styles.MenuRow key={type}>
                 <input type="radio" name="chart-type" checked={chart.type === type} onChange={() => onChart({ ...chart, type })} />
                 <Styles.RowLabel>{label}</Styles.RowLabel>
               </Styles.MenuRow>
             ))}
-            <Styles.MenuSection>Escala de precios</Styles.MenuSection>
+            <Styles.MenuSection>Price scale</Styles.MenuSection>
             {SCALE_MODES.map(([scale, label]) => (
               <Styles.MenuRow key={scale}>
                 <input type="radio" name="chart-scale" checked={chart.scale === scale} onChange={() => onChart({ ...chart, scale })} />
@@ -296,7 +296,7 @@ export const TopBar = ({
             ))}
             <Styles.MenuRow>
               <input type="checkbox" checked={chart.invert} onChange={(event) => onChart({ ...chart, invert: event.target.checked })} />
-              <Styles.RowLabel>Invertir escala</Styles.RowLabel>
+              <Styles.RowLabel>Invert scale</Styles.RowLabel>
             </Styles.MenuRow>
             <Styles.MenuSection>Cursor</Styles.MenuSection>
             {CURSOR_MODES.map(([cursor, label]) => (
@@ -310,7 +310,7 @@ export const TopBar = ({
       </Styles.MenuAnchor>
       <Styles.MenuAnchor>
         <Styles.Button type="button" aria-expanded={openMenu === 'config'} onClick={() => toggleMenu('config')}>
-          Configuración
+          Settings
         </Styles.Button>
         {openMenu === 'config' && (
           <Styles.Menu>
@@ -321,12 +321,12 @@ export const TopBar = ({
       </Styles.Menus>
       <Styles.Spacer />
       {notice && <Styles.Warning role="status">{notice}</Styles.Warning>}
-      <Styles.Button type="button" title="Guardar imagen" aria-label="Guardar imagen" onClick={onScreenshot}>
+      <Styles.Button type="button" title="Save image" aria-label="Save image" onClick={onScreenshot}>
         <CameraIcon />
       </Styles.Button>
       <Styles.Button
         type="button"
-        aria-label={nextTheme === 'light' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
+        aria-label={nextTheme === 'light' ? 'Switch to light theme' : 'Switch to dark theme'}
         onClick={() => onTheme(nextTheme)}
       >
         {nextTheme === 'light' ? <SunIcon /> : <MoonIcon />}

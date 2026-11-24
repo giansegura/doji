@@ -35,29 +35,29 @@ test('Should mark the current colour and report a new one', async () => {
 
 test('Should mark the current width and report a new one', async () => {
   const { handlers, user } = setup()
-  expect(pressed('Grosor 2')).toBe('true')
-  expect(pressed('Grosor 4')).toBe('false')
-  await user.click(screen.getByRole('button', { name: 'Grosor 4' }))
+  expect(pressed('Width 2')).toBe('true')
+  expect(pressed('Width 4')).toBe('false')
+  await user.click(screen.getByRole('button', { name: 'Width 4' }))
   expect(handlers.onChange).toHaveBeenCalledWith({ ...line, width: 4 })
 })
 
 test('Should toggle extend right both ways', async () => {
   const on = setup()
-  expect(pressed('Extender a la derecha')).toBe('false')
-  await on.user.click(screen.getByRole('button', { name: 'Extender a la derecha' }))
+  expect(pressed('Extend right')).toBe('false')
+  await on.user.click(screen.getByRole('button', { name: 'Extend right' }))
   expect(on.handlers.onChange).toHaveBeenCalledWith({ ...line, extendRight: true })
 })
 
 test('Should switch extend right off when it is on', async () => {
   const { handlers, user } = setup({ extendRight: true })
-  expect(pressed('Extender a la derecha')).toBe('true')
-  await user.click(screen.getByRole('button', { name: 'Extender a la derecha' }))
+  expect(pressed('Extend right')).toBe('true')
+  await user.click(screen.getByRole('button', { name: 'Extend right' }))
   expect(handlers.onChange).toHaveBeenCalledWith({ ...line, extendRight: false })
 })
 
 test('Should delete the line', async () => {
   const { handlers, user } = setup()
-  await user.click(screen.getByRole('button', { name: 'Borrar línea' }))
+  await user.click(screen.getByRole('button', { name: 'Delete line' }))
   expect(handlers.onDelete).toHaveBeenCalledTimes(1)
   expect(handlers.onChange).not.toHaveBeenCalled()
 })

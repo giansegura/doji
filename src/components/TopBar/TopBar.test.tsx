@@ -48,7 +48,7 @@ test('Should mark the active timeframe and report a change', async () => {
 test('Should keep the indicators menu closed until asked', async () => {
   const { user } = setup()
   expect(screen.queryByRole('checkbox', { name: 'RSI' })).toBeNull()
-  await user.click(screen.getByRole('button', { name: 'Indicadores' }))
+  await user.click(screen.getByRole('button', { name: 'Indicators' }))
   expect(screen.getByRole('checkbox', { name: 'RSI' })).toBeTruthy()
   await user.keyboard('{Escape}')
   expect(screen.queryByRole('checkbox', { name: 'RSI' })).toBeNull()
@@ -56,14 +56,14 @@ test('Should keep the indicators menu closed until asked', async () => {
 
 test('Should toggle indicators from the menu', async () => {
   const { handlers, user } = setup()
-  await user.click(screen.getByRole('button', { name: 'Indicadores' }))
+  await user.click(screen.getByRole('button', { name: 'Indicators' }))
   await user.click(screen.getByRole('checkbox', { name: 'RSI' }))
   expect(handlers.onIndicators).toHaveBeenLastCalledWith({
     volume: { visible: true },
     rsi: { visible: false, length: 14, showMa: true },
     sma: [],
   })
-  await user.click(screen.getByRole('checkbox', { name: 'Volumen' }))
+  await user.click(screen.getByRole('checkbox', { name: 'Volume' }))
   expect(handlers.onIndicators).toHaveBeenLastCalledWith({
     volume: { visible: false },
     rsi: { visible: true, length: 14, showMa: true },
@@ -73,8 +73,8 @@ test('Should toggle indicators from the menu', async () => {
 
 test('Should clamp the RSI length between 2 and 100', async () => {
   const { handlers, user } = setup()
-  await user.click(screen.getByRole('button', { name: 'Indicadores' }))
-  const input = screen.getByRole('spinbutton', { name: 'Periodo' })
+  await user.click(screen.getByRole('button', { name: 'Indicators' }))
+  const input = screen.getByRole('spinbutton', { name: 'Length' })
   await user.clear(input)
   await user.type(input, '500')
   expect(handlers.onIndicators).toHaveBeenLastCalledWith(
@@ -89,15 +89,15 @@ test('Should clamp the RSI length between 2 and 100', async () => {
 
 test('Should not report a length while the field is empty', async () => {
   const { handlers, user } = setup()
-  await user.click(screen.getByRole('button', { name: 'Indicadores' }))
-  await user.clear(screen.getByRole('spinbutton', { name: 'Periodo' }))
+  await user.click(screen.getByRole('button', { name: 'Indicators' }))
+  await user.clear(screen.getByRole('spinbutton', { name: 'Length' }))
   expect(handlers.onIndicators).not.toHaveBeenCalled()
 })
 
 test('Should toggle the RSI moving average', async () => {
   const { handlers, user } = setup()
-  await user.click(screen.getByRole('button', { name: 'Indicadores' }))
-  await user.click(screen.getByRole('checkbox', { name: 'Media del RSI' }))
+  await user.click(screen.getByRole('button', { name: 'Indicators' }))
+  await user.click(screen.getByRole('checkbox', { name: 'RSI moving average' }))
   expect(handlers.onIndicators).toHaveBeenLastCalledWith(
     expect.objectContaining({ rsi: { visible: true, length: 14, showMa: false } }),
   )
@@ -105,9 +105,9 @@ test('Should toggle the RSI moving average', async () => {
 
 test('Should hide the RSI settings while the RSI is off', async () => {
   const { user } = setup({ volume: { visible: true }, rsi: { visible: false, length: 14, showMa: true }, sma: [] })
-  await user.click(screen.getByRole('button', { name: 'Indicadores' }))
-  expect(screen.queryByRole('spinbutton', { name: 'Periodo' })).toBeNull()
-  expect(screen.queryByRole('checkbox', { name: 'Media del RSI' })).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Indicators' }))
+  expect(screen.queryByRole('spinbutton', { name: 'Length' })).toBeNull()
+  expect(screen.queryByRole('checkbox', { name: 'RSI moving average' })).toBeNull()
 })
 
 const withSma = (count: number): Indicators => ({
@@ -117,8 +117,8 @@ const withSma = (count: number): Indicators => ({
 
 test('Should add a moving average from the menu', async () => {
   const { handlers, user } = setup()
-  await user.click(screen.getByRole('button', { name: 'Indicadores' }))
-  await user.click(screen.getByRole('button', { name: 'Añadir media móvil' }))
+  await user.click(screen.getByRole('button', { name: 'Indicators' }))
+  await user.click(screen.getByRole('button', { name: 'Add moving average' }))
   expect(handlers.onIndicators).toHaveBeenLastCalledWith({
     ...DEFAULT_STATE.indicators,
     sma: [{ id: expect.any(String), length: 20, color: SMA_COLORS[0], width: 1 }],
@@ -127,8 +127,8 @@ test('Should add a moving average from the menu', async () => {
 
 test('Should change the period of a moving average', async () => {
   const { handlers, user } = setup(withSma(2))
-  await user.click(screen.getByRole('button', { name: 'Indicadores' }))
-  const input = screen.getByRole('spinbutton', { name: 'Periodo de la media 2' })
+  await user.click(screen.getByRole('button', { name: 'Indicators' }))
+  const input = screen.getByRole('spinbutton', { name: 'Length of average 2' })
   await user.clear(input)
   await user.type(input, '100')
   expect(handlers.onIndicators).toHaveBeenLastCalledWith(
@@ -138,8 +138,8 @@ test('Should change the period of a moving average', async () => {
 
 test('Should clamp the period of a moving average between 1 and 500', async () => {
   const { handlers, user } = setup(withSma(1))
-  await user.click(screen.getByRole('button', { name: 'Indicadores' }))
-  const input = screen.getByRole('spinbutton', { name: 'Periodo de la media 1' })
+  await user.click(screen.getByRole('button', { name: 'Indicators' }))
+  const input = screen.getByRole('spinbutton', { name: 'Length of average 1' })
   await user.clear(input)
   await user.type(input, '999')
   expect(handlers.onIndicators).toHaveBeenLastCalledWith(
@@ -149,37 +149,37 @@ test('Should clamp the period of a moving average between 1 and 500', async () =
 
 test('Should remove a moving average', async () => {
   const { handlers, user } = setup(withSma(2))
-  await user.click(screen.getByRole('button', { name: 'Indicadores' }))
-  await user.click(screen.getByRole('button', { name: 'Quitar media 1' }))
+  await user.click(screen.getByRole('button', { name: 'Indicators' }))
+  await user.click(screen.getByRole('button', { name: 'Remove average 1' }))
   expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ sma: [withSma(2).sma[1]] }))
 })
 
 const openStyle = async (user: ReturnType<typeof userEvent.setup>, index: number) => {
-  await user.click(screen.getByRole('button', { name: 'Indicadores' }))
-  await user.click(screen.getByRole('button', { name: `Estilo de la media ${index}` }))
+  await user.click(screen.getByRole('button', { name: 'Indicators' }))
+  await user.click(screen.getByRole('button', { name: `Style of average ${index}` }))
 }
 
 test('Should keep the style options of a moving average closed until asked', async () => {
   const { user } = setup(withSma(1))
-  await user.click(screen.getByRole('button', { name: 'Indicadores' }))
-  expect(screen.queryByRole('button', { name: 'Grosor 3 de la media 1' })).toBeNull()
-  await user.click(screen.getByRole('button', { name: 'Estilo de la media 1' }))
-  expect(screen.getByRole('button', { name: 'Grosor 3 de la media 1' })).toBeTruthy()
-  expect(screen.getAllByRole('button', { name: /^Color #[0-9A-F]{6} de la media 1$/ }).length).toBeGreaterThanOrEqual(16)
+  await user.click(screen.getByRole('button', { name: 'Indicators' }))
+  expect(screen.queryByRole('button', { name: 'Width 3 of average 1' })).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Style of average 1' }))
+  expect(screen.getByRole('button', { name: 'Width 3 of average 1' })).toBeTruthy()
+  expect(screen.getAllByRole('button', { name: /^Color #[0-9A-F]{6} of average 1$/ }).length).toBeGreaterThanOrEqual(16)
 })
 
 test('Should mark the current colour and width of a moving average', async () => {
   const { user } = setup(withSma(1))
   await openStyle(user, 1)
-  expect(screen.getByRole('button', { name: `Color ${SMA_COLORS[0]} de la media 1` }).getAttribute('aria-pressed')).toBe('true')
-  expect(screen.getByRole('button', { name: `Color ${SMA_COLORS[5]} de la media 1` }).getAttribute('aria-pressed')).toBe('false')
-  expect(screen.getByRole('button', { name: 'Grosor 1 de la media 1' }).getAttribute('aria-pressed')).toBe('true')
+  expect(screen.getByRole('button', { name: `Color ${SMA_COLORS[0]} of average 1` }).getAttribute('aria-pressed')).toBe('true')
+  expect(screen.getByRole('button', { name: `Color ${SMA_COLORS[5]} of average 1` }).getAttribute('aria-pressed')).toBe('false')
+  expect(screen.getByRole('button', { name: 'Width 1 of average 1' }).getAttribute('aria-pressed')).toBe('true')
 })
 
 test('Should change the colour of a moving average from the palette', async () => {
   const { handlers, user } = setup(withSma(2))
   await openStyle(user, 2)
-  await user.click(screen.getByRole('button', { name: `Color ${SMA_COLORS[9]} de la media 2` }))
+  await user.click(screen.getByRole('button', { name: `Color ${SMA_COLORS[9]} of average 2` }))
   expect(handlers.onIndicators).toHaveBeenLastCalledWith(
     expect.objectContaining({ sma: [withSma(2).sma[0], { ...withSma(2).sma[1], color: SMA_COLORS[9] }] }),
   )
@@ -188,7 +188,7 @@ test('Should change the colour of a moving average from the palette', async () =
 test('Should accept any colour for a moving average', async () => {
   const { handlers, user } = setup(withSma(1))
   await openStyle(user, 1)
-  fireEvent.change(screen.getByLabelText('Otro color para la media 1'), { target: { value: '#12ab9f' } })
+  fireEvent.change(screen.getByLabelText('Other color for average 1'), { target: { value: '#12ab9f' } })
   expect(handlers.onIndicators).toHaveBeenLastCalledWith(
     expect.objectContaining({ sma: [{ ...withSma(1).sma[0], color: '#12AB9F' }] }),
   )
@@ -197,7 +197,7 @@ test('Should accept any colour for a moving average', async () => {
 test('Should change the width of a moving average', async () => {
   const { handlers, user } = setup(withSma(1))
   await openStyle(user, 1)
-  await user.click(screen.getByRole('button', { name: 'Grosor 3 de la media 1' }))
+  await user.click(screen.getByRole('button', { name: 'Width 3 of average 1' }))
   expect(handlers.onIndicators).toHaveBeenLastCalledWith(
     expect.objectContaining({ sma: [{ ...withSma(1).sma[0], width: 3 }] }),
   )
@@ -205,73 +205,73 @@ test('Should change the width of a moving average', async () => {
 
 test('Should not offer more than six moving averages', async () => {
   const { handlers, user } = setup(withSma(6))
-  await user.click(screen.getByRole('button', { name: 'Indicadores' }))
-  const add = screen.getByRole('button', { name: 'Añadir media móvil' })
+  await user.click(screen.getByRole('button', { name: 'Indicators' }))
+  const add = screen.getByRole('button', { name: 'Add moving average' })
   expect(add.hasAttribute('disabled')).toBe(true)
   await user.click(add)
   expect(handlers.onIndicators).not.toHaveBeenCalled()
 })
 
 const openChartMenu = async (user: ReturnType<typeof userEvent.setup>) =>
-  user.click(screen.getByRole('button', { name: 'Gráfico' }))
+  user.click(screen.getByRole('button', { name: 'Chart' }))
 
 const checked = (name: string): boolean => (screen.getByRole('radio', { name }) as HTMLInputElement).checked
 
 test('Should offer every chart type the engine has and mark the current one', async () => {
   const { user } = setup()
   await openChartMenu(user)
-  expect(['Velas', 'Barras', 'Línea', 'Área', 'Línea base'].map(checked)).toEqual([true, false, false, false, false])
+  expect(['Candles', 'Bars', 'Line', 'Area', 'Baseline'].map(checked)).toEqual([true, false, false, false, false])
 })
 
 test('Should report the chosen chart type', async () => {
   const { handlers, user } = setup()
   await openChartMenu(user)
-  await user.click(screen.getByRole('radio', { name: 'Área' }))
+  await user.click(screen.getByRole('radio', { name: 'Area' }))
   expect(handlers.onChart).toHaveBeenLastCalledWith({ ...DEFAULT_STATE.chart, type: 'area' })
 })
 
 test('Should offer every price scale and report the chosen one', async () => {
   const { handlers, user } = setup()
   await openChartMenu(user)
-  expect(['Normal', 'Logarítmica', 'Porcentaje', 'Indexada a 100'].map(checked)).toEqual([true, false, false, false])
-  await user.click(screen.getByRole('radio', { name: 'Logarítmica' }))
+  expect(['Normal', 'Logarithmic', 'Percent', 'Indexed to 100'].map(checked)).toEqual([true, false, false, false])
+  await user.click(screen.getByRole('radio', { name: 'Logarithmic' }))
   expect(handlers.onChart).toHaveBeenLastCalledWith({ ...DEFAULT_STATE.chart, scale: 'log' })
 })
 
 test('Should invert the price scale', async () => {
   const { handlers, user } = setup()
   await openChartMenu(user)
-  await user.click(screen.getByRole('checkbox', { name: 'Invertir escala' }))
+  await user.click(screen.getByRole('checkbox', { name: 'Invert scale' }))
   expect(handlers.onChart).toHaveBeenLastCalledWith({ ...DEFAULT_STATE.chart, invert: true })
 })
 
 test('Should offer every cursor mode and report the chosen one', async () => {
   const { handlers, user } = setup()
   await openChartMenu(user)
-  expect(['Libre', 'Imán al cierre', 'Imán a OHLC'].map(checked)).toEqual([true, false, false])
-  await user.click(screen.getByRole('radio', { name: 'Imán a OHLC' }))
+  expect(['Free', 'Magnet to close', 'Magnet to OHLC'].map(checked)).toEqual([true, false, false])
+  await user.click(screen.getByRole('radio', { name: 'Magnet to OHLC' }))
   expect(handlers.onChart).toHaveBeenLastCalledWith({ ...DEFAULT_STATE.chart, cursor: 'magnetOhlc' })
 })
 
 test('Should show one menu at a time', async () => {
   const { user } = setup()
-  await user.click(screen.getByRole('button', { name: 'Indicadores' }))
+  await user.click(screen.getByRole('button', { name: 'Indicators' }))
   await openChartMenu(user)
   expect(screen.queryByRole('checkbox', { name: 'RSI' })).toBeNull()
-  expect(screen.getByRole('radio', { name: 'Velas' })).toBeTruthy()
+  expect(screen.getByRole('radio', { name: 'Candles' })).toBeTruthy()
   await user.keyboard('{Escape}')
-  expect(screen.queryByRole('radio', { name: 'Velas' })).toBeNull()
+  expect(screen.queryByRole('radio', { name: 'Candles' })).toBeNull()
 })
 
 test('Should ask for an image of the chart', async () => {
   const { handlers, user } = setup()
-  await user.click(screen.getByRole('button', { name: 'Guardar imagen' }))
+  await user.click(screen.getByRole('button', { name: 'Save image' }))
   expect(handlers.onScreenshot).toHaveBeenCalledTimes(1)
 })
 
 test('Should ask for the opposite theme', async () => {
   const { handlers, user } = setup()
-  await user.click(screen.getByRole('button', { name: 'Cambiar a tema claro' }))
+  await user.click(screen.getByRole('button', { name: 'Switch to light theme' }))
   expect(handlers.onTheme).toHaveBeenCalledWith('light')
 })
 
@@ -283,7 +283,7 @@ test('Should show a notice about saving when there is one', () => {
       timeframe="D"
       theme="light"
       indicators={DEFAULT_STATE.indicators}
-      notice="No se pudieron guardar los cambios"
+      notice="Could not save your changes"
       onOpenSearch={noop}
       onTimeframe={noop}
       onTheme={noop}
@@ -295,28 +295,28 @@ test('Should show a notice about saving when there is one', () => {
       onImportConfig={noop}
     />,
   )
-  expect(screen.getByRole('status').textContent).toBe('No se pudieron guardar los cambios')
-  expect(screen.getByRole('button', { name: 'Cambiar a tema oscuro' })).toBeTruthy()
+  expect(screen.getByRole('status').textContent).toBe('Could not save your changes')
+  expect(screen.getByRole('button', { name: 'Switch to dark theme' })).toBeTruthy()
 })
 
 const configFile = (content: unknown, name = 'mi-config.json'): File =>
   new File([typeof content === 'string' ? content : JSON.stringify(content)], name, { type: 'application/json' })
 
 const openConfigMenu = (user: ReturnType<typeof userEvent.setup>) =>
-  user.click(screen.getByRole('button', { name: 'Configuración' }))
+  user.click(screen.getByRole('button', { name: 'Settings' }))
 
 test('Should keep the configuration menu closed until asked', async () => {
   const { user } = setup()
-  expect(screen.queryByRole('button', { name: 'Exportar configuración' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Export settings' })).toBeNull()
   await openConfigMenu(user)
-  expect(screen.getByRole('button', { name: 'Exportar configuración' })).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Importar configuración…' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Export settings' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Import settings…' })).toBeTruthy()
 })
 
 test('Should ask for the configuration to be exported', async () => {
   const { handlers, user } = setup()
   await openConfigMenu(user)
-  await user.click(screen.getByRole('button', { name: 'Exportar configuración' }))
+  await user.click(screen.getByRole('button', { name: 'Export settings' }))
   expect(handlers.onExportConfig).toHaveBeenCalledTimes(1)
 })
 
@@ -324,31 +324,31 @@ test('Should ask before replacing the configuration with the one in a file', asy
   const { handlers, user } = setup()
   const imported = { ...DEFAULT_STATE, theme: 'light', symbol: 'KO' }
   await openConfigMenu(user)
-  await user.upload(screen.getByLabelText('Archivo de configuración'), configFile(imported))
-  expect(await screen.findByText(/«mi-config\.json»/)).toBeTruthy()
+  await user.upload(screen.getByLabelText('Settings file'), configFile(imported))
+  expect(await screen.findByText(/“mi-config\.json”/)).toBeTruthy()
   expect(handlers.onImportConfig).not.toHaveBeenCalled()
-  await user.click(screen.getByRole('button', { name: 'Reemplazar' }))
+  await user.click(screen.getByRole('button', { name: 'Replace' }))
   expect(handlers.onImportConfig).toHaveBeenCalledTimes(1)
   expect(handlers.onImportConfig).toHaveBeenCalledWith(imported)
-  expect(screen.getByRole('status').textContent).toBe('Configuración importada.')
-  expect(screen.queryByRole('button', { name: 'Reemplazar' })).toBeNull()
+  expect(screen.getByRole('status').textContent).toBe('Settings imported.')
+  expect(screen.queryByRole('button', { name: 'Replace' })).toBeNull()
 })
 
 test('Should leave the configuration alone when the import is cancelled', async () => {
   const { handlers, user } = setup()
   await openConfigMenu(user)
-  await user.upload(screen.getByLabelText('Archivo de configuración'), configFile(DEFAULT_STATE))
-  await user.click(await screen.findByRole('button', { name: 'Cancelar' }))
+  await user.upload(screen.getByLabelText('Settings file'), configFile(DEFAULT_STATE))
+  await user.click(await screen.findByRole('button', { name: 'Cancel' }))
   expect(handlers.onImportConfig).not.toHaveBeenCalled()
-  expect(screen.queryByRole('button', { name: 'Reemplazar' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Replace' })).toBeNull()
 })
 
 test('Should refuse a file that is not a configuration', async () => {
   const { handlers, user } = setup()
   await openConfigMenu(user)
-  await user.upload(screen.getByLabelText('Archivo de configuración'), configFile('hola'))
-  expect((await screen.findByRole('alert')).textContent).toBe('Ese archivo no es una configuración de doji.')
-  expect(screen.queryByRole('button', { name: 'Reemplazar' })).toBeNull()
+  await user.upload(screen.getByLabelText('Settings file'), configFile('hola'))
+  expect((await screen.findByRole('alert')).textContent).toBe('That file is not a doji settings file.')
+  expect(screen.queryByRole('button', { name: 'Replace' })).toBeNull()
   expect(handlers.onImportConfig).not.toHaveBeenCalled()
 })
 
@@ -356,9 +356,9 @@ test('Should accept the same file again after refusing or cancelling it', async 
   const { handlers, user } = setup()
   const file = configFile(DEFAULT_STATE)
   await openConfigMenu(user)
-  await user.upload(screen.getByLabelText('Archivo de configuración'), file)
-  await user.click(await screen.findByRole('button', { name: 'Cancelar' }))
-  await user.upload(screen.getByLabelText('Archivo de configuración'), file)
-  await user.click(await screen.findByRole('button', { name: 'Reemplazar' }))
+  await user.upload(screen.getByLabelText('Settings file'), file)
+  await user.click(await screen.findByRole('button', { name: 'Cancel' }))
+  await user.upload(screen.getByLabelText('Settings file'), file)
+  await user.click(await screen.findByRole('button', { name: 'Replace' }))
   expect(handlers.onImportConfig).toHaveBeenCalledTimes(1)
 })

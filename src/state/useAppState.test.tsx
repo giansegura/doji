@@ -82,7 +82,7 @@ test('Should reload the state and say so when another tab saved first', async ()
   await wait(300)
   expect(result.current.state?.symbol).toBe('KO')
   expect(result.current.state?.theme).toBe('dark')
-  expect(result.current.notice).toBe('El estado cambió en otra pestaña y se ha recargado')
+  expect(result.current.notice).toBe('The settings changed in another tab and were reloaded')
 })
 
 test('Should save with the reloaded revision after a conflict', async () => {
@@ -103,7 +103,7 @@ test('Should warn when a save fails, retry, and clear the warning once saved', a
   box.reply = 'failed'
   act(() => result.current.dispatch({ type: 'setTheme', theme: 'light' }))
   await wait(300)
-  expect(result.current.notice).toBe('No se pudieron guardar los cambios')
+  expect(result.current.notice).toBe('Could not save your changes')
   box.reply = 'ok'
   await wait(5000)
   expect(puts).toHaveLength(2)

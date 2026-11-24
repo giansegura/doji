@@ -16,10 +16,10 @@ const IDLE: SearchState = { status: 'idle', results: [], text: '' }
 
 const hintFor = ({ status, results }: SearchState): string | null => {
   if (results.length > 0) return null
-  if (status === 'idle') return 'Escribe un ticker o el nombre de una empresa'
-  if (status === 'searching') return 'Buscando…'
-  if (status === 'failed') return 'No se pudo buscar'
-  return 'Sin resultados'
+  if (status === 'idle') return 'Type a ticker or a company name'
+  if (status === 'searching') return 'Searching…'
+  if (status === 'failed') return 'Search failed'
+  return 'No results'
 }
 
 export const SymbolSearch = ({ onPick, onClose, search = searchSymbols }: SymbolSearchProps) => {
@@ -94,11 +94,11 @@ export const SymbolSearch = ({ onPick, onClose, search = searchSymbols }: Symbol
 
   return (
     <Styles.Backdrop data-testid="search-backdrop" onClick={handleBackdrop}>
-      <Styles.Dialog role="dialog" aria-modal="true" aria-label="Buscar símbolo" onKeyDown={handleKeyDown}>
+      <Styles.Dialog role="dialog" aria-modal="true" aria-label="Symbol search" onKeyDown={handleKeyDown}>
         <Styles.Input
           ref={inputRef}
           type="text"
-          placeholder="Buscar símbolo o empresa"
+          placeholder="Search symbol or company"
           autoComplete="off"
           spellCheck={false}
           value={query}

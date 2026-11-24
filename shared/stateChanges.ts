@@ -1,6 +1,15 @@
 import type { AppState, TrendLine } from './types'
 
-const PARTS = ['theme', 'symbol', 'timeframe', 'watchlists', 'activeWatchlistId', 'indicators', 'chart'] as const
+const PARTS = [
+  'theme',
+  'symbol',
+  'timeframe',
+  'watchlists',
+  'activeWatchlistId',
+  'indicators',
+  'chart',
+  'listWidth',
+] as const
 
 type Part = (typeof PARTS)[number]
 

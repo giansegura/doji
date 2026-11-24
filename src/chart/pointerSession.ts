@@ -28,9 +28,14 @@ type SessionDeps = {
   measure: (pane: PaneId) => PaneBox | null
   isInside: (target: EventTarget | null) => boolean
   setCursor: (cursor: CursorKind) => void
+  onVerticalDrag: (pane: PaneId) => void
 }
 
 type Located = { pane: PaneId; xy: XY }
+
+type Press = { pane: PaneId; x: number; y: number }
+
+const DRAG_START_PX = 5
 
 const offsetIn = (box: PaneBox, event: PointerLike): XY => ({ x: event.clientX - box.left, y: event.clientY - box.top })
 
@@ -39,6 +44,7 @@ const isWithin = (box: PaneBox, xy: XY): boolean => xy.x >= 0 && xy.x <= box.wid
 export const createPointerSession = (deps: SessionDeps): PointerSession => {
   let captured: PaneId | null = null
   let swallowMouse = false
+  let pressed: Press | null = null
 
   const locate = (event: PointerLike): Located | null => {
     for (const pane of deps.panes) {
@@ -67,9 +73,28 @@ export const createPointerSession = (deps: SessionDeps): PointerSession => {
     else deps.controller.cancel()
   }
 
+  const judge = (event: PointerLike): void => {
+    if (!pressed) return
+    if (event.buttons === 0) {
+      pressed = null
+      return
+    }
+    const across = Math.abs(event.clientX - pressed.x)
+    const along = Math.abs(event.clientY - pressed.y)
+    if (across + along < DRAG_START_PX) return
+    const { pane } = pressed
+    pressed = null
+    if (along > across) deps.onVerticalDrag(pane)
+  }
+
   const down = (event: PointerLike): void => {
     const hit = event.button === 0 ? locate(event) : null
-    if (!hit || !deps.controller.pointerDown(hit.pane, hit.xy)) return
+    pressed = null
+    if (!hit) return
+    if (!deps.controller.pointerDown(hit.pane, hit.xy)) {
+      pressed = { pane: hit.pane, x: event.clientX, y: event.clientY }
+      return
+    }
     captured = hit.pane
     swallowMouse = true
     event.stopPropagation()
@@ -82,15 +107,18 @@ export const createPointerSession = (deps: SessionDeps): PointerSession => {
 
   const move = (event: PointerLike): void => {
     if (captured && event.buttons === 0) release(captured, event)
+    judge(event)
     const at = place(event)
     deps.setCursor(at ? deps.controller.pointerMove(at.pane, at.xy) : 'default')
   }
 
   const up = (event: PointerLike): void => {
+    pressed = null
     if (captured) release(captured, event)
   }
 
   const cancel = (): void => {
+    pressed = null
     captured = null
     swallowMouse = false
     deps.controller.cancel()

@@ -4,7 +4,10 @@ import type { History } from '../shared/types'
 import { addDays } from '../shared/dates'
 import type { DataProvider } from './provider/yahoo'
 
-export type HistoryCache = { get: (symbol: string) => Promise<History> }
+export type HistoryCache = {
+  get: (symbol: string) => Promise<History>
+  peek: (symbol: string) => Promise<History>
+}
 
 export const FRESH_MS = 15_000
 export const FULL_REFRESH_MS = 12 * 60 * 60 * 1000
@@ -147,5 +150,10 @@ export const createHistoryCache = (deps: { provider: DataProvider; dir: string; 
     return started
   }
 
-  return { get }
+  const peek = async (symbol: string): Promise<History> => {
+    const kept = await readCached(symbol.toUpperCase())
+    return kept ? kept.history : get(symbol)
+  }
+
+  return { get, peek }
 }

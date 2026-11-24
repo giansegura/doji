@@ -24,6 +24,7 @@ type UseDrawingArgs = {
   tool: Tool
   onToolDone: () => void
   onLinesChange: (lines: TrendLine[]) => void
+  onVerticalDrag: (pane: PaneId) => void
   defaultColor: string
   handleFill: string
   priceBasis: string
@@ -193,6 +194,7 @@ export const useDrawing = (args: UseDrawingArgs) => {
         if (cursor === 'default') delete container.dataset.cursor
         else container.dataset.cursor = cursor
       },
+      onVerticalDrag: (pane) => latest.current.onVerticalDrag(pane),
     })
 
     const handleKey = (event: KeyboardEvent) => {

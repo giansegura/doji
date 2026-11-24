@@ -19,8 +19,9 @@ type Overrides = {
 
 const makeApi = (over: Overrides = {}) => {
   const saved: AppState[] = []
-  const requested: { history: string[]; search: string[]; quotes: string[][]; logos: string[] } = {
+  const requested: { history: string[]; kept: string[]; search: string[]; quotes: string[][]; logos: string[] } = {
     history: [],
+    kept: [],
     search: [],
     quotes: [],
     logos: [],
@@ -30,6 +31,10 @@ const makeApi = (over: Overrides = {}) => {
       get: async (symbol) => {
         requested.history.push(symbol)
         return (over.getHistory ?? (async (s: string) => historyOf(s)))(symbol)
+      },
+      peek: async (symbol) => {
+        requested.kept.push(symbol)
+        return historyOf(symbol)
       },
     },
     provider: {
@@ -317,4 +322,13 @@ test('Should read a body only for the requests that write', () => {
   expect(expectsBody('PUT')).toBe(true)
   expect(expectsBody('PATCH')).toBe(true)
   expect(expectsBody('GET')).toBe(false)
+})
+
+test('Should return the kept copy of a history when asked for it', async () => {
+  const { call, requested } = makeApi()
+  const result = await call('GET', '/api/history?symbol=AAPL&cached=1')
+  expect(result.status).toBe(200)
+  expect(bodyOf(result)).toEqual(historyOf('AAPL'))
+  expect(requested.kept).toEqual(['AAPL'])
+  expect(requested.history).toEqual([])
 })

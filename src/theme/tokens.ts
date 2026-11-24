@@ -14,6 +14,8 @@ export type Theme = {
     onAccent: string
     up: string
     down: string
+    preMarket: string
+    postMarket: string
     shadow: string
     font: string
   }
@@ -41,6 +43,8 @@ const ACCENT = '#2962FF'
 const UP = '#089981'
 const DOWN = '#F23645'
 const MUTED = '#787B86'
+const PRE_MARKET = '#FF9800'
+const POST_MARKET = '#5B9CF6'
 
 const shared = {
   up: UP,
@@ -67,6 +71,8 @@ export const themes: Record<ThemeName, Theme> = {
       onAccent: '#FFFFFF',
       up: UP,
       down: DOWN,
+      preMarket: PRE_MARKET,
+      postMarket: POST_MARKET,
       shadow: 'rgba(0, 0, 0, 0.5)',
       font: FONT,
     },
@@ -96,6 +102,8 @@ export const themes: Record<ThemeName, Theme> = {
       onAccent: '#FFFFFF',
       up: UP,
       down: DOWN,
+      preMarket: PRE_MARKET,
+      postMarket: POST_MARKET,
       shadow: 'rgba(0, 0, 0, 0.15)',
       font: FONT,
     },

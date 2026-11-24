@@ -17,11 +17,11 @@ const setup = (over: { lists?: SymbolList[]; activeId?: string } = {}) => {
 }
 
 const openMenu = async (user: ReturnType<typeof userEvent.setup>) =>
-  user.click(screen.getByRole('button', { name: 'Listas de seguimiento' }))
+  user.click(screen.getByRole('button', { name: 'Watchlists' }))
 
 test('Should show the name of the active list and keep the menu closed', () => {
   setup({ activeId: 'b' })
-  const trigger = screen.getByRole('button', { name: 'Listas de seguimiento' })
+  const trigger = screen.getByRole('button', { name: 'Watchlists' })
   expect(trigger.textContent).toContain('Bancos')
   expect(trigger.getAttribute('aria-expanded')).toBe('false')
   expect(screen.queryByRole('menu')).toBeNull()
@@ -45,8 +45,8 @@ test('Should switch to another list and close the menu', async () => {
 test('Should create a list with the typed name', async () => {
   const { handlers, user } = setup()
   await openMenu(user)
-  await user.click(screen.getByRole('button', { name: 'Crear lista nueva' }))
-  const input = screen.getByRole('textbox', { name: 'Nombre de la lista nueva' })
+  await user.click(screen.getByRole('button', { name: 'New watchlist' }))
+  const input = screen.getByRole('textbox', { name: 'Name of the new watchlist' })
   expect(document.activeElement).toBe(input)
   await user.type(input, 'Energía{Enter}')
   expect(handlers.onCreate).toHaveBeenCalledWith('Energía')
@@ -56,8 +56,8 @@ test('Should create a list with the typed name', async () => {
 test('Should not create a list without a name', async () => {
   const { handlers, user } = setup()
   await openMenu(user)
-  await user.click(screen.getByRole('button', { name: 'Crear lista nueva' }))
-  await user.type(screen.getByRole('textbox', { name: 'Nombre de la lista nueva' }), '   {Enter}')
+  await user.click(screen.getByRole('button', { name: 'New watchlist' }))
+  await user.type(screen.getByRole('textbox', { name: 'Name of the new watchlist' }), '   {Enter}')
   expect(handlers.onCreate).not.toHaveBeenCalled()
   expect(screen.getByRole('menu')).toBeTruthy()
 })
@@ -65,8 +65,8 @@ test('Should not create a list without a name', async () => {
 test('Should rename a list starting from its current name', async () => {
   const { handlers, user } = setup()
   await openMenu(user)
-  await user.click(screen.getByRole('button', { name: 'Renombrar Bancos' }))
-  const input = screen.getByRole('textbox', { name: 'Nuevo nombre de Bancos' }) as HTMLInputElement
+  await user.click(screen.getByRole('button', { name: 'Rename Bancos' }))
+  const input = screen.getByRole('textbox', { name: 'New name for Bancos' }) as HTMLInputElement
   expect(input.value).toBe('Bancos')
   await user.clear(input)
   await user.type(input, 'Banca europea{Enter}')
@@ -77,8 +77,8 @@ test('Should rename a list starting from its current name', async () => {
 test('Should cancel a rename with Escape and keep the menu open', async () => {
   const { handlers, user } = setup()
   await openMenu(user)
-  await user.click(screen.getByRole('button', { name: 'Renombrar Bancos' }))
-  await user.type(screen.getByRole('textbox', { name: 'Nuevo nombre de Bancos' }), 'x{Escape}')
+  await user.click(screen.getByRole('button', { name: 'Rename Bancos' }))
+  await user.type(screen.getByRole('textbox', { name: 'New name for Bancos' }), 'x{Escape}')
   expect(handlers.onRename).not.toHaveBeenCalled()
   expect(screen.queryByRole('textbox')).toBeNull()
   expect(screen.getByRole('menuitem', { name: 'Bancos' })).toBeTruthy()
@@ -87,16 +87,16 @@ test('Should cancel a rename with Escape and keep the menu open', async () => {
 test('Should duplicate a list and close the menu', async () => {
   const { handlers, user } = setup()
   await openMenu(user)
-  await user.click(screen.getByRole('button', { name: 'Duplicar Bancos' }))
+  await user.click(screen.getByRole('button', { name: 'Duplicate Bancos' }))
   expect(handlers.onDuplicate).toHaveBeenCalledWith('b')
   expect(screen.queryByRole('menu')).toBeNull()
 })
 
 test('Should not offer to duplicate once there are twenty lists', async () => {
-  const many = Array.from({ length: 20 }, (_, index) => ({ id: `l${index}`, name: `Lista ${index}`, items: [] }))
+  const many = Array.from({ length: 20 }, (_, index) => ({ id: `l${index}`, name: `List ${index}`, items: [] }))
   const { handlers, user } = setup({ lists: many, activeId: 'l0' })
   await openMenu(user)
-  const duplicate = screen.getByRole('button', { name: 'Duplicar Lista 3' })
+  const duplicate = screen.getByRole('button', { name: 'Duplicate List 3' })
   expect(duplicate.hasAttribute('disabled')).toBe(true)
   await user.click(duplicate)
   expect(handlers.onDuplicate).not.toHaveBeenCalled()
@@ -105,18 +105,18 @@ test('Should not offer to duplicate once there are twenty lists', async () => {
 test('Should delete a list only after confirming', async () => {
   const { handlers, user } = setup()
   await openMenu(user)
-  await user.click(screen.getByRole('button', { name: 'Borrar Bancos' }))
+  await user.click(screen.getByRole('button', { name: 'Delete Bancos' }))
   expect(handlers.onDelete).not.toHaveBeenCalled()
-  expect(screen.getByText('¿Borrar «Bancos»?')).toBeTruthy()
-  await user.click(screen.getByRole('button', { name: 'Confirmar borrado de Bancos' }))
+  expect(screen.getByText('Delete “Bancos”?')).toBeTruthy()
+  await user.click(screen.getByRole('button', { name: 'Confirm deleting Bancos' }))
   expect(handlers.onDelete).toHaveBeenCalledWith('b')
 })
 
 test('Should keep the list when the deletion is cancelled', async () => {
   const { handlers, user } = setup()
   await openMenu(user)
-  await user.click(screen.getByRole('button', { name: 'Borrar Bancos' }))
-  await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+  await user.click(screen.getByRole('button', { name: 'Delete Bancos' }))
+  await user.click(screen.getByRole('button', { name: 'Cancel' }))
   expect(handlers.onDelete).not.toHaveBeenCalled()
   expect(screen.getByRole('menuitem', { name: 'Bancos' })).toBeTruthy()
 })
@@ -124,7 +124,7 @@ test('Should keep the list when the deletion is cancelled', async () => {
 test('Should not offer to delete the only list', async () => {
   const { handlers, user } = setup({ lists: [lists[0]] })
   await openMenu(user)
-  const remove = screen.getByRole('button', { name: 'Borrar Tecnología' })
+  const remove = screen.getByRole('button', { name: 'Delete Tecnología' })
   expect(remove.hasAttribute('disabled')).toBe(true)
   await user.click(remove)
   expect(handlers.onDelete).not.toHaveBeenCalled()

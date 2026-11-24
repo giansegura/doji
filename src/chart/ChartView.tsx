@@ -7,6 +7,7 @@ import { LineToolbar } from './LineToolbar'
 import { LiveLegend } from './LiveLegend'
 import { imageName, saveChartImage } from './screenshot'
 import * as Styles from './styles'
+import { useAutoFit } from './useAutoFit'
 import { useChart } from './useChart'
 import { useDrawing } from './useDrawing'
 
@@ -23,7 +24,7 @@ type ChartViewProps = {
 }
 
 const formatFetchedAt = (fetchedAt: string): string =>
-  new Date(fetchedAt).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })
+  new Date(fetchedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
 
 export const ChartView = ({
   history,
@@ -38,6 +39,7 @@ export const ChartView = ({
 }: ChartViewProps) => {
   const theme = useTheme()
   const { containerRef, handles, data, rsiPaneTop, hover } = useChart({ history, timeframe, theme, indicators, settings })
+  const { manual, release, fit } = useAutoFit(handles, history.info.symbol)
   const { selectedLine, updateLine, deleteSelected } = useDrawing({
     handles,
     symbol: history.info.symbol,
@@ -47,6 +49,7 @@ export const ChartView = ({
     tool,
     onToolDone,
     onLinesChange,
+    onVerticalDrag: release,
     defaultColor: theme.chart.line,
     handleFill: theme.chart.bg,
     priceBasis: splitBasis(history.splits),
@@ -73,8 +76,13 @@ export const ChartView = ({
         rsiPaneTop={rsiPaneTop}
       />
       {selectedLine && <LineToolbar line={selectedLine} onChange={updateLine} onDelete={deleteSelected} />}
+      {manual && (
+        <Styles.AutoFit type="button" title="Fit the price to the screen again" onClick={fit}>
+          Auto
+        </Styles.AutoFit>
+      )}
       {history.stale && (
-        <Styles.Notice role="status">Datos del {formatFetchedAt(history.fetchedAt)}: sin conexión con la fuente</Styles.Notice>
+        <Styles.Notice role="status">Data from {formatFetchedAt(history.fetchedAt)}: no connection to the source</Styles.Notice>
       )}
     </Styles.Wrapper>
   )

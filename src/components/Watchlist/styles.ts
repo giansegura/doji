@@ -1,11 +1,40 @@
-import styled from 'styled-components'
+import styled, { css } from 'styled-components'
 
-const COLUMNS = 'minmax(0, 1fr) 76px 72px'
+const COLUMNS = 'minmax(0, 1fr) 76px 72px 72px'
+const NO_EXTENDED_COLUMNS = 'minmax(0, 1fr) 76px 72px'
+const COMPACT_COLUMNS = 'minmax(0, 1fr) 72px'
+const NO_EXTENDED = '@container (max-width: 379px)'
+const COMPACT = '@container (max-width: 299px)'
+
+const columns = css`
+  grid-template-columns: ${COLUMNS};
+
+  ${NO_EXTENDED} {
+    grid-template-columns: ${NO_EXTENDED_COLUMNS};
+  }
+
+  ${COMPACT} {
+    grid-template-columns: ${COMPACT_COLUMNS};
+  }
+`
+
+const wideOnly = css`
+  ${COMPACT} {
+    display: none;
+  }
+`
+
+const widestOnly = css`
+  ${NO_EXTENDED} {
+    display: none;
+  }
+`
 
 export const Panel = styled.div`
   display: flex;
   flex-direction: column;
   height: 100%;
+  container-type: inline-size;
 `
 
 export const Header = styled.div`
@@ -38,7 +67,7 @@ export const IconButton = styled.button`
 
 export const Columns = styled.div`
   display: grid;
-  grid-template-columns: ${COLUMNS};
+  ${columns}
   gap: 4px;
   padding: 6px 30px 6px 14px;
   border-top: 1px solid ${(props) => props.theme.ui.border};
@@ -47,8 +76,10 @@ export const Columns = styled.div`
   font-size: 11px;
 `
 
-export const ColumnLabel = styled.div<{ $right?: boolean }>`
+export const ColumnLabel = styled.div<{ $right?: boolean; $wideOnly?: boolean; $widestOnly?: boolean }>`
   text-align: ${(props) => (props.$right ? 'right' : 'left')};
+  ${(props) => props.$wideOnly && wideOnly}
+  ${(props) => props.$widestOnly && widestOnly}
 `
 
 export const Rows = styled.ul`
@@ -96,7 +127,7 @@ export const Row = styled.li<{ $dragging: boolean }>`
 
 export const RowButton = styled.button`
   display: grid;
-  grid-template-columns: ${COLUMNS};
+  ${columns}
   gap: 4px;
   align-items: center;
   width: 100%;
@@ -127,15 +158,26 @@ export const Ticker = styled.div`
   white-space: nowrap;
 `
 
-export const Number = styled.div<{ $color?: string }>`
+export const Number = styled.div<{ $color?: string; $wideOnly?: boolean; $widestOnly?: boolean }>`
   color: ${(props) => props.$color ?? 'inherit'};
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
+  ${(props) => props.$wideOnly && wideOnly}
+  ${(props) => props.$widestOnly && widestOnly}
 `
 
 export const Empty = styled.div`
   padding: 24px 14px;
   color: ${(props) => props.theme.ui.textMuted};
   text-align: center;
+`
+
+export const SessionDot = styled.div<{ $session: 'pre' | 'post' }>`
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  border-radius: 50%;
+  background: ${(props) => (props.$session === 'pre' ? props.theme.ui.preMarket : props.theme.ui.postMarket)};
 `

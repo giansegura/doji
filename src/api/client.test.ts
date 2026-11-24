@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { type AppState, DEFAULT_STATE, type TrendLine } from '../../shared/types'
-import { putState } from './client'
+import { getHistory, getKeptHistory, putState } from './client'
 
 const reply = (status: number, body: unknown) =>
   vi.fn(async () => ({ ok: status >= 200 && status < 300, status, json: async () => body }))
@@ -96,4 +96,15 @@ test('Should send the whole state while the page stays open, whatever its size',
 test('Should send the whole state when it does not know what the server has', async () => {
   const sent = await sentBy({ ...heavy, theme: 'light' }, true, null)
   expect(sent.method).toBe('PUT')
+})
+
+test('Should ask for the kept copy of a history without waiting for the source', async () => {
+  const fetchMock = reply(200, { info: { symbol: 'BRK-B' } })
+  vi.stubGlobal('fetch', fetchMock)
+  await getKeptHistory('BRK-B')
+  await getHistory('BRK-B')
+  expect(fetchMock.mock.calls.map((call) => (call as unknown as [string])[0])).toEqual([
+    '/api/history?symbol=BRK-B&cached=1',
+    '/api/history?symbol=BRK-B',
+  ])
 })

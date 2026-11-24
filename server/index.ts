@@ -129,7 +129,7 @@ const handleRequest = (req: IncomingMessage, res: ServerResponse): void => {
     sendText(
       res,
       404,
-      existsSync(distDir) ? 'No encontrado' : 'La app no está compilada. Ejecuta "npm start" o usa "npm run dev".',
+      existsSync(distDir) ? 'Not found' : 'The app is not built. Run "npm start" or use "npm run dev".',
     ),
   )
 }
@@ -143,11 +143,11 @@ const server = createServer((req, res) => {
 })
 
 server.on('error', (error) => {
-  console.error(`No se pudo arrancar en http://${HOST}:${PORT}: ${error.message}`)
+  console.error(`Could not start on http://${HOST}:${PORT}: ${error.message}`)
   process.exit(1)
 })
 
 server.listen(PORT, HOST, () => {
-  console.log(`doji en http://${HOST}:${PORT}`)
-  console.log(`datos en ${dataDir}`)
+  console.log(`doji at http://${HOST}:${PORT}`)
+  console.log(`data in ${dataDir}`)
 })

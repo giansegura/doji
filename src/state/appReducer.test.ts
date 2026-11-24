@@ -83,7 +83,7 @@ test('Should not create a list without a name, with a used id or beyond twenty',
   expect(appReducer(base, { type: 'createWatchlist', id: 'main', name: 'Repetida' })).toBe(base)
   const full: AppState = {
     ...base,
-    watchlists: Array.from({ length: 20 }, (_, index) => ({ id: `l${index}`, name: `Lista ${index}`, items: [] })),
+    watchlists: Array.from({ length: 20 }, (_, index) => ({ id: `l${index}`, name: `List ${index}`, items: [] })),
     activeWatchlistId: 'l0',
   }
   expect(appReducer(full, { type: 'createWatchlist', id: 'new', name: 'Una más' })).toBe(full)
@@ -91,7 +91,7 @@ test('Should not create a list without a name, with a used id or beyond twenty',
 
 test('Should duplicate a list right after the original and make the copy active', () => {
   const out = appReducer(base, { type: 'duplicateWatchlist', id: 'main', newId: 'copy' })
-  expect(names(out)).toEqual(['Principal', 'Principal (copia)', 'Otra'])
+  expect(names(out)).toEqual(['Principal', 'Principal (copy)', 'Otra'])
   expect(out.activeWatchlistId).toBe('copy')
   expect(symbols(out)).toEqual(['A', 'B', 'C', 'D'])
   expect(out.watchlists[0]).toBe(base.watchlists[0])
@@ -107,13 +107,13 @@ test('Should keep the copy independent from the original', () => {
 test('Should number the copy when the name is already taken', () => {
   const once = appReducer(base, { type: 'duplicateWatchlist', id: 'main', newId: 'copy1' })
   const twice = appReducer(once, { type: 'duplicateWatchlist', id: 'main', newId: 'copy2' })
-  expect(names(twice)).toEqual(['Principal', 'Principal (copia 2)', 'Principal (copia)', 'Otra'])
+  expect(names(twice)).toEqual(['Principal', 'Principal (copy 2)', 'Principal (copy)', 'Otra'])
 })
 
 test('Should keep the name of a copy within forty characters', () => {
   const long: AppState = { ...base, watchlists: [{ id: 'main', name: 'N'.repeat(40), items: [] }] }
   const out = appReducer(long, { type: 'duplicateWatchlist', id: 'main', newId: 'copy' })
-  expect(out.watchlists[1].name).toBe(`${'N'.repeat(32)} (copia)`)
+  expect(out.watchlists[1].name).toBe(`${'N'.repeat(33)} (copy)`)
   expect(out.watchlists[1].name).toHaveLength(40)
 })
 
@@ -122,7 +122,7 @@ test('Should not duplicate an unknown list, reuse an id or go beyond twenty list
   expect(appReducer(base, { type: 'duplicateWatchlist', id: 'main', newId: 'other' })).toBe(base)
   const full: AppState = {
     ...base,
-    watchlists: Array.from({ length: 20 }, (_, index) => ({ id: `l${index}`, name: `Lista ${index}`, items: [] })),
+    watchlists: Array.from({ length: 20 }, (_, index) => ({ id: `l${index}`, name: `List ${index}`, items: [] })),
     activeWatchlistId: 'l0',
   }
   expect(appReducer(full, { type: 'duplicateWatchlist', id: 'l0', newId: 'copy' })).toBe(full)
@@ -220,4 +220,17 @@ test('Should replace everything with an imported configuration and keep its own 
     lines: { KO: [line('l1')] },
   }
   expect(appReducer({ ...base, rev: 12 }, { type: 'importConfig', config })).toEqual({ ...config, rev: 12 })
+})
+
+test('Should set the width of the list within its limits', () => {
+  expect(appReducer(base, { type: 'setListWidth', width: 412 }).listWidth).toBe(412)
+  expect(appReducer(base, { type: 'setListWidth', width: 90 }).listWidth).toBe(220)
+  expect(appReducer(base, { type: 'setListWidth', width: 2000 }).listWidth).toBe(640)
+  expect(appReducer(base, { type: 'setListWidth', width: 350.4 }).listWidth).toBe(350)
+})
+
+test('Should keep the same state when the width of the list does not change', () => {
+  const sized = appReducer(base, { type: 'setListWidth', width: 400 })
+  expect(appReducer(sized, { type: 'setListWidth', width: 400 })).toBe(sized)
+  expect(appReducer(sized, { type: 'setListWidth', width: 400.3 })).toBe(sized)
 })

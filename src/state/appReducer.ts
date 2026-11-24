@@ -1,4 +1,5 @@
 import { LIST_NAME_MAX_LENGTH, MAX_LISTS } from '../../shared/limits'
+import { clampListWidth } from '../../shared/listWidth'
 import type {
   AppState,
   ChartSettings,
@@ -28,8 +29,9 @@ export type Action =
   | { type: 'setChart'; chart: ChartSettings }
   | { type: 'setLines'; symbol: string; lines: TrendLine[] }
   | { type: 'importConfig'; config: AppState }
+  | { type: 'setListWidth'; width: number }
 
-const COPY_SUFFIXES = [' (copia)', ...Array.from({ length: MAX_LISTS }, (_, index) => ` (copia ${index + 2})`)]
+const COPY_SUFFIXES = [' (copy)', ...Array.from({ length: MAX_LISTS }, (_, index) => ` (copy ${index + 2})`)]
 
 const sameSymbol = (a: string, b: string): boolean => a.toUpperCase() === b.toUpperCase()
 
@@ -127,6 +129,11 @@ const selectWatchlist = (state: AppState, id: string): AppState => {
   return { ...state, activeWatchlistId: id }
 }
 
+const setListWidth = (state: AppState, raw: number): AppState => {
+  const listWidth = clampListWidth(raw)
+  return listWidth === state.listWidth ? state : { ...state, listWidth }
+}
+
 const setLines = (state: AppState, symbol: string, lines: TrendLine[]): AppState => {
   const { [symbol]: _previous, ...others } = state.lines
   return { ...state, lines: lines.length > 0 ? { ...others, [symbol]: lines } : others }
@@ -149,5 +156,6 @@ export const appReducer = (state: AppState, action: Action): AppState => {
   if (action.type === 'setIndicators') return { ...state, indicators: action.indicators }
   if (action.type === 'setChart') return { ...state, chart: action.chart }
   if (action.type === 'importConfig') return { ...action.config, rev: state.rev }
+  if (action.type === 'setListWidth') return setListWidth(state, action.width)
   return setLines(state, action.symbol, action.lines)
 }

@@ -5,6 +5,7 @@ import type { AppState, SymbolInfo } from '../shared/types'
 import { ChartArea } from './components/ChartArea'
 import { LeftToolbar } from './components/LeftToolbar'
 import { ListPicker } from './components/ListPicker'
+import { ListResizer } from './components/ListResizer'
 import { SymbolSearch } from './components/SymbolSearch'
 import { TopBar } from './components/TopBar'
 import { Watchlist } from './components/Watchlist'
@@ -13,6 +14,7 @@ import { downloadText } from './domain/download'
 import { newId } from './domain/newId'
 import { adjustLinesForSplits } from './domain/splits'
 import { useHistory } from './hooks/useHistory'
+import { usePrefetchHistories } from './hooks/usePrefetchHistories'
 import { useQuotes } from './hooks/useQuotes'
 import { type Action, type Tool, activeWatchlist } from './state/appReducer'
 import { resolvePendingAdd } from './state/pendingAdd'
@@ -32,7 +34,9 @@ const Workspace = ({ state, dispatch, notice }: WorkspaceProps) => {
   const screenshotRef = useRef<(() => void) | null>(null)
   const { status, history, errorCode, retry } = useHistory(state.symbol)
   const list = activeWatchlist(state)
-  const quotes = useQuotes(list.items.map((item) => item.symbol))
+  const listSymbols = list.items.map((item) => item.symbol)
+  const quotes = useQuotes(listSymbols)
+  usePrefetchHistories(listSymbols)
 
   useEffect(() => {
     const decision = resolvePendingAdd(pendingAdd, { status, history, errorCode })
@@ -54,7 +58,7 @@ const Workspace = ({ state, dispatch, notice }: WorkspaceProps) => {
   }
 
   return (
-    <Styles.Layout>
+    <Styles.Layout $listWidth={state.listWidth}>
       <Styles.Top>
         <TopBar
           symbol={state.symbol}
@@ -94,6 +98,7 @@ const Workspace = ({ state, dispatch, notice }: WorkspaceProps) => {
         />
       </Styles.Chart>
       <Styles.List>
+        <ListResizer width={state.listWidth} onResize={(width) => dispatch({ type: 'setListWidth', width })} />
         <Watchlist
           items={list.items}
           header={
@@ -129,9 +134,9 @@ export const App = () => {
         <GlobalStyle />
         <Styles.FullScreen>
           <Styles.Message>
-            No se pudo abrir doji. ¿Está el servidor en marcha?
+            Could not open doji. Is the server running?
             <Styles.ActionButton type="button" onClick={retry}>
-              Reintentar
+              Retry
             </Styles.ActionButton>
           </Styles.Message>
         </Styles.FullScreen>

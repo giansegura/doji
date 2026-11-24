@@ -67,3 +67,10 @@ test('Should rebuild the current state from the saved one and its changes', () =
   }
   expect(applyChanges(saved, changesSince(saved, current))).toEqual(current)
 })
+
+test('Should list a new list width as a change', () => {
+  const saved: AppState = { ...DEFAULT_STATE, listWidth: 320 }
+  const current: AppState = { ...saved, listWidth: 410 }
+  expect(changesSince(saved, current)).toEqual({ listWidth: 410 })
+  expect(applyChanges(saved, { listWidth: 410 }).listWidth).toBe(410)
+})

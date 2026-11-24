@@ -117,11 +117,11 @@ export const ListPicker = ({ lists, activeId, onSelect, onCreate, onRename, onDe
     <Styles.Root ref={rootRef}>
       <Styles.Trigger
         type="button"
-        aria-label="Listas de seguimiento"
+        aria-label="Watchlists"
         aria-expanded={open}
         onClick={() => (open ? close() : setOpen(true))}
       >
-        <Styles.TriggerName>{active?.name ?? 'Lista'}</Styles.TriggerName>
+        <Styles.TriggerName>{active?.name ?? 'Watchlist'}</Styles.TriggerName>
         <ChevronIcon />
       </Styles.Trigger>
       {open && (
@@ -132,7 +132,7 @@ export const ListPicker = ({ lists, activeId, onSelect, onCreate, onRename, onDe
                 <Styles.Input
                   type="text"
                   autoFocus
-                  aria-label={`Nuevo nombre de ${list.name}`}
+                  aria-label={`New name for ${list.name}`}
                   maxLength={LIST_NAME_MAX_LENGTH}
                   value={text}
                   onChange={(event) => setText(event.target.value)}
@@ -141,17 +141,17 @@ export const ListPicker = ({ lists, activeId, onSelect, onCreate, onRename, onDe
               )}
               {mode.kind === 'confirm' && mode.id === list.id && (
                 <>
-                  <Styles.Question>{`¿Borrar «${list.name}»?`}</Styles.Question>
+                  <Styles.Question>{`Delete “${list.name}”?`}</Styles.Question>
                   <Styles.TextButton
                     type="button"
                     $danger
-                    aria-label={`Confirmar borrado de ${list.name}`}
+                    aria-label={`Confirm deleting ${list.name}`}
                     onClick={() => handleDelete(list.id)}
                   >
-                    Borrar
+                    Delete
                   </Styles.TextButton>
                   <Styles.TextButton type="button" onClick={() => setMode(BROWSE)}>
-                    Cancelar
+                    Cancel
                   </Styles.TextButton>
                 </>
               )}
@@ -167,16 +167,16 @@ export const ListPicker = ({ lists, activeId, onSelect, onCreate, onRename, onDe
                   </Styles.Item>
                   <Styles.IconButton
                     type="button"
-                    title="Renombrar"
-                    aria-label={`Renombrar ${list.name}`}
+                    title="Rename"
+                    aria-label={`Rename ${list.name}`}
                     onClick={() => startEditing({ kind: 'rename', id: list.id }, list.name)}
                   >
                     <PencilIcon />
                   </Styles.IconButton>
                   <Styles.IconButton
                     type="button"
-                    title="Duplicar"
-                    aria-label={`Duplicar ${list.name}`}
+                    title="Duplicate"
+                    aria-label={`Duplicate ${list.name}`}
                     disabled={lists.length >= MAX_LISTS}
                     onClick={() => handleDuplicate(list.id)}
                   >
@@ -184,8 +184,8 @@ export const ListPicker = ({ lists, activeId, onSelect, onCreate, onRename, onDe
                   </Styles.IconButton>
                   <Styles.IconButton
                     type="button"
-                    title="Borrar"
-                    aria-label={`Borrar ${list.name}`}
+                    title="Delete"
+                    aria-label={`Delete ${list.name}`}
                     disabled={lists.length <= 1}
                     onClick={() => setMode({ kind: 'confirm', id: list.id })}
                   >
@@ -200,8 +200,8 @@ export const ListPicker = ({ lists, activeId, onSelect, onCreate, onRename, onDe
               <Styles.Input
                 type="text"
                 autoFocus
-                aria-label="Nombre de la lista nueva"
-                placeholder="Nombre de la lista"
+                aria-label="Name of the new watchlist"
+                placeholder="Watchlist name"
                 maxLength={LIST_NAME_MAX_LENGTH}
                 value={text}
                 onChange={(event) => setText(event.target.value)}
@@ -213,7 +213,7 @@ export const ListPicker = ({ lists, activeId, onSelect, onCreate, onRename, onDe
                 disabled={lists.length >= MAX_LISTS}
                 onClick={() => startEditing({ kind: 'create' }, '')}
               >
-                Crear lista nueva
+                New watchlist
               </Styles.CreateButton>
             )}
           </Styles.Footer>

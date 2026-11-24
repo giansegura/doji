@@ -68,24 +68,24 @@ const setup = (initial: Props = {}) => {
 
 test('Should say it is loading when there is nothing to show yet', () => {
   setup({ status: 'loading', history: null })
-  expect(screen.getByText('Cargando…')).toBeTruthy()
+  expect(screen.getByText('Loading…')).toBeTruthy()
 })
 
 test('Should say when a symbol has no data', () => {
   setup({ status: 'error', history: null, errorCode: 'not_found', symbol: 'NOEXISTE' })
-  expect(screen.getByText('No hay datos para NOEXISTE')).toBeTruthy()
-  expect(screen.queryByRole('button', { name: 'Reintentar' })).toBeNull()
+  expect(screen.getByText('No data for NOEXISTE')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
 })
 
 test('Should say when a symbol exists but has no bars', () => {
   setup({ history: historyOf('AAPL', 0) })
-  expect(screen.getByText('No hay datos para AAPL')).toBeTruthy()
+  expect(screen.getByText('No data for AAPL')).toBeTruthy()
 })
 
 test('Should offer to retry when the data could not be loaded', async () => {
   const { onRetry } = setup({ status: 'error', history: null, errorCode: 'unavailable' })
-  expect(screen.getByText('No se pudieron cargar los datos')).toBeTruthy()
-  await userEvent.setup().click(screen.getByRole('button', { name: 'Reintentar' }))
+  expect(screen.getByText('Could not load the data')).toBeTruthy()
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }))
   expect(onRetry).toHaveBeenCalledTimes(1)
 })
 
@@ -99,7 +99,7 @@ test('Should keep the previous chart on screen, without its lines or tools, whil
   const { update } = setup()
   update({ symbol: 'MSFT', status: 'loading', history: null })
   expect(screen.getByText('gráfico de AAPL · 0 líneas · cursor')).toBeTruthy()
-  expect(screen.getByRole('status').textContent).toBe('Cargando MSFT…')
+  expect(screen.getByRole('status').textContent).toBe('Loading MSFT…')
 })
 
 test('Should switch to the new chart when its data arrives', () => {
@@ -114,6 +114,6 @@ test('Should drop the previous chart when the next symbol fails', () => {
   const { update } = setup()
   update({ symbol: 'NOEXISTE', status: 'loading', history: null })
   update({ symbol: 'NOEXISTE', status: 'error', history: null, errorCode: 'not_found' })
-  expect(screen.getByText('No hay datos para NOEXISTE')).toBeTruthy()
+  expect(screen.getByText('No data for NOEXISTE')).toBeTruthy()
   expect(screen.queryByText(/gráfico de/)).toBeNull()
 })

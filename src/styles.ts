@@ -1,8 +1,8 @@
 import styled from 'styled-components'
 
-export const Layout = styled.div`
+export const Layout = styled.div<{ $listWidth: number }>`
   display: grid;
-  grid-template-columns: 52px minmax(0, 1fr) 320px;
+  grid-template-columns: 52px minmax(0, 1fr) min(${(props) => props.$listWidth}px, 60vw);
   grid-template-rows: 38px minmax(0, 1fr);
   grid-template-areas:
     'top top top'
@@ -29,6 +29,7 @@ export const Chart = styled.main`
 
 export const List = styled.aside`
   grid-area: list;
+  position: relative;
   min-height: 0;
   background: ${(props) => props.theme.ui.panel};
   border-left: 1px solid ${(props) => props.theme.ui.border};
