@@ -1,12 +1,13 @@
 import { type RefObject, useEffect } from 'react'
 import { useTheme } from 'styled-components'
-import type { ChartSettings, History, Indicators, Timeframe, TrendLine } from '../../shared/types'
+import type { ChartSettings, History, Indicators, Timeframe, Drawing } from '../../shared/types'
 import { splitBasis } from '../domain/splits'
 import type { Tool } from '../state/appReducer'
 import { LineToolbar } from './LineToolbar'
 import { LiveLegend } from './LiveLegend'
 import { imageName, saveChartImage } from './screenshot'
 import * as Styles from './styles'
+import { askToNotify } from '../hooks/useAlerts'
 import { useAutoFit } from './useAutoFit'
 import { useChart } from './useChart'
 import { useDrawing } from './useDrawing'
@@ -17,9 +18,9 @@ type ChartViewProps = {
   indicators: Indicators
   settings: ChartSettings
   screenshotRef?: RefObject<(() => void) | null>
-  lines: TrendLine[]
+  lines: Drawing[]
   tool: Tool
-  onLinesChange: (lines: TrendLine[]) => void
+  onLinesChange: (lines: Drawing[]) => void
   onToolDone: () => void
 }
 
@@ -38,7 +39,7 @@ export const ChartView = ({
   onToolDone,
 }: ChartViewProps) => {
   const theme = useTheme()
-  const { containerRef, handles, data, rsiPaneTop, hover } = useChart({ history, timeframe, theme, indicators, settings })
+  const { containerRef, handles, data, rsiPaneTop, macdPaneTop, hover } = useChart({ history, timeframe, theme, indicators, settings })
   const { manual, release, fit } = useAutoFit(handles, history.info.symbol)
   const { selectedLine, updateLine, deleteSelected } = useDrawing({
     handles,
@@ -74,8 +75,9 @@ export const ChartView = ({
         timeframe={timeframe}
         indicators={indicators}
         rsiPaneTop={rsiPaneTop}
+        macdPaneTop={macdPaneTop}
       />
-      {selectedLine && <LineToolbar line={selectedLine} onChange={updateLine} onDelete={deleteSelected} />}
+      {selectedLine && <LineToolbar line={selectedLine} onChange={updateLine} onDelete={deleteSelected} onArm={askToNotify} />}
       {manual && (
         <Styles.AutoFit type="button" title="Fit the price to the screen again" onClick={fit}>
           Auto

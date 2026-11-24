@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import type { Split, TrendLine } from '../../shared/types'
+import type { Channel, HorizontalLine, Rectangle, Split, TrendLine } from '../../shared/types'
 import { adjustLinesForSplits, splitBasis } from './splits'
 
 const line = (over: Partial<TrendLine>): TrendLine => ({
@@ -79,4 +79,69 @@ test('Should name the latest split as the basis of freshly priced lines', () => 
 test('Should not adjust a line priced on the current basis', () => {
   const splits = [{ date: '2014-06-09', numerator: 7, denominator: 1 }, split41]
   expect(adjustLinesForSplits([line({ pricedAt: splitBasis(splits) })], splits).changed).toBe(false)
+})
+
+const hline: HorizontalLine = {
+  kind: 'hline',
+  id: 'h',
+  pane: 'price',
+  timeframe: 'D',
+  value: 400,
+  color: '#2962FF',
+  width: 2,
+  pricedAt: '2020-08-01',
+}
+
+const channel: Channel = {
+  kind: 'channel',
+  id: 'c',
+  pane: 'price',
+  timeframe: 'D',
+  p1: { date: '2020-07-01', value: 400 },
+  p2: { date: '2020-07-20', value: 480 },
+  offset: -40,
+  color: '#2962FF',
+  width: 2,
+  pricedAt: '2020-08-01',
+}
+
+const rect: Rectangle = {
+  kind: 'rect',
+  id: 'r',
+  pane: 'price',
+  timeframe: 'D',
+  p1: { date: '2020-07-01', value: 400 },
+  p2: { date: '2020-07-20', value: 480 },
+  color: '#2962FF',
+  width: 2,
+  pricedAt: '2020-08-01',
+}
+
+test('Should rescale the level of a horizontal line drawn before a split', () => {
+  const out = adjustLinesForSplits([hline], [split41])
+  expect(out.changed).toBe(true)
+  expect(out.lines[0]).toEqual({ ...hline, value: 100, pricedAt: '2020-08-31' })
+})
+
+test('Should rescale both lines of a channel drawn before a split', () => {
+  const out = adjustLinesForSplits([channel], [split41])
+  expect(out.lines[0]).toEqual({
+    ...channel,
+    p1: { date: '2020-07-01', value: 100 },
+    p2: { date: '2020-07-20', value: 120 },
+    offset: -10,
+    pricedAt: '2020-08-31',
+  })
+})
+
+test('Should rescale the corners of a rectangle drawn before a split', () => {
+  const out = adjustLinesForSplits([rect], [split41])
+  expect(out.lines[0].p1.value).toBe(100)
+  expect(out.lines[0].p2.value).toBe(120)
+})
+
+test('Should leave the new drawings of the RSI pane untouched', () => {
+  const out = adjustLinesForSplits([{ ...hline, pane: 'rsi' as const }], [split41])
+  expect(out.changed).toBe(false)
+  expect(out.lines[0].value).toBe(400)
 })

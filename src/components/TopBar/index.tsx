@@ -14,6 +14,7 @@ import type {
 import { newId } from '../../domain/newId'
 import { SMA_WIDTHS, addSma } from '../../domain/smaConfig'
 import { ConfigPanel } from './ConfigPanel'
+import { StudiesPanel } from './StudiesPanel'
 import { NumberField } from './NumberField'
 import * as Styles from './styles'
 
@@ -32,9 +33,16 @@ type TopBarProps = {
   onScreenshot: () => void
   onExportConfig: () => void
   onImportConfig: (config: AppState) => void
+  split: boolean
+  onSplit: () => void
 }
 
-const TIMEFRAMES: Timeframe[] = ['D', 'W']
+const toggleKind = (item: SmaConfig): SmaConfig => {
+  const { kind, ...simple } = item
+  return kind === 'ema' ? simple : { ...simple, kind: 'ema' }
+}
+
+const TIMEFRAMES: Timeframe[] = ['D', 'W', 'M']
 const RSI_MIN_LENGTH = 2
 const RSI_MAX_LENGTH = 100
 
@@ -63,6 +71,12 @@ const CameraIcon = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
     <path d="M2.5 6h2.7l1.1-1.8h5.4L12.8 6h2.7v8h-13z" strokeLinejoin="round" />
     <circle cx="9" cy="9.8" r="2.6" />
+  </svg>
+)
+
+const SplitIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+    <path d="M2.5 3.5h13v11h-13zM9 3.5v11" strokeLinejoin="round" />
   </svg>
 )
 
@@ -101,6 +115,8 @@ export const TopBar = ({
   onScreenshot,
   onExportConfig,
   onImportConfig,
+  split,
+  onSplit,
 }: TopBarProps) => {
   const [openMenu, setOpenMenu] = useState<MenuName | null>(null)
   const [styleOpenId, setStyleOpenId] = useState<string | null>(null)
@@ -155,6 +171,16 @@ export const TopBar = ({
           {option}
         </Styles.Button>
       ))}
+      <Styles.Button
+        type="button"
+        title="Two charts side by side"
+        aria-label="Two charts"
+        aria-pressed={split}
+        $active={split}
+        onClick={onSplit}
+      >
+        <SplitIcon />
+      </Styles.Button>
       <Styles.Divider />
       <Styles.Menus ref={menuRef}>
       <Styles.MenuAnchor>
@@ -171,6 +197,30 @@ export const TopBar = ({
               />
               <Styles.RowLabel>Volume</Styles.RowLabel>
             </Styles.MenuRow>
+            {indicators.volume.visible && (
+              <Styles.MenuRow $indented>
+                <input
+                  type="checkbox"
+                  checked={indicators.volumeMa.visible}
+                  onChange={(event) =>
+                    onIndicators({ ...indicators, volumeMa: { ...indicators.volumeMa, visible: event.target.checked } })
+                  }
+                />
+                <Styles.RowLabel>Volume moving average</Styles.RowLabel>
+              </Styles.MenuRow>
+            )}
+            {indicators.volume.visible && indicators.volumeMa.visible && (
+              <Styles.MenuItem $indented>
+                <Styles.RowLabel>Length</Styles.RowLabel>
+                <NumberField
+                  label="Volume average length"
+                  value={indicators.volumeMa.length}
+                  min={SMA_MIN_LENGTH}
+                  max={SMA_MAX_LENGTH}
+                  onChange={(length) => onIndicators({ ...indicators, volumeMa: { ...indicators.volumeMa, length } })}
+                />
+              </Styles.MenuItem>
+            )}
             <Styles.MenuRow>
               <input
                 type="checkbox"
@@ -201,7 +251,7 @@ export const TopBar = ({
                 </Styles.MenuRow>
               </>
             )}
-            <Styles.MenuSection>Moving averages (SMA)</Styles.MenuSection>
+            <Styles.MenuSection>Moving averages</Styles.MenuSection>
             {indicators.sma.map((item, index) => (
               <Styles.SmaBlock key={item.id}>
               <Styles.MenuItem>
@@ -213,7 +263,14 @@ export const TopBar = ({
                   $color={item.color}
                   onClick={() => setStyleOpenId((current) => (current === item.id ? null : item.id))}
                 />
-                <Styles.RowLabel>Length</Styles.RowLabel>
+                <Styles.TypeButton
+                  type="button"
+                  title="Simple or exponential"
+                  aria-label={`Type of average ${index + 1}`}
+                  onClick={() => setSma(indicators.sma.map((other) => (other.id === item.id ? toggleKind(other) : other)))}
+                >
+                  {item.kind === 'ema' ? 'EMA' : 'SMA'}
+                </Styles.TypeButton>
                 <NumberField
                   label={`Length of average ${index + 1}`}
                   value={item.length}
@@ -271,6 +328,7 @@ export const TopBar = ({
             <Styles.AddButton type="button" disabled={indicators.sma.length >= MAX_SMAS} onClick={handleAddSma}>
               Add moving average
             </Styles.AddButton>
+            <StudiesPanel indicators={indicators} onIndicators={onIndicators} />
           </Styles.Menu>
         )}
       </Styles.MenuAnchor>

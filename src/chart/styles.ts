@@ -26,6 +26,7 @@ export const Legend = styled.div<{ $top: number }>`
   position: absolute;
   top: ${(props) => props.$top}px;
   left: 12px;
+  max-width: calc(100% - 190px);
   z-index: 3;
   display: flex;
   flex-direction: column;

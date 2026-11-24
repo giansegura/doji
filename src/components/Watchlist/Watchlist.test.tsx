@@ -1,7 +1,7 @@
 import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
-import type { Quote, SymbolInfo } from '../../../shared/types'
+import type { ListItem, Quote, SymbolInfo } from '../../../shared/types'
 import { renderWithTheme } from '../../test/render'
 import { Watchlist } from '.'
 
@@ -16,8 +16,16 @@ const quotes: Record<string, Quote> = {
   MSFT: { symbol: 'MSFT', price: 431.2, change: -1.72, changePercent: -0.4 },
 }
 
-const setup = (over: { items?: SymbolInfo[]; quotes?: Record<string, Quote> } = {}) => {
-  const handlers = { onSelect: vi.fn(), onRemove: vi.fn(), onMove: vi.fn(), onAdd: vi.fn() }
+const setup = (over: { items?: ListItem[]; quotes?: Record<string, Quote> } = {}) => {
+  const handlers = {
+    onSelect: vi.fn(),
+    onRemove: vi.fn(),
+    onMove: vi.fn(),
+    onAdd: vi.fn(),
+    onAddSection: vi.fn(),
+    onRenameSection: vi.fn(),
+    onRemoveSection: vi.fn(),
+  }
   renderWithTheme(
     <Watchlist items={over.items ?? items} quotes={over.quotes ?? quotes} activeSymbol="AAPL" {...handlers} />,
   )
@@ -164,4 +172,94 @@ test('Should mark next to the ticker whether the symbol is in pre-market or afte
   expect(within(row('AAPL')).getByRole('img', { name: 'Pre-market' })).toBeTruthy()
   expect(within(row('MSFT')).getByRole('img', { name: 'Post-market' })).toBeTruthy()
   expect(within(row('KO')).queryByRole('img', { name: /mercado/ })).toBeNull()
+})
+
+const sectioned: ListItem[] = [
+  { kind: 'section', id: 's1', title: 'En cartera' },
+  items[0],
+  { kind: 'section', id: 's2', title: 'Vigilando' },
+  items[1],
+]
+
+test('Should show the sections of the list between its symbols, in order', () => {
+  setup({ items: sectioned })
+  const rows = screen.getAllByRole('listitem').map((item) => item.textContent ?? '')
+  expect(rows[0]).toContain('En cartera')
+  expect(rows[1]).toContain('AAPL')
+  expect(rows[2]).toContain('Vigilando')
+  expect(rows[3]).toContain('MSFT')
+})
+
+test('Should not treat a section as a symbol', async () => {
+  const { handlers, user } = setup({ items: sectioned })
+  await user.click(screen.getByText('Vigilando'))
+  expect(handlers.onSelect).not.toHaveBeenCalled()
+  expect(screen.queryByRole('button', { name: 'Remove Vigilando' })).toBeNull()
+})
+
+test('Should remove a section', async () => {
+  const { handlers, user } = setup({ items: sectioned })
+  await user.click(screen.getByRole('button', { name: 'Remove section Vigilando' }))
+  expect(handlers.onRemoveSection).toHaveBeenCalledWith('s2')
+})
+
+test('Should rename a section in place', async () => {
+  const { handlers, user } = setup({ items: sectioned })
+  await user.click(screen.getByRole('button', { name: 'Rename section Vigilando' }))
+  const field = screen.getByRole('textbox', { name: 'Section name' })
+  expect((field as HTMLInputElement).value).toBe('Vigilando')
+  await user.clear(field)
+  await user.type(field, 'Para vender{Enter}')
+  expect(handlers.onRenameSection).toHaveBeenCalledWith('s2', 'Para vender')
+  expect(screen.queryByRole('textbox', { name: 'Section name' })).toBeNull()
+})
+
+test('Should leave a section as it was when renaming is cancelled', async () => {
+  const { handlers, user } = setup({ items: sectioned })
+  await user.click(screen.getByRole('button', { name: 'Rename section Vigilando' }))
+  await user.type(screen.getByRole('textbox', { name: 'Section name' }), 'x{Escape}')
+  expect(handlers.onRenameSection).not.toHaveBeenCalled()
+  expect(screen.getByText('Vigilando')).toBeTruthy()
+})
+
+test('Should ask for the name of a new section and add it', async () => {
+  const { handlers, user } = setup()
+  await user.click(screen.getByRole('button', { name: 'Add section' }))
+  await user.type(screen.getByRole('textbox', { name: 'New section name' }), 'En cartera{Enter}')
+  expect(handlers.onAddSection).toHaveBeenCalledWith('En cartera')
+  expect(screen.queryByRole('textbox', { name: 'New section name' })).toBeNull()
+})
+
+test('Should not add a section without a name', async () => {
+  const { handlers, user } = setup()
+  await user.click(screen.getByRole('button', { name: 'Add section' }))
+  await user.type(screen.getByRole('textbox', { name: 'New section name' }), '   {Enter}')
+  expect(handlers.onAddSection).not.toHaveBeenCalled()
+})
+
+test('Should report a move when a section is dropped on another row', () => {
+  const { handlers } = setup({ items: sectioned })
+  const rows = screen.getAllByRole('listitem')
+  const { dataTransfer } = carrier()
+  fireEvent.dragStart(rows[2], { dataTransfer })
+  fireEvent.drop(rows[0], { dataTransfer })
+  expect(handlers.onMove).toHaveBeenCalledWith(2, 0)
+})
+
+test('Should rename a section whose id looks like the mark of a new one', async () => {
+  const { user } = setup({ items: [{ kind: 'section', id: 'new', title: 'Rara' }] })
+  await user.click(screen.getByRole('button', { name: 'Rename section Rara' }))
+  expect(screen.getAllByRole('textbox')).toHaveLength(1)
+  expect(screen.getByRole('textbox', { name: 'Section name' })).toBeTruthy()
+})
+
+test('Should not close the section field on the Enter or Escape that belong to composing a character', async () => {
+  const { handlers, user } = setup()
+  await user.click(screen.getByRole('button', { name: 'Add section' }))
+  const field = screen.getByRole('textbox', { name: 'New section name' })
+  await user.type(field, 'En')
+  fireEvent.keyDown(field, { key: 'Enter', isComposing: true })
+  fireEvent.keyDown(field, { key: 'Escape', isComposing: true })
+  expect(handlers.onAddSection).not.toHaveBeenCalled()
+  expect(screen.getByRole('textbox', { name: 'New section name' })).toBeTruthy()
 })

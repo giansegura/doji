@@ -18,9 +18,38 @@ const TrendLineIcon = () => (
   </svg>
 )
 
+const HorizontalLineIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">
+    <path d="M3 11h6M13 11h6" strokeLinecap="round" />
+    <circle cx="11" cy="11" r="2" />
+  </svg>
+)
+
+const ChannelIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">
+    <path d="M5.2 12.6L13.6 4.8M8.4 17.2L16.8 9.4" strokeLinecap="round" />
+    <circle cx="4" cy="13.8" r="1.7" />
+    <circle cx="14.8" cy="3.7" r="1.7" />
+    <circle cx="18" cy="8.2" r="1.7" />
+  </svg>
+)
+
+const RectangleIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">
+    <path d="M6.8 6h8.4M17 7.8v6.4M15.2 16H6.8M5 14.2V7.8" strokeLinecap="round" />
+    <circle cx="5" cy="6" r="1.7" />
+    <circle cx="17" cy="6" r="1.7" />
+    <circle cx="17" cy="16" r="1.7" />
+    <circle cx="5" cy="16" r="1.7" />
+  </svg>
+)
+
 const TOOLS: { tool: Tool; label: string; icon: ReactNode }[] = [
   { tool: 'cursor', label: 'Cursor', icon: <CursorIcon /> },
   { tool: 'trendline', label: 'Trend line', icon: <TrendLineIcon /> },
+  { tool: 'hline', label: 'Horizontal line', icon: <HorizontalLineIcon /> },
+  { tool: 'channel', label: 'Parallel channel', icon: <ChannelIcon /> },
+  { tool: 'rect', label: 'Rectangle', icon: <RectangleIcon /> },
 ]
 
 export const LeftToolbar = ({ tool, onTool }: LeftToolbarProps) => (

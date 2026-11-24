@@ -97,3 +97,34 @@ test('Should not refresh while the tab is hidden', async () => {
   expect(fetcher).toHaveBeenCalledTimes(1)
   visibility.mockRestore()
 })
+
+test('Should keep refreshing while the tab is hidden when asked to work in the background', async () => {
+  vi.useFakeTimers()
+  const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+  const fetcher = vi.fn(async (symbols: string[]) => symbols.map((symbol) => ({ symbol, price: 1, change: 0, changePercent: 0 })))
+  renderHook(() => useQuotes(['AAPL'], fetcher, true))
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(15_000)
+  })
+  expect(fetcher).toHaveBeenCalledTimes(2)
+  visibility.mockRestore()
+  vi.useRealTimers()
+})
+
+test('Should not let a slow answer replace the quotes of a later one', async () => {
+  vi.useFakeTimers()
+  const pending: ((quotes: Quote[]) => void)[] = []
+  const fetcher = vi.fn(() => new Promise<Quote[]>((resolve) => pending.push(resolve)))
+  const { result } = renderHook(() => useQuotes(['AAPL'], fetcher))
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(15_000)
+  })
+  expect(pending).toHaveLength(2)
+  await act(async () => {
+    pending[1]([quote('AAPL', 20)])
+  })
+  await act(async () => {
+    pending[0]([quote('AAPL', 10)])
+  })
+  expect(result.current.AAPL?.price).toBe(20)
+})

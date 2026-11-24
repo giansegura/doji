@@ -1,23 +1,20 @@
-import type { LinePoint, PaneId, Timeframe, TrendLine } from '../../shared/types'
+import type { Drawing, DrawingBase, LinePoint, PaneId, Timeframe } from '../../shared/types'
 import type { Tool } from '../state/appReducer'
-import { type LineHit, type XY, hitTestLine } from './lineGeometry'
+import { type ShapeGeometry, hitTestOutline, moveDrawing, offsetAt, outlineOf } from './drawingShapes'
+import type { XY } from './lineGeometry'
 
-export type PaneGeometry = {
-  toPoint: (xy: XY) => LinePoint | null
-  toXY: (point: LinePoint) => XY | null
-  width: number
-}
+export type PaneGeometry = ShapeGeometry
 
-export type Draft = { pane: PaneId; p1: LinePoint; p2: LinePoint }
+export type Draft = { pane: PaneId; p1: LinePoint; p2: LinePoint; kind?: 'rect' | 'channel'; offset?: number }
 
 export type CursorKind = 'default' | 'pointer' | 'crosshair' | 'grabbing'
 
 export type ControllerDeps = {
-  getLines: () => TrendLine[]
+  getLines: () => Drawing[]
   getTimeframe: () => Timeframe
   isRsiVisible: () => boolean
   geometry: (pane: PaneId) => PaneGeometry | null
-  onLinesChange: (lines: TrendLine[]) => void
+  onLinesChange: (lines: Drawing[]) => void
   onSelect: (id: string | null) => void
   onDraft: (draft: Draft | null) => void
   onToolDone: () => void
@@ -38,9 +35,11 @@ export type DrawingController = {
   getSelectedId: () => string | null
 }
 
-type Placing = { kind: 'placing'; pane: PaneId; p1: LinePoint; start: XY }
+type ShapeTool = 'trendline' | 'rect' | 'channel'
 
-type Dragging = { kind: 'dragging'; part: Exclude<LineHit, null>; original: TrendLine; start: XY }
+type Placing = { kind: 'placing'; tool: ShapeTool; pane: PaneId; p1: LinePoint; p2: LinePoint | null; start: XY }
+
+type Dragging = { kind: 'dragging'; part: string; original: Drawing; start: XY }
 
 type Mode = { kind: 'idle' } | Placing | Dragging
 
@@ -49,17 +48,21 @@ const IDLE: Mode = { kind: 'idle' }
 
 const samePoint = (a: LinePoint, b: LinePoint): boolean => a.date === b.date && a.value === b.value
 
-const shift = (xy: XY, dx: number, dy: number): XY => ({ x: xy.x + dx, y: xy.y + dy })
-
-const movePoint = (geometry: PaneGeometry, from: LinePoint, to: XY): LinePoint | null => {
-  const moved = geometry.toPoint(to)
-  const at = geometry.toXY(from)
-  const rested = at ? geometry.toPoint(at) : null
-  if (!moved) return null
-  return rested?.date === moved.date ? { ...moved, date: from.date } : moved
+const withAlertOf = (drawing: Drawing, stored: Drawing): Drawing => {
+  if (drawing.kind === 'channel' || drawing.kind === 'rect') return drawing
+  const { alert: _alert, ...quiet } = drawing
+  const armed = stored.kind !== 'channel' && stored.kind !== 'rect' && stored.alert === true
+  return armed ? { ...quiet, alert: true } : quiet
 }
 
-export const isLineVisible = (line: TrendLine, timeframe: Timeframe, rsiVisible: boolean): boolean =>
+const draftOf = (placing: Placing, p2: LinePoint, offset: number): Draft => {
+  const { pane, p1, tool } = placing
+  if (tool === 'rect') return { pane, kind: 'rect', p1, p2 }
+  if (tool === 'channel') return { pane, kind: 'channel', p1, p2, offset }
+  return { pane, p1, p2 }
+}
+
+export const isLineVisible = (line: Drawing, timeframe: Timeframe, rsiVisible: boolean): boolean =>
   line.pane === 'price' || (rsiVisible && line.timeframe === timeframe)
 
 export const createDrawingController = (deps: ControllerDeps): DrawingController => {
@@ -75,7 +78,7 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
 
   const pointAt = (pane: PaneId, xy: XY): LinePoint | null => deps.geometry(pane)?.toPoint(xy) ?? null
 
-  const hitAt = (pane: PaneId, xy: XY): { line: TrendLine; part: Exclude<LineHit, null> } | null => {
+  const hitAt = (pane: PaneId, xy: XY): { line: Drawing; part: string } | null => {
     const geometry = deps.geometry(pane)
     if (!geometry) return null
     const candidates = deps
@@ -83,9 +86,8 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
       .filter((line) => line.pane === pane && isLineVisible(line, deps.getTimeframe(), deps.isRsiVisible()))
       .reverse()
     for (const line of candidates) {
-      const a = geometry.toXY(line.p1)
-      const b = geometry.toXY(line.p2)
-      const part = a && b ? hitTestLine(xy, a, b, { extendRight: line.extendRight, width: geometry.width }) : null
+      const outline = outlineOf(line, geometry)
+      const part = outline ? hitTestOutline(xy, outline) : null
       if (part) return { line, part }
     }
     return null
@@ -100,8 +102,10 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
     if (selectedId !== null && mode.kind !== 'dragging' && !selectedVisible()) select(null)
   }
 
-  const replace = (updated: TrendLine): void =>
+  const replace = (updated: Drawing): void =>
     deps.onLinesChange(deps.getLines().map((line) => (line.id === updated.id ? updated : line)))
+
+  const storedOf = (drawing: Drawing): Drawing => deps.getLines().find((line) => line.id === drawing.id) ?? drawing
 
   const cancelDraft = (): void => {
     mode = IDLE
@@ -109,51 +113,82 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
     deps.onDraft(null)
   }
 
-  const finish = (placing: Placing, p2: LinePoint): void => {
-    if (samePoint(placing.p1, p2)) return
-    const line: TrendLine = {
-      id: deps.newId(),
-      pane: placing.pane,
-      timeframe: deps.getTimeframe(),
-      p1: placing.p1,
-      p2,
-      color: deps.defaults.color,
-      width: deps.defaults.width,
-      extendRight: false,
-      pricedAt: deps.priceBasis(),
-    }
+  const baseOf = (pane: PaneId): DrawingBase => ({
+    id: deps.newId(),
+    pane,
+    timeframe: deps.getTimeframe(),
+    color: deps.defaults.color,
+    width: deps.defaults.width,
+    pricedAt: deps.priceBasis(),
+  })
+
+  const add = (drawing: Drawing): void => {
     cancelDraft()
-    deps.onLinesChange([...deps.getLines(), line])
-    select(line.id)
+    deps.onLinesChange([...deps.getLines(), drawing])
+    select(drawing.id)
     deps.onToolDone()
   }
 
-  const startPlacing = (pane: PaneId, xy: XY): boolean => {
+  const shapeOf = (placing: Placing, p2: LinePoint, offset: number): Drawing => {
+    const { pane, p1 } = placing
+    if (placing.tool === 'rect') return { ...baseOf(pane), kind: 'rect', p1, p2 }
+    if (placing.tool === 'channel') return { ...baseOf(pane), kind: 'channel', p1, p2, offset }
+    return { ...baseOf(pane), p1, p2, extendRight: false }
+  }
+
+  const widthAt = (placing: Placing, p2: LinePoint, xy: XY): number | null => {
+    const geometry = deps.geometry(placing.pane)
+    return geometry ? offsetAt(geometry, placing.p1, p2, xy) : null
+  }
+
+  const advance = (placing: Placing, xy: XY): void => {
+    if (placing.p2) {
+      const offset = widthAt(placing, placing.p2, xy)
+      if (offset !== null) add(shapeOf(placing, placing.p2, offset))
+      return
+    }
+    const p2 = pointAt(placing.pane, xy)
+    if (!p2 || samePoint(placing.p1, p2)) return
+    if (placing.tool === 'channel' && placing.p1.date === p2.date) return
+    if (placing.tool !== 'channel') {
+      add(shapeOf(placing, p2, 0))
+      return
+    }
+    mode = { ...placing, p2, start: xy }
+    deps.onDraft(draftOf(placing, p2, 0))
+  }
+
+  const preview = (placing: Placing, xy: XY): void => {
+    if (placing.p2) {
+      const offset = widthAt(placing, placing.p2, xy)
+      if (offset !== null) deps.onDraft(draftOf(placing, placing.p2, offset))
+      return
+    }
+    const p2 = pointAt(placing.pane, xy)
+    if (p2) deps.onDraft(draftOf(placing, p2, 0))
+  }
+
+  const startPlacing = (shape: ShapeTool, pane: PaneId, xy: XY): boolean => {
     const p1 = pointAt(pane, xy)
     if (!p1) return false
-    mode = { kind: 'placing', pane, p1, start: xy }
+    const placing: Placing = { kind: 'placing', tool: shape, pane, p1, p2: null, start: xy }
+    mode = placing
     select(null)
-    deps.onDraft({ pane, p1, p2: p1 })
+    deps.onDraft(draftOf(placing, p1, 0))
+    return true
+  }
+
+  const placeLevel = (pane: PaneId, xy: XY): boolean => {
+    const at = pointAt(pane, xy)
+    if (!at) return false
+    add({ ...baseOf(pane), kind: 'hline', value: at.value })
     return true
   }
 
   const dragTo = (dragging: Dragging, xy: XY): void => {
     const geometry = deps.geometry(dragging.original.pane)
-    if (!geometry) return
-    const { original, part, start } = dragging
-    if (part !== 'body') {
-      const end = movePoint(geometry, original[part], xy)
-      if (end) replace({ ...original, [part]: end, pricedAt: deps.priceBasis() })
-      return
-    }
-    const a = geometry.toXY(original.p1)
-    const b = geometry.toXY(original.p2)
-    if (!a || !b) return
-    const dx = xy.x - start.x
-    const dy = xy.y - start.y
-    const p1 = movePoint(geometry, original.p1, shift(a, dx, dy))
-    const p2 = movePoint(geometry, original.p2, shift(b, dx, dy))
-    if (p1 && p2) replace({ ...original, p1, p2, pricedAt: deps.priceBasis() })
+    const moved = geometry ? moveDrawing(geometry, dragging.original, dragging.part, dragging.start, xy) : null
+    if (moved) replace(withAlertOf({ ...moved, pricedAt: deps.priceBasis() }, storedOf(dragging.original)))
   }
 
   const setTool = (next: Tool): void => {
@@ -163,11 +198,11 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
 
   const pointerDown = (pane: PaneId, xy: XY): boolean => {
     if (mode.kind === 'placing') {
-      const p2 = mode.pane === pane ? pointAt(pane, xy) : null
-      if (p2) finish(mode, p2)
+      if (mode.pane === pane) advance(mode, xy)
       return true
     }
-    if (tool === 'trendline') return startPlacing(pane, xy)
+    if (tool === 'hline') return placeLevel(pane, xy)
+    if (tool !== 'cursor') return startPlacing(tool, pane, xy)
     const hit = hitAt(pane, xy)
     if (!hit) {
       select(null)
@@ -184,11 +219,10 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
       return 'grabbing'
     }
     if (mode.kind === 'placing') {
-      const p2 = mode.pane === pane ? pointAt(pane, xy) : null
-      if (p2) deps.onDraft({ pane, p1: mode.p1, p2 })
+      if (mode.pane === pane) preview(mode, xy)
       return 'crosshair'
     }
-    if (tool === 'trendline') return 'crosshair'
+    if (tool !== 'cursor') return 'crosshair'
     return hitAt(pane, xy) ? 'pointer' : 'default'
   }
 
@@ -198,20 +232,19 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
       return
     }
     if (mode.kind !== 'placing' || mode.pane !== pane) return
-    const p2 = pointAt(pane, xy)
     const moved = Math.hypot(xy.x - mode.start.x, xy.y - mode.start.y)
-    if (p2 && moved > RELEASE_DISTANCE) finish(mode, p2)
+    if (moved > RELEASE_DISTANCE) advance(mode, xy)
   }
 
   const cancel = (): void => {
     if (mode.kind !== 'dragging') return
     const { original } = mode
     mode = IDLE
-    if (!deps.getLines().includes(original)) replace(original)
+    if (!deps.getLines().includes(original)) replace(withAlertOf(original, storedOf(original)))
   }
 
   const key = (pressed: 'Escape' | 'Delete'): void => {
-    if (pressed === 'Escape' && (mode.kind === 'placing' || tool === 'trendline')) {
+    if (pressed === 'Escape' && (mode.kind === 'placing' || tool !== 'cursor')) {
       cancelDraft()
       deps.onToolDone()
       return

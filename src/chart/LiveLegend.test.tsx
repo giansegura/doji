@@ -35,6 +35,7 @@ const Host = ({ hover, data }: { hover: HoverStore; data: SeriesData }) => {
         timeframe="D"
         indicators={DEFAULT_STATE.indicators}
         rsiPaneTop={null}
+        macdPaneTop={null}
       />
     </ThemeProvider>
   )

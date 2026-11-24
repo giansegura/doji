@@ -1,10 +1,11 @@
 import { expect, test } from 'vitest'
-import type { Timeframe, TrendLine } from '../../shared/types'
+import type { Channel, Drawing, HorizontalLine, Rectangle, Timeframe, TrendLine } from '../../shared/types'
 import { type Draft, type PaneGeometry, createDrawingController, isLineVisible } from './drawingController'
 
 const geometry: PaneGeometry = {
   toPoint: ({ x, y }) => ({ date: `d${Math.round(x)}`, value: y }),
   toXY: (point) => ({ x: Number(point.date.slice(1)), y: point.value }),
+  toY: (value) => value,
   width: 500,
 }
 
@@ -13,6 +14,7 @@ const weekStart = (day: number): number => Math.floor(day / 7) * 7
 const weekly: PaneGeometry = {
   toPoint: ({ x, y }) => ({ date: `d${weekStart(x)}`, value: y }),
   toXY: (point) => ({ x: weekStart(Number(point.date.slice(1))), y: point.value }),
+  toY: (value) => value,
   width: 500,
 }
 
@@ -32,7 +34,7 @@ const line = (over: Partial<TrendLine> = {}): TrendLine => ({
 })
 
 type Options = {
-  lines?: TrendLine[]
+  lines?: Drawing[]
   timeframe?: Timeframe
   rsiVisible?: boolean
   missingPane?: boolean
@@ -48,7 +50,7 @@ const geometryFor = (options: Options): PaneGeometry | null => {
 
 const harness = (options: Options = {}) => {
   const record = {
-    lines: options.lines ?? [],
+    lines: (options.lines ?? []) as TrendLine[],
     draft: null as Draft | null,
     selected: null as string | null,
     toolDone: 0,
@@ -61,7 +63,7 @@ const harness = (options: Options = {}) => {
     isRsiVisible: () => options.rsiVisible ?? true,
     geometry: () => geometryFor(options),
     onLinesChange: (lines) => {
-      record.lines = lines
+      record.lines = lines as TrendLine[]
       record.emitted += 1
     },
     onSelect: (id) => {
@@ -436,4 +438,254 @@ test('Should keep a draft when the gesture is cancelled', () => {
   expect(record.draft).not.toBe(null)
   controller.pointerDown('price', { x: 50, y: 30 })
   expect(record.lines).toHaveLength(1)
+})
+
+const base = { id: 'a', pane: 'price' as const, timeframe: 'D' as const, color: '#2962FF', width: 2, pricedAt: '2020-01-01' }
+
+const hline = (over: Partial<HorizontalLine> = {}): HorizontalLine => ({ ...base, kind: 'hline', value: 120, ...over })
+
+const channel = (over: Partial<Channel> = {}): Channel => ({
+  ...base,
+  kind: 'channel',
+  p1: { date: 'd100', value: 100 },
+  p2: { date: 'd300', value: 200 },
+  offset: 40,
+  ...over,
+})
+
+const rect = (over: Partial<Rectangle> = {}): Rectangle => ({
+  ...base,
+  kind: 'rect',
+  p1: { date: 'd100', value: 100 },
+  p2: { date: 'd300', value: 200 },
+  ...over,
+})
+
+test('Should place a horizontal line with one click and return to the cursor', () => {
+  const { record, controller } = harness()
+  controller.setTool('hline')
+  expect(controller.pointerMove('price', { x: 40, y: 90 })).toBe('crosshair')
+  expect(controller.pointerDown('price', { x: 40, y: 90 })).toBe(true)
+  expect(record.lines).toEqual([
+    { kind: 'hline', id: 'id1', pane: 'price', timeframe: 'D', value: 90, color: '#2962FF', width: 2, pricedAt: '2020-08-31' },
+  ])
+  expect(record.selected).toBe('id1')
+  expect(record.toolDone).toBe(1)
+  expect(record.draft).toBe(null)
+  controller.pointerUp('price', { x: 40, y: 90 })
+  expect(controller.pointerDown('price', { x: 300, y: 300 })).toBe(false)
+  expect(record.lines).toHaveLength(1)
+})
+
+test('Should not place a horizontal line where the pane has no values', () => {
+  const { record, controller } = harness({ noValues: true })
+  controller.setTool('hline')
+  expect(controller.pointerDown('price', { x: 40, y: 90 })).toBe(false)
+  expect(record.lines).toEqual([])
+})
+
+test('Should move a horizontal line by dragging it anywhere along its length', () => {
+  const { record, controller } = harness({ lines: [hline()] })
+  expect(controller.pointerMove('price', { x: 20, y: 122 })).toBe('pointer')
+  expect(controller.pointerDown('price', { x: 20, y: 122 })).toBe(true)
+  expect(controller.pointerMove('price', { x: 60, y: 152 })).toBe('grabbing')
+  controller.pointerUp('price', { x: 60, y: 152 })
+  expect(record.lines).toEqual([hline({ value: 150, pricedAt: '2020-08-31' })])
+  expect(record.selected).toBe('a')
+})
+
+test('Should create a rectangle with two clicks', () => {
+  const { record, controller } = harness()
+  controller.setTool('rect')
+  controller.pointerDown('price', { x: 10, y: 10 })
+  controller.pointerUp('price', { x: 10, y: 10 })
+  controller.pointerMove('price', { x: 30, y: 20 })
+  expect(record.draft).toEqual({ pane: 'price', kind: 'rect', p1: { date: 'd10', value: 10 }, p2: { date: 'd30', value: 20 } })
+  controller.pointerDown('price', { x: 50, y: 30 })
+  expect(record.lines).toEqual([
+    {
+      kind: 'rect',
+      id: 'id1',
+      pane: 'price',
+      timeframe: 'D',
+      p1: { date: 'd10', value: 10 },
+      p2: { date: 'd50', value: 30 },
+      color: '#2962FF',
+      width: 2,
+      pricedAt: '2020-08-31',
+    },
+  ])
+  expect(record.draft).toBe(null)
+  expect(record.toolDone).toBe(1)
+})
+
+test('Should create a rectangle by pressing, dragging and releasing', () => {
+  const { record, controller } = harness()
+  controller.setTool('rect')
+  controller.pointerDown('price', { x: 10, y: 10 })
+  controller.pointerMove('price', { x: 60, y: 40 })
+  controller.pointerUp('price', { x: 60, y: 40 })
+  expect(record.lines).toHaveLength(1)
+  expect(record.lines[0]).toMatchObject({ kind: 'rect', p1: { date: 'd10', value: 10 }, p2: { date: 'd60', value: 40 } })
+})
+
+test('Should resize a rectangle from a corner and move it by a side', () => {
+  const { record, controller } = harness({ lines: [rect()] })
+  controller.pointerDown('price', { x: 100, y: 200 })
+  controller.pointerMove('price', { x: 90, y: 220 })
+  controller.pointerUp('price', { x: 90, y: 220 })
+  expect(record.lines[0]).toMatchObject({ p1: { date: 'd90', value: 100 }, p2: { date: 'd300', value: 220 } })
+  controller.pointerDown('price', { x: 200, y: 100 })
+  controller.pointerMove('price', { x: 210, y: 110 })
+  controller.pointerUp('price', { x: 210, y: 110 })
+  expect(record.lines[0]).toMatchObject({ p1: { date: 'd100', value: 110 }, p2: { date: 'd310', value: 230 } })
+})
+
+test('Should leave a press inside a rectangle to the chart', () => {
+  const { record, controller } = harness({ lines: [rect()] })
+  expect(controller.pointerDown('price', { x: 200, y: 150 })).toBe(false)
+  expect(record.selected).toBe(null)
+})
+
+test('Should create a channel with three clicks: the base line and then its width', () => {
+  const { record, controller } = harness()
+  controller.setTool('channel')
+  controller.pointerDown('price', { x: 100, y: 100 })
+  controller.pointerUp('price', { x: 100, y: 100 })
+  controller.pointerMove('price', { x: 200, y: 150 })
+  expect(record.draft).toEqual({
+    pane: 'price',
+    kind: 'channel',
+    p1: { date: 'd100', value: 100 },
+    p2: { date: 'd200', value: 150 },
+    offset: 0,
+  })
+  expect(controller.pointerDown('price', { x: 300, y: 200 })).toBe(true)
+  controller.pointerUp('price', { x: 300, y: 200 })
+  expect(record.lines).toEqual([])
+  expect(controller.pointerMove('price', { x: 200, y: 190 })).toBe('crosshair')
+  expect(record.draft).toEqual({
+    pane: 'price',
+    kind: 'channel',
+    p1: { date: 'd100', value: 100 },
+    p2: { date: 'd300', value: 200 },
+    offset: 40,
+  })
+  expect(controller.pointerDown('price', { x: 200, y: 110 })).toBe(true)
+  expect(record.lines).toEqual([
+    {
+      kind: 'channel',
+      id: 'id1',
+      pane: 'price',
+      timeframe: 'D',
+      p1: { date: 'd100', value: 100 },
+      p2: { date: 'd300', value: 200 },
+      offset: -40,
+      color: '#2962FF',
+      width: 2,
+      pricedAt: '2020-08-31',
+    },
+  ])
+  expect(record.draft).toBe(null)
+  expect(record.selected).toBe('id1')
+  expect(record.toolDone).toBe(1)
+})
+
+test('Should not take a base line of no length for a channel', () => {
+  const { record, controller } = harness()
+  controller.setTool('channel')
+  controller.pointerDown('price', { x: 100, y: 100 })
+  controller.pointerUp('price', { x: 100, y: 100 })
+  controller.pointerDown('price', { x: 100, y: 100 })
+  controller.pointerUp('price', { x: 100, y: 100 })
+  controller.pointerMove('price', { x: 200, y: 150 })
+  expect(record.draft).toMatchObject({ p2: { date: 'd200', value: 150 }, offset: 0 })
+  expect(record.lines).toEqual([])
+})
+
+test('Should drop a channel that is still being drawn on Escape', () => {
+  const { record, controller } = harness()
+  controller.setTool('channel')
+  controller.pointerDown('price', { x: 100, y: 100 })
+  controller.pointerUp('price', { x: 100, y: 100 })
+  controller.pointerDown('price', { x: 300, y: 200 })
+  controller.pointerUp('price', { x: 300, y: 200 })
+  controller.key('Escape')
+  expect(record.draft).toBe(null)
+  expect(record.lines).toEqual([])
+  expect(record.toolDone).toBe(1)
+  expect(controller.pointerDown('price', { x: 200, y: 110 })).toBe(false)
+})
+
+test('Should change the width of a channel by its parallel line and move it by either line', () => {
+  const { record, controller } = harness({ lines: [channel()] })
+  controller.pointerDown('price', { x: 200, y: 190 })
+  controller.pointerMove('price', { x: 200, y: 210 })
+  controller.pointerUp('price', { x: 200, y: 210 })
+  expect(record.lines[0]).toMatchObject({ p1: { date: 'd100', value: 100 }, p2: { date: 'd300', value: 200 }, offset: 60 })
+  controller.pointerDown('price', { x: 150, y: 185 })
+  controller.pointerMove('price', { x: 160, y: 195 })
+  controller.pointerUp('price', { x: 160, y: 195 })
+  expect(record.lines[0]).toMatchObject({ p1: { date: 'd110', value: 110 }, p2: { date: 'd310', value: 210 }, offset: 60 })
+})
+
+test('Should delete any kind of drawing that is selected', () => {
+  const { record, controller } = harness({ lines: [hline({ id: 'h' }), rect({ id: 'r' }), channel({ id: 'c' })] })
+  controller.select('r')
+  controller.key('Delete')
+  expect(record.lines.map((drawing) => drawing.id)).toEqual(['h', 'c'])
+  controller.select('h')
+  controller.key('Delete')
+  expect(record.lines.map((drawing) => drawing.id)).toEqual(['c'])
+})
+
+test('Should put a moved drawing of any kind back when the gesture is cancelled', () => {
+  const { record, controller } = harness({ lines: [hline()] })
+  controller.pointerDown('price', { x: 20, y: 120 })
+  controller.pointerMove('price', { x: 20, y: 160 })
+  controller.cancel()
+  expect(record.lines).toEqual([hline()])
+})
+
+test('Should hide the new drawings of the RSI pane outside their timeframe like it does with lines', () => {
+  expect(isLineVisible(hline({ pane: 'rsi', timeframe: 'D' }), 'W', true)).toBe(false)
+  expect(isLineVisible(hline({ pane: 'rsi', timeframe: 'D' }), 'D', true)).toBe(true)
+  expect(isLineVisible(rect({ timeframe: 'D' }), 'M', true)).toBe(true)
+})
+
+test('Should not take a vertical base line for a channel', () => {
+  const { record, controller } = harness()
+  controller.setTool('channel')
+  controller.pointerDown('price', { x: 100, y: 100 })
+  controller.pointerUp('price', { x: 100, y: 100 })
+  controller.pointerDown('price', { x: 100, y: 180 })
+  controller.pointerUp('price', { x: 100, y: 180 })
+  controller.pointerMove('price', { x: 200, y: 150 })
+  expect(record.draft).toMatchObject({ p2: { date: 'd200', value: 150 }, offset: 0 })
+})
+
+test('Should keep an alert that was disarmed while its line was being dragged', () => {
+  const armed = hline({ alert: true })
+  const { record, controller } = harness({ lines: [armed] })
+  controller.pointerDown('price', { x: 20, y: 120 })
+  controller.pointerMove('price', { x: 20, y: 130 })
+  record.lines = record.lines.map((drawing) => {
+    const { alert: _alert, ...quiet } = drawing
+    return quiet
+  }) as TrendLine[]
+  controller.pointerMove('price', { x: 20, y: 150 })
+  expect(record.lines).toEqual([hline({ value: 150, pricedAt: '2020-08-31' })])
+})
+
+test('Should not arm an alert again when a drag is cancelled after it was disarmed', () => {
+  const armed = hline({ alert: true })
+  const { record, controller } = harness({ lines: [armed] })
+  controller.pointerDown('price', { x: 20, y: 120 })
+  controller.pointerMove('price', { x: 20, y: 130 })
+  record.lines = record.lines.map((drawing) => {
+    const { alert: _alert, ...quiet } = drawing
+    return quiet
+  }) as TrendLine[]
+  controller.cancel()
+  expect(record.lines).toEqual([hline()])
 })

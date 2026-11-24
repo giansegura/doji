@@ -7,6 +7,7 @@ const REFRESH_MS = 15_000
 export const useQuotes = (
   symbols: string[],
   fetchQuotes: (symbols: string[]) => Promise<Quote[]> = getQuotes,
+  background = false,
 ): Record<string, Quote> => {
   const [quotes, setQuotes] = useState<Record<string, Quote>>({})
   const fetchRef = useRef(fetchQuotes)
@@ -19,24 +20,30 @@ export const useQuotes = (
   useEffect(() => {
     if (!key) return undefined
     let active = true
+    let issued = 0
+    let applied = 0
     const list = key.split(',')
-    const load = () =>
-      fetchRef
+    const load = () => {
+      issued += 1
+      const order = issued
+      return fetchRef
         .current(list)
         .then((received) => {
-          if (!active) return
+          if (!active || order < applied) return
+          applied = order
           setQuotes((current) => ({ ...current, ...Object.fromEntries(received.map((quote) => [quote.symbol, quote])) }))
         })
         .catch(() => undefined)
+    }
     load()
     const timer = setInterval(() => {
-      if (document.visibilityState === 'visible') load()
+      if (background || document.visibilityState === 'visible') load()
     }, REFRESH_MS)
     return () => {
       active = false
       clearInterval(timer)
     }
-  }, [key])
+  }, [key, background])
 
   return quotes
 }

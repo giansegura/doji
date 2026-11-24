@@ -61,6 +61,8 @@ export const Menu = styled.div`
   flex-direction: column;
   gap: 2px;
   min-width: 210px;
+  max-height: calc(100vh - 56px);
+  overflow-y: auto;
   padding: 6px;
   background: ${(props) => props.theme.ui.panel};
   border: 1px solid ${(props) => props.theme.ui.border};
@@ -69,6 +71,7 @@ export const Menu = styled.div`
 `
 
 export const MenuRow = styled.label<{ $indented?: boolean }>`
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -100,6 +103,7 @@ export const NumberInput = styled.input`
 `
 
 export const MenuItem = styled.div<{ $indented?: boolean }>`
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -280,5 +284,21 @@ export const TextButton = styled.button<{ $danger?: boolean }>`
 
   &:hover {
     background: ${(props) => props.theme.ui.hover};
+  }
+`
+
+export const TypeButton = styled.button`
+  flex: 1;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid ${(props) => props.theme.ui.border};
+  border-radius: 4px;
+  color: ${(props) => props.theme.ui.textMuted};
+  font-size: 11px;
+  text-align: center;
+
+  &:hover {
+    background: ${(props) => props.theme.ui.hover};
+    color: ${(props) => props.theme.ui.text};
   }
 `

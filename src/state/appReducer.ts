@@ -1,17 +1,19 @@
-import { LIST_NAME_MAX_LENGTH, MAX_LISTS } from '../../shared/limits'
+import { LIST_NAME_MAX_LENGTH, MAX_LISTS, NOTE_MAX_LENGTH } from '../../shared/limits'
+import { isSection } from '../../shared/listItems'
 import { clampListWidth } from '../../shared/listWidth'
 import type {
   AppState,
   ChartSettings,
   Indicators,
+  ListItem,
   SymbolInfo,
   SymbolList,
   ThemeName,
   Timeframe,
-  TrendLine,
+  Drawing,
 } from '../../shared/types'
 
-export type Tool = 'cursor' | 'trendline'
+export type Tool = 'cursor' | 'trendline' | 'hline' | 'channel' | 'rect'
 
 export type Action =
   | { type: 'setTheme'; theme: ThemeName }
@@ -27,9 +29,15 @@ export type Action =
   | { type: 'selectWatchlist'; id: string }
   | { type: 'setIndicators'; indicators: Indicators }
   | { type: 'setChart'; chart: ChartSettings }
-  | { type: 'setLines'; symbol: string; lines: TrendLine[] }
+  | { type: 'setLines'; symbol: string; lines: Drawing[] }
   | { type: 'importConfig'; config: AppState }
   | { type: 'setListWidth'; width: number }
+  | { type: 'addSection'; id: string; title: string }
+  | { type: 'renameSection'; id: string; title: string }
+  | { type: 'removeSection'; id: string }
+  | { type: 'setNote'; symbol: string; text: string }
+  | { type: 'toggleSecondChart' }
+  | { type: 'setSecondChart'; timeframe: Timeframe }
 
 const COPY_SUFFIXES = [' (copy)', ...Array.from({ length: MAX_LISTS }, (_, index) => ` (copy ${index + 2})`)]
 
@@ -38,7 +46,7 @@ const sameSymbol = (a: string, b: string): boolean => a.toUpperCase() === b.toUp
 export const activeWatchlist = (state: AppState): SymbolList =>
   state.watchlists.find((list) => list.id === state.activeWatchlistId) ?? state.watchlists[0]
 
-const withActiveItems = (state: AppState, items: SymbolInfo[]): AppState => {
+const withActiveItems = (state: AppState, items: ListItem[]): AppState => {
   const active = activeWatchlist(state)
   return { ...state, watchlists: state.watchlists.map((list) => (list === active ? { ...list, items } : list)) }
 }
@@ -51,13 +59,13 @@ const setSymbol = (state: AppState, raw: string): AppState => {
 
 const addToWatchlist = (state: AppState, info: SymbolInfo): AppState => {
   const { items } = activeWatchlist(state)
-  if (items.some((item) => sameSymbol(item.symbol, info.symbol))) return state
+  if (items.some((item) => !isSection(item) && sameSymbol(item.symbol, info.symbol))) return state
   return withActiveItems(state, [...items, info])
 }
 
 const removeFromWatchlist = (state: AppState, symbol: string): AppState => {
   const { items } = activeWatchlist(state)
-  const remaining = items.filter((item) => !sameSymbol(item.symbol, symbol))
+  const remaining = items.filter((item) => isSection(item) || !sameSymbol(item.symbol, symbol))
   if (remaining.length === items.length) return state
   return withActiveItems(state, remaining)
 }
@@ -134,7 +142,46 @@ const setListWidth = (state: AppState, raw: number): AppState => {
   return listWidth === state.listWidth ? state : { ...state, listWidth }
 }
 
-const setLines = (state: AppState, symbol: string, lines: TrendLine[]): AppState => {
+const addSection = (state: AppState, id: string, rawTitle: string): AppState => {
+  const title = rawTitle.trim().slice(0, LIST_NAME_MAX_LENGTH)
+  const { items } = activeWatchlist(state)
+  if (!title || !id || items.some((item) => isSection(item) && item.id === id)) return state
+  return withActiveItems(state, [...items, { kind: 'section', id, title }])
+}
+
+const renameSection = (state: AppState, id: string, rawTitle: string): AppState => {
+  const title = rawTitle.trim().slice(0, LIST_NAME_MAX_LENGTH)
+  const { items } = activeWatchlist(state)
+  const target = items.find((item) => isSection(item) && item.id === id)
+  if (!title || !target || (isSection(target) && target.title === title)) return state
+  return withActiveItems(
+    state,
+    items.map((item) => (item === target ? { kind: 'section', id, title } : item)),
+  )
+}
+
+const removeSection = (state: AppState, id: string): AppState => {
+  const { items } = activeWatchlist(state)
+  const remaining = items.filter((item) => !isSection(item) || item.id !== id)
+  return remaining.length === items.length ? state : withActiveItems(state, remaining)
+}
+
+const setNote = (state: AppState, symbol: string, rawText: string): AppState => {
+  const text = rawText.slice(0, NOTE_MAX_LENGTH)
+  const { [symbol]: previous, ...others } = state.notes
+  if ((previous ?? '') === text) return state
+  return { ...state, notes: text ? { ...others, [symbol]: text } : others }
+}
+
+const toggleSecondChart = (state: AppState): AppState => {
+  const other: Timeframe = state.timeframe === 'D' ? 'W' : 'D'
+  return { ...state, secondChart: state.secondChart ? null : other }
+}
+
+const setSecondChart = (state: AppState, timeframe: Timeframe): AppState =>
+  state.secondChart === null || state.secondChart === timeframe ? state : { ...state, secondChart: timeframe }
+
+const setLines = (state: AppState, symbol: string, lines: Drawing[]): AppState => {
   const { [symbol]: _previous, ...others } = state.lines
   return { ...state, lines: lines.length > 0 ? { ...others, [symbol]: lines } : others }
 }
@@ -157,5 +204,11 @@ export const appReducer = (state: AppState, action: Action): AppState => {
   if (action.type === 'setChart') return { ...state, chart: action.chart }
   if (action.type === 'importConfig') return { ...action.config, rev: state.rev }
   if (action.type === 'setListWidth') return setListWidth(state, action.width)
+  if (action.type === 'addSection') return addSection(state, action.id, action.title)
+  if (action.type === 'renameSection') return renameSection(state, action.id, action.title)
+  if (action.type === 'removeSection') return removeSection(state, action.id)
+  if (action.type === 'setNote') return setNote(state, action.symbol, action.text)
+  if (action.type === 'toggleSecondChart') return toggleSecondChart(state)
+  if (action.type === 'setSecondChart') return setSecondChart(state, action.timeframe)
   return setLines(state, action.symbol, action.lines)
 }

@@ -14,6 +14,7 @@ const state: AppState = {
   ],
   activeWatchlistId: 'b',
   indicators: {
+    ...DEFAULT_STATE.indicators,
     volume: { visible: false },
     rsi: { visible: true, length: 21, showMa: false },
     sma: [{ id: 's1', length: 50, color: '#FF9800', width: 2 }],

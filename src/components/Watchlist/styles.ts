@@ -32,8 +32,9 @@ const widestOnly = css`
 
 export const Panel = styled.div`
   display: flex;
+  flex: 1;
   flex-direction: column;
-  height: 100%;
+  min-height: 0;
   container-type: inline-size;
 `
 
@@ -180,4 +181,70 @@ export const SessionDot = styled.div<{ $session: 'pre' | 'post' }>`
   margin-left: -3px;
   border-radius: 50%;
   background: ${(props) => (props.$session === 'pre' ? props.theme.ui.preMarket : props.theme.ui.postMarket)};
+`
+
+export const HeaderActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 2px;
+`
+
+export const SectionButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  color: ${(props) => props.theme.ui.textMuted};
+  font-size: 15px;
+  line-height: 1;
+  opacity: 0;
+
+  &:hover {
+    background: ${(props) => props.theme.ui.border};
+    color: ${(props) => props.theme.ui.text};
+  }
+
+  &:focus-visible {
+    opacity: 1;
+  }
+`
+
+export const Section = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+  padding: 0 6px 0 14px;
+  border-top: 1px solid ${(props) => props.theme.ui.border};
+  color: ${(props) => props.theme.ui.textMuted};
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+
+  &:hover ${SectionButton} {
+    opacity: 1;
+  }
+`
+
+export const SectionTitle = styled.div`
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+export const SectionInput = styled.input`
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid ${(props) => props.theme.ui.accent};
+  border-radius: 4px;
+  background: ${(props) => props.theme.ui.bg};
+  color: ${(props) => props.theme.ui.text};
+  font-size: 12px;
 `

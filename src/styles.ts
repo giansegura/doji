@@ -27,9 +27,24 @@ export const Chart = styled.main`
   background: ${(props) => props.theme.chart.bg};
 `
 
+export const Panes = styled.div`
+  position: absolute;
+  inset: 0;
+  display: flex;
+`
+
+export const Pane = styled.div<{ $second?: boolean }>`
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  border-left: ${(props) => (props.$second ? `1px solid ${props.theme.ui.border}` : 'none')};
+`
+
 export const List = styled.aside`
   grid-area: list;
   position: relative;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   background: ${(props) => props.theme.ui.panel};
   border-left: 1px solid ${(props) => props.theme.ui.border};

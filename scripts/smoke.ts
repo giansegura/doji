@@ -1,7 +1,8 @@
 import { mkdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { chromium } from 'playwright-core'
-import type { AppState, TrendLine } from '../shared/types'
+import { symbolsOf } from '../shared/listItems'
+import type { AppState, Drawing, TrendLine } from '../shared/types'
 
 type Box = { x: number; y: number; width: number; height: number }
 
@@ -56,9 +57,12 @@ const savedState = async (): Promise<AppState> => {
 }
 
 const activeItems = (state: AppState) =>
-  (state.watchlists.find((list) => list.id === state.activeWatchlistId) ?? state.watchlists[0]).items
+  symbolsOf((state.watchlists.find((list) => list.id === state.activeWatchlistId) ?? state.watchlists[0]).items)
 
-const linesOf = async (symbol: string): Promise<TrendLine[]> => (await savedState()).lines[symbol] ?? []
+const drawingsOf = async (symbol: string): Promise<Drawing[]> => (await savedState()).lines[symbol] ?? []
+
+const linesOf = async (symbol: string): Promise<TrendLine[]> =>
+  (await drawingsOf(symbol)).filter((drawing): drawing is TrendLine => drawing.kind === undefined)
 
 const panes = async (): Promise<{ price: Box; rsi: Box }> => {
   const rows = await page.locator('.tv-lightweight-charts tr').all()
@@ -401,6 +405,175 @@ await step('el botón «Auto» sigue lo que se hace en el eje de precios', async
 })
 
 
+await step('una línea horizontal se pone con un clic y se arrastra', async () => {
+  const { price } = await panes()
+  const levels = async () => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'hline')
+  const y = price.y + price.height * 0.3
+  await button('Horizontal line').click()
+  await page.mouse.click(price.x + price.width * 0.4, y)
+  const [placed] = await levels()
+  check(placed !== undefined, 'la línea horizontal no se guardó')
+  check((await button('Cursor').getAttribute('aria-pressed')) === 'true', 'la herramienta no volvió al cursor')
+  const grip: [number, number] = [price.x + price.width * 0.15, y]
+  await drag(grip, [grip[0], grip[1] + 60])
+  const [moved] = await levels()
+  check(moved !== undefined && placed !== undefined && moved.value < placed.value, 'la línea horizontal no bajó al arrastrarla')
+  check((await button('Auto').count()) === 0, 'arrastrar la línea horizontal soltó el ajuste automático')
+  await page.keyboard.press('Delete')
+  check((await levels()).length === 0, 'la línea horizontal no se borró')
+})
+
+await step('un rectángulo se dibuja con dos clics y se cambia por una esquina', async () => {
+  const { price } = await panes()
+  const boxes = async () => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'rect')
+  await button('Rectangle').click()
+  await page.mouse.click(...at(price, 0.3, 0.3))
+  await page.mouse.click(...at(price, 0.5, 0.5))
+  const [drawn] = await boxes()
+  check(drawn !== undefined, 'el rectángulo no se guardó')
+  await drag(at(price, 0.5, 0.5), at(price, 0.6, 0.6))
+  const [resized] = await boxes()
+  check(
+    resized !== undefined && drawn !== undefined && resized.p2.date > drawn.p2.date && resized.p2.value < drawn.p2.value,
+    'la esquina del rectángulo no se movió',
+  )
+  check(resized?.p1.date === drawn?.p1.date && resized?.p1.value === drawn?.p1.value, 'se movió también la esquina opuesta')
+  await page.keyboard.press('Delete')
+  check((await boxes()).length === 0, 'el rectángulo no se borró')
+})
+
+await step('un canal paralelo se dibuja con tres clics y se ensancha por su segunda línea', async () => {
+  const { price } = await panes()
+  const channels = async () => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'channel')
+  await button('Parallel channel').click()
+  await page.mouse.click(...at(price, 0.3, 0.5))
+  await page.mouse.click(...at(price, 0.6, 0.4))
+  check((await channels()).length === 0, 'el canal se guardó antes de darle ancho')
+  await page.mouse.click(...at(price, 0.45, 0.6))
+  const [drawn] = await channels()
+  check(drawn !== undefined && drawn.offset < 0, `el canal no se guardó con su segunda línea por debajo: ${drawn?.offset}`)
+  await drag(at(price, 0.45, 0.6), at(price, 0.45, 0.7))
+  const [wider] = await channels()
+  check(wider !== undefined && drawn !== undefined && wider.offset < drawn.offset, 'el canal no se ensanchó')
+  check(wider?.p1.date === drawn?.p1.date && wider?.p2.value === drawn?.p2.value, 'se movió la línea base del canal')
+  await page.keyboard.press('Delete')
+  check((await channels()).length === 0, 'el canal no se borró')
+})
+
+await step('cambia a mensual y vuelve a diario', async () => {
+  await button('M').click()
+  await page.getByText(/ · 1M · /).waitFor({ timeout: 5000 })
+  check((await savedState()).timeframe === 'M', 'el periodo mensual no se guardó')
+  await button('D').click()
+  await page.getByText(/ · 1D · /).waitFor({ timeout: 5000 })
+})
+
+await step('deshacer y rehacer devuelven y quitan un dibujo', async () => {
+  const { price } = await panes()
+  const levels = async (): Promise<number> => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'hline').length
+  await button('Horizontal line').click()
+  await page.mouse.click(...at(price, 0.4, 0.35))
+  check((await levels()) === 1, 'la línea horizontal de prueba no se guardó')
+  await page.waitForTimeout(500)
+  await page.keyboard.press('Delete')
+  check((await levels()) === 0, 'la línea horizontal no se borró')
+  await page.keyboard.press('Control+z')
+  check((await levels()) === 1, 'deshacer no devolvió la línea borrada')
+  await page.keyboard.press('Control+Shift+z')
+  check((await levels()) === 0, 'rehacer no volvió a borrar la línea')
+  await page.keyboard.press('Control+z')
+  await page.keyboard.press('Control+z')
+  check((await levels()) === 0, 'deshacer dos veces no dejó el gráfico como antes de dibujar')
+})
+
+await step('los atajos arman las herramientas y recorren la lista', async () => {
+  await page.keyboard.press('Alt+t')
+  check((await button('Trend line').getAttribute('aria-pressed')) === 'true', 'Alt+T no armó la línea de tendencia')
+  await page.keyboard.press('Alt+h')
+  check((await button('Horizontal line').getAttribute('aria-pressed')) === 'true', 'Alt+H no armó la línea horizontal')
+  await page.keyboard.press('Escape')
+  check((await button('Cursor').getAttribute('aria-pressed')) === 'true', 'Esc no devolvió el cursor')
+  await page.keyboard.press('ArrowDown')
+  await page.getByText(/Microsoft Corporation · 1D/).waitFor({ timeout: 15_000 })
+  await page.keyboard.press('ArrowUp')
+  await page.getByText(/Apple Inc\. · 1D/).waitFor({ timeout: 15_000 })
+  await page.keyboard.press('ArrowUp')
+  await page.waitForTimeout(400)
+  check((await savedState()).symbol === 'AAPL', 'la flecha arriba se salió del principio de la lista')
+})
+
+await step('una alerta salta cuando el precio cruza la línea y se desarma sola', async () => {
+  const { price } = await panes()
+  const levels = async () => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'hline')
+  await button('Horizontal line').click()
+  await page.mouse.click(...at(price, 0.4, 0.3))
+  const [placed] = await levels()
+  check(placed !== undefined, 'la línea de la alerta no se guardó')
+  const target = placed?.kind === 'hline' ? placed.value : 0
+  await button('Alert').click()
+  const [armed] = await levels()
+  check(armed?.kind === 'hline' && armed.alert === true, 'la alerta no se guardó')
+  let reported = target - 1
+  const quotesRoute = /\/api\/quotes\?/
+  await page.route(quotesRoute, async (route) => {
+    const response = await route.fetch()
+    const quotes = (await response.json()) as { symbol: string }[]
+    await route.fulfill({
+      response,
+      json: quotes.map((quote) => (quote.symbol === 'AAPL' ? { ...quote, price: reported, extended: null } : quote)),
+    })
+  })
+  await page.waitForResponse(quotesRoute, { timeout: 25_000 })
+  reported = target + 1
+  await page.getByRole('status').filter({ hasText: 'AAPL crossed' }).first().waitFor({ timeout: 40_000 })
+  await page.unroute(quotesRoute)
+  const [after] = await levels()
+  check(after?.kind === 'hline' && after.alert === undefined, 'la alerta no se desarmó al saltar')
+  await page.getByRole('button', { name: /^Dismiss AAPL crossed/ }).first().click()
+  check((await page.getByRole('status').filter({ hasText: 'AAPL crossed' }).count()) === 0, 'el aviso no se cerró')
+  await page.mouse.click(price.x + price.width * 0.15, price.y + price.height * 0.3)
+  await page.keyboard.press('Delete')
+  check((await levels()).length === 0, 'la línea de la alerta no se borró')
+})
+
+await step('dos gráficos a la vez con periodos distintos y los mismos dibujos', async () => {
+  const charts = page.locator('.tv-lightweight-charts')
+  const picker = page.getByRole('group', { name: 'Second chart timeframe' })
+  const levels = async () => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'hline')
+  check((await charts.count()) === 1, 'hay más de un gráfico antes de dividir')
+  await button('Two charts').click()
+  await page.getByText(/ · 1W · /).waitFor({ timeout: 10_000 })
+  check((await charts.count()) === 2, 'no hay dos gráficos')
+  check(await page.getByText(/ · 1D · /).isVisible(), 'el primer gráfico dejó de ser diario')
+  check((await savedState()).secondChart === 'W', 'el segundo gráfico no se guardó')
+  await picker.getByRole('button', { name: 'M' }).click()
+  await page.getByText(/ · 1M · /).waitFor({ timeout: 10_000 })
+  check((await savedState()).secondChart === 'M', 'el periodo del segundo gráfico no se guardó')
+  const second = (await charts.nth(1).boundingBox()) as Box
+  await button('Horizontal line').click()
+  await page.mouse.click(second.x + second.width * 0.4, second.y + second.height * 0.3)
+  const [drawn] = await levels()
+  check(drawn !== undefined && drawn.timeframe === 'M', 'la línea dibujada en el segundo gráfico no se guardó con su periodo')
+  const first = (await charts.nth(0).boundingBox()) as Box
+  await button('Horizontal line').click()
+  await page.mouse.click(first.x + first.width * 0.4, first.y + first.height * 0.2)
+  check((await levels()).length === 2, 'la línea del primer gráfico no se guardó')
+  check((await page.getByRole('toolbar', { name: 'Selected line' }).count()) === 1, 'quedó un dibujo seleccionado en cada gráfico')
+  await page.keyboard.press('Delete')
+  const kept = await levels()
+  check(kept.length === 1 && kept[0].id === drawn?.id, 'Supr borró más de un dibujo o el que no era')
+  await page.mouse.click(second.x + second.width * 0.2, second.y + second.height * 0.3)
+  await page.keyboard.press('Delete')
+  check((await levels()).length === 0, 'la línea del segundo gráfico no se borró')
+  await page.reload()
+  await waitForChart()
+  check((await charts.count()) === 2, 'los dos gráficos no volvieron tras recargar')
+  await button('Two charts').click()
+  await page.waitForTimeout(500)
+  check((await charts.count()) === 1, 'el segundo gráfico no se cerró')
+  check((await savedState()).secondChart === null, 'el cierre del segundo gráfico no se guardó')
+})
+
 await step('la vista no salta al cambiar de tema y volver', async () => {
   const before = await timeAxisPixels()
   await button(/Switch to light theme/).click()
@@ -413,9 +586,9 @@ await step('la vista no salta al cambiar de tema y volver', async () => {
 await step('la vista no salta al quitar y poner el volumen', async () => {
   const before = await timeAxisPixels()
   await button('Indicators').click()
-  await page.getByRole('checkbox', { name: 'Volume' }).click()
+  await page.getByRole('checkbox', { name: 'Volume', exact: true }).click()
   await page.waitForTimeout(400)
-  await page.getByRole('checkbox', { name: 'Volume' }).click()
+  await page.getByRole('checkbox', { name: 'Volume', exact: true }).click()
   await page.keyboard.press('Escape')
   const after = await timeAxisPixels()
   check(before === after, 'la vista volvió a la última vela')
@@ -543,6 +716,52 @@ await step('muestra logos de empresa y no la columna de cambio absoluto', async 
   check((await page.getByText('Change %', { exact: true }).count()) === 1, 'falta la columna Cambio %')
 })
 
+await step('una media pasa a exponencial y vuelve a simple', async () => {
+  const toggleType = async (): Promise<void> => {
+    await button('Indicators').click()
+    await button('Type of average 1').click()
+    await page.keyboard.press('Escape')
+  }
+  await toggleType()
+  check((await savedState()).indicators.sma[0]?.kind === 'ema', 'la media no pasó a exponencial')
+  await page.getByText(/^EMA \d+ close$/).waitFor({ timeout: 3000 })
+  await toggleType()
+  check((await savedState()).indicators.sma[0]?.kind === undefined, 'la media no volvió a simple')
+  await page.getByText(/^SMA \d+ close$/).waitFor({ timeout: 3000 })
+})
+
+await step('Bollinger, la media del volumen y el MACD se pintan, conviven con el RSI y se apagan', async () => {
+  const rsiLegend = page.getByText(/^RSI \d+ close$/)
+  const macdLegend = page.getByText('MACD 12 26 9', { exact: true })
+  const toggle = async (names: string[]): Promise<void> => {
+    await button('Indicators').click()
+    for (const name of names) await page.getByRole('checkbox', { name, exact: true }).click()
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(500)
+  }
+  const macdBelowRsi = async (): Promise<boolean> => {
+    const rsiBox = await rsiLegend.boundingBox()
+    const macdBox = await macdLegend.boundingBox()
+    return rsiBox !== null && macdBox !== null && macdBox.y > rsiBox.y + 40
+  }
+  await toggle(['Volume moving average', 'Bollinger Bands', 'MACD'])
+  await page.getByText('BB 20 2', { exact: true }).waitFor({ timeout: 3000 })
+  await macdLegend.waitFor({ timeout: 3000 })
+  const { indicators } = await savedState()
+  check(indicators.volumeMa.visible && indicators.bollinger.visible && indicators.macd.visible, 'los indicadores no se guardaron')
+  check(await macdBelowRsi(), 'el MACD no quedó en un panel propio bajo el RSI')
+  await toggle(['RSI'])
+  check((await rsiLegend.count()) === 0, 'la leyenda del RSI sigue con el RSI apagado')
+  check(await macdLegend.isVisible(), 'el MACD desapareció al apagar el RSI')
+  await toggle(['RSI'])
+  await rsiLegend.waitFor({ timeout: 3000 })
+  check(await macdBelowRsi(), 'al volver, el RSI no quedó por encima del MACD')
+  await toggle(['Volume moving average', 'Bollinger Bands', 'MACD'])
+  check((await macdLegend.count()) === 0, 'la leyenda del MACD sigue con el MACD apagado')
+  check((await page.getByText('BB 20 2', { exact: true }).count()) === 0, 'la leyenda de Bollinger sigue apagada')
+  await rsiLegend.waitFor({ timeout: 3000 })
+})
+
 await step('cambia el color y el grosor de una media', async () => {
   await button('Indicators').click()
   await button('Style of average 1').click()
@@ -603,8 +822,8 @@ await step('añade un símbolo solo a la lista nueva', async () => {
   await page.getByRole('option').filter({ hasText: 'Netflix' }).first().click()
   await row('NFLX').waitFor({ timeout: 15_000 })
   const state = await savedState()
-  check(state.watchlists[1].items.map((item) => item.symbol).join(',') === 'NFLX', 'NFLX no está en la lista nueva')
-  check(!state.watchlists[0].items.some((item) => item.symbol === 'NFLX'), 'NFLX se coló en la primera lista')
+  check(symbolsOf(state.watchlists[1].items).map((item) => item.symbol).join(',') === 'NFLX', 'NFLX no está en la lista nueva')
+  check(!symbolsOf(state.watchlists[0].items).some((item) => item.symbol === 'NFLX'), 'NFLX se coló en la primera lista')
 })
 
 await step('renombra la lista', async () => {
@@ -631,7 +850,7 @@ await step('duplica la primera lista y borra la copia', async () => {
   check(names === 'Watchlist | Watchlist (copy) | Bancos', `listas inesperadas: ${names}`)
   check(copied.activeWatchlistId === copied.watchlists[1].id, 'la copia no es la lista activa')
   check(
-    copied.watchlists[1].items.map((item) => item.symbol).join(',') === copied.watchlists[0].items.map((item) => item.symbol).join(','),
+    symbolsOf(copied.watchlists[1].items).map((item) => item.symbol).join(',') === symbolsOf(copied.watchlists[0].items).map((item) => item.symbol).join(','),
     'la copia no tiene los mismos símbolos',
   )
   await row('AAPL').waitFor({ timeout: 3000 })
@@ -650,6 +869,45 @@ await step('borra la lista tras confirmar', async () => {
   await page.keyboard.press('Escape')
   const state = await savedState()
   check(state.watchlists.length === 1 && state.watchlists[0].name === 'Watchlist', 'no quedó solo la primera lista')
+})
+
+await step('añade, renombra y quita una sección de la lista', async () => {
+  const sections = async (): Promise<string[]> => {
+    const state = await savedState()
+    const list = state.watchlists.find((candidate) => candidate.id === state.activeWatchlistId) ?? state.watchlists[0]
+    return list.items.flatMap((item) => ('kind' in item ? [item.title] : []))
+  }
+  const symbolsBefore = activeItems(await savedState()).length
+  await button('Add section').click()
+  await page.getByRole('textbox', { name: 'New section name' }).fill('En cartera')
+  await page.keyboard.press('Enter')
+  await page.getByText('En cartera', { exact: true }).waitFor({ timeout: 3000 })
+  check((await sections()).join() === 'En cartera', 'la sección no se guardó')
+  await page.getByRole('listitem').filter({ hasText: 'En cartera' }).hover()
+  await button('Rename section En cartera').click()
+  await page.getByRole('textbox', { name: 'Section name' }).fill('Vigilando')
+  await page.keyboard.press('Enter')
+  check((await sections()).join() === 'Vigilando', 'la sección no se renombró')
+  check(activeItems(await savedState()).length === symbolsBefore, 'la sección cambió los símbolos de la lista')
+  await page.getByRole('listitem').filter({ hasText: 'Vigilando' }).hover()
+  await button('Remove section Vigilando').click()
+  check((await sections()).length === 0, 'la sección no se quitó')
+})
+
+await step('la nota de una acción se guarda y vuelve tras recargar', async () => {
+  const { symbol } = await savedState()
+  const notes = () => page.getByRole('textbox', { name: `Notes for ${symbol}` })
+  await button(`Notes for ${symbol}`).click()
+  await notes().fill('Comprar por debajo de 60')
+  check((await savedState()).notes[symbol] === 'Comprar por debajo de 60', 'la nota no se guardó')
+  await page.reload()
+  await waitForChart()
+  await page.getByRole('img', { name: 'Has a note' }).waitFor({ timeout: 5000 })
+  await button(`Notes for ${symbol}`).click()
+  check((await notes().inputValue()) === 'Comprar por debajo de 60', 'la nota no volvió tras recargar')
+  await notes().fill('')
+  check((await savedState()).notes[symbol] === undefined, 'la nota vacía no se borró')
+  await button(`Notes for ${symbol}`).click()
 })
 
 await step('el borde de la lista cambia su ancho y se conserva al recargar', async () => {

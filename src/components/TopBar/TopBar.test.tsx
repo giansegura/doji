@@ -16,6 +16,7 @@ const setup = (indicators: Indicators = DEFAULT_STATE.indicators) => {
     onScreenshot: vi.fn(),
     onExportConfig: vi.fn(),
     onImportConfig: vi.fn(),
+    onSplit: vi.fn(),
   }
   renderWithTheme(
     <TopBar
@@ -25,6 +26,7 @@ const setup = (indicators: Indicators = DEFAULT_STATE.indicators) => {
       indicators={indicators}
       chart={DEFAULT_STATE.chart}
       notice={null}
+      split={false}
       {...handlers}
     />,
   )
@@ -59,15 +61,13 @@ test('Should toggle indicators from the menu', async () => {
   await user.click(screen.getByRole('button', { name: 'Indicators' }))
   await user.click(screen.getByRole('checkbox', { name: 'RSI' }))
   expect(handlers.onIndicators).toHaveBeenLastCalledWith({
-    volume: { visible: true },
+    ...DEFAULT_STATE.indicators,
     rsi: { visible: false, length: 14, showMa: true },
-    sma: [],
   })
   await user.click(screen.getByRole('checkbox', { name: 'Volume' }))
   expect(handlers.onIndicators).toHaveBeenLastCalledWith({
+    ...DEFAULT_STATE.indicators,
     volume: { visible: false },
-    rsi: { visible: true, length: 14, showMa: true },
-    sma: [],
   })
 })
 
@@ -104,7 +104,7 @@ test('Should toggle the RSI moving average', async () => {
 })
 
 test('Should hide the RSI settings while the RSI is off', async () => {
-  const { user } = setup({ volume: { visible: true }, rsi: { visible: false, length: 14, showMa: true }, sma: [] })
+  const { user } = setup({ ...DEFAULT_STATE.indicators, rsi: { visible: false, length: 14, showMa: true } })
   await user.click(screen.getByRole('button', { name: 'Indicators' }))
   expect(screen.queryByRole('spinbutton', { name: 'Length' })).toBeNull()
   expect(screen.queryByRole('checkbox', { name: 'RSI moving average' })).toBeNull()
@@ -293,6 +293,8 @@ test('Should show a notice about saving when there is one', () => {
       onScreenshot={noop}
       onExportConfig={noop}
       onImportConfig={noop}
+      split
+      onSplit={noop}
     />,
   )
   expect(screen.getByRole('status').textContent).toBe('Could not save your changes')
@@ -361,4 +363,136 @@ test('Should accept the same file again after refusing or cancelling it', async 
   await user.upload(screen.getByLabelText('Settings file'), file)
   await user.click(await screen.findByRole('button', { name: 'Replace' }))
   expect(handlers.onImportConfig).toHaveBeenCalledTimes(1)
+})
+
+test('Should offer the monthly timeframe', async () => {
+  const { handlers, user } = setup()
+  await user.click(screen.getByRole('button', { name: 'M' }))
+  expect(handlers.onTimeframe).toHaveBeenCalledWith('M')
+})
+
+const openIndicators = (user: ReturnType<typeof userEvent.setup>) =>
+  user.click(screen.getByRole('button', { name: 'Indicators' }))
+
+const typeInto = async (user: ReturnType<typeof userEvent.setup>, name: string, value: string) => {
+  const input = screen.getByRole('spinbutton', { name })
+  await user.clear(input)
+  await user.type(input, value)
+}
+
+test('Should switch the average of the volume on and set its length', async () => {
+  const { handlers, user } = setup()
+  await openIndicators(user)
+  expect(screen.queryByRole('spinbutton', { name: 'Volume average length' })).toBeNull()
+  await user.click(screen.getByRole('checkbox', { name: 'Volume moving average' }))
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(
+    expect.objectContaining({ volumeMa: { visible: true, length: 20 } }),
+  )
+})
+
+test('Should set the length of the average of the volume while it is on', async () => {
+  const { handlers, user } = setup({ ...DEFAULT_STATE.indicators, volumeMa: { visible: true, length: 20 } })
+  await openIndicators(user)
+  await typeInto(user, 'Volume average length', '50')
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(
+    expect.objectContaining({ volumeMa: { visible: true, length: 50 } }),
+  )
+})
+
+test('Should switch a moving average between simple and exponential', async () => {
+  const sma = [{ id: 'a', length: 20, color: '#FF9800', width: 1 }]
+  const { handlers, user } = setup({ ...DEFAULT_STATE.indicators, sma })
+  await openIndicators(user)
+  const toggle = screen.getByRole('button', { name: 'Type of average 1' })
+  expect(toggle.textContent).toBe('SMA')
+  await user.click(toggle)
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ sma: [{ ...sma[0], kind: 'ema' }] }))
+})
+
+test('Should switch an exponential moving average back to simple', async () => {
+  const sma = [{ id: 'a', length: 20, color: '#FF9800', width: 1, kind: 'ema' as const }]
+  const { handlers, user } = setup({ ...DEFAULT_STATE.indicators, sma })
+  await openIndicators(user)
+  const toggle = screen.getByRole('button', { name: 'Type of average 1' })
+  expect(toggle.textContent).toBe('EMA')
+  await user.click(toggle)
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(
+    expect.objectContaining({ sma: [{ id: 'a', length: 20, color: '#FF9800', width: 1 }] }),
+  )
+})
+
+test('Should switch the Bollinger Bands on and keep their settings hidden until then', async () => {
+  const { handlers, user } = setup()
+  await openIndicators(user)
+  expect(screen.queryByRole('spinbutton', { name: 'Bollinger length' })).toBeNull()
+  await user.click(screen.getByRole('checkbox', { name: 'Bollinger Bands' }))
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(
+    expect.objectContaining({ bollinger: { visible: true, length: 20, multiplier: 2 } }),
+  )
+})
+
+test('Should set the length and the multiplier of the Bollinger Bands', async () => {
+  const { handlers, user } = setup({ ...DEFAULT_STATE.indicators, bollinger: { visible: true, length: 20, multiplier: 2 } })
+  await openIndicators(user)
+  await typeInto(user, 'Bollinger length', '30')
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(
+    expect.objectContaining({ bollinger: { visible: true, length: 30, multiplier: 2 } }),
+  )
+  await typeInto(user, 'Bollinger multiplier', '3')
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(
+    expect.objectContaining({ bollinger: { visible: true, length: 20, multiplier: 3 } }),
+  )
+})
+
+test('Should switch the MACD on and set its three lengths', async () => {
+  const { handlers, user } = setup()
+  await openIndicators(user)
+  expect(screen.queryByRole('spinbutton', { name: 'MACD fast length' })).toBeNull()
+  await user.click(screen.getByRole('checkbox', { name: 'MACD' }))
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(
+    expect.objectContaining({ macd: { visible: true, fast: 12, slow: 26, signal: 9 } }),
+  )
+})
+
+test('Should set each length of the MACD on its own', async () => {
+  const { handlers, user } = setup({ ...DEFAULT_STATE.indicators, macd: { visible: true, fast: 12, slow: 26, signal: 9 } })
+  await openIndicators(user)
+  await typeInto(user, 'MACD fast length', '8')
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(
+    expect.objectContaining({ macd: { visible: true, fast: 8, slow: 26, signal: 9 } }),
+  )
+  await typeInto(user, 'MACD signal length', '5')
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(
+    expect.objectContaining({ macd: { visible: true, fast: 12, slow: 26, signal: 5 } }),
+  )
+})
+
+test('Should ask for a second chart and say that there is none yet', async () => {
+  const { handlers, user } = setup()
+  const toggle = screen.getByRole('button', { name: 'Two charts' })
+  expect(toggle.getAttribute('aria-pressed')).toBe('false')
+  await user.click(toggle)
+  expect(handlers.onSplit).toHaveBeenCalledTimes(1)
+})
+
+test('Should accept a Bollinger multiplier with decimals and keep it within its limits', async () => {
+  const { handlers, user } = setup({ ...DEFAULT_STATE.indicators, bollinger: { visible: true, length: 20, multiplier: 2 } })
+  await openIndicators(user)
+  await typeInto(user, 'Bollinger multiplier', '1.5')
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(
+    expect.objectContaining({ bollinger: { visible: true, length: 20, multiplier: 1.5 } }),
+  )
+  await typeInto(user, 'Bollinger multiplier', '0.1')
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(
+    expect.objectContaining({ bollinger: { visible: true, length: 20, multiplier: 0.5 } }),
+  )
+})
+
+test('Should keep the lengths of the indicators whole', async () => {
+  const { handlers, user } = setup({ ...DEFAULT_STATE.indicators, bollinger: { visible: true, length: 20, multiplier: 2 } })
+  await openIndicators(user)
+  await typeInto(user, 'Bollinger length', '30.7')
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(
+    expect.objectContaining({ bollinger: { visible: true, length: 30, multiplier: 2 } }),
+  )
 })

@@ -1,6 +1,6 @@
 import { LIST_DEFAULT_WIDTH } from './limits'
 
-export type Timeframe = 'D' | 'W'
+export type Timeframe = 'D' | 'W' | 'M'
 
 export type ThemeName = 'dark' | 'light'
 
@@ -17,7 +17,11 @@ export type Split = { date: string; numerator: number; denominator: number }
 
 export type SymbolInfo = { symbol: string; name: string; exchange: string }
 
-export type SymbolList = { id: string; name: string; items: SymbolInfo[] }
+export type ListSection = { kind: 'section'; id: string; title: string }
+
+export type ListItem = SymbolInfo | ListSection
+
+export type SymbolList = { id: string; name: string; items: ListItem[] }
 
 export type History = {
   info: SymbolInfo
@@ -43,24 +47,40 @@ export type PaneId = 'price' | 'rsi'
 
 export type LinePoint = { date: string; value: number }
 
-export type TrendLine = {
+export type DrawingBase = {
   id: string
   pane: PaneId
   timeframe: Timeframe
-  p1: LinePoint
-  p2: LinePoint
   color: string
   width: number
-  extendRight: boolean
   pricedAt: string
 }
 
-export type SmaConfig = { id: string; length: number; color: string; width: number }
+export type TrendLine = DrawingBase & {
+  kind?: 'trend'
+  p1: LinePoint
+  p2: LinePoint
+  extendRight: boolean
+  alert?: boolean
+}
+
+export type HorizontalLine = DrawingBase & { kind: 'hline'; value: number; alert?: boolean }
+
+export type Channel = DrawingBase & { kind: 'channel'; p1: LinePoint; p2: LinePoint; offset: number }
+
+export type Rectangle = DrawingBase & { kind: 'rect'; p1: LinePoint; p2: LinePoint }
+
+export type Drawing = TrendLine | HorizontalLine | Channel | Rectangle
+
+export type SmaConfig = { id: string; length: number; color: string; width: number; kind?: 'ema' }
 
 export type Indicators = {
   volume: { visible: boolean }
+  volumeMa: { visible: boolean; length: number }
   rsi: { visible: boolean; length: number; showMa: boolean }
   sma: SmaConfig[]
+  bollinger: { visible: boolean; length: number; multiplier: number }
+  macd: { visible: boolean; fast: number; slow: number; signal: number }
 }
 
 export type ChartType = 'candles' | 'bars' | 'line' | 'area' | 'baseline'
@@ -82,7 +102,9 @@ export type AppState = {
   indicators: Indicators
   chart: ChartSettings
   listWidth: number
-  lines: Record<string, TrendLine[]>
+  lines: Record<string, Drawing[]>
+  notes: Record<string, string>
+  secondChart: Timeframe | null
 }
 
 export const DEFAULT_STATE: AppState = {
@@ -110,10 +132,15 @@ export const DEFAULT_STATE: AppState = {
   activeWatchlistId: 'default',
   indicators: {
     volume: { visible: true },
+    volumeMa: { visible: false, length: 20 },
     rsi: { visible: true, length: 14, showMa: true },
     sma: [],
+    bollinger: { visible: false, length: 20, multiplier: 2 },
+    macd: { visible: false, fast: 12, slow: 26, signal: 9 },
   },
   chart: { type: 'candles', scale: 'normal', invert: false, cursor: 'normal' },
   listWidth: LIST_DEFAULT_WIDTH,
   lines: {},
+  notes: {},
+  secondChart: null,
 }

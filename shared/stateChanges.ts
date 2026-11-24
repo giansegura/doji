@@ -1,4 +1,4 @@
-import type { AppState, TrendLine } from './types'
+import type { AppState, Drawing } from './types'
 
 const PARTS = [
   'theme',
@@ -9,11 +9,13 @@ const PARTS = [
   'indicators',
   'chart',
   'listWidth',
+  'notes',
+  'secondChart',
 ] as const
 
 type Part = (typeof PARTS)[number]
 
-export type StateChanges = Partial<Pick<AppState, Part>> & { lines?: Record<string, TrendLine[]> }
+export type StateChanges = Partial<Pick<AppState, Part>> & { lines?: Record<string, Drawing[]> }
 
 export const changesSince = (saved: AppState, current: AppState): StateChanges => {
   const parts = Object.fromEntries(PARTS.filter((part) => current[part] !== saved[part]).map((part) => [part, current[part]]))
