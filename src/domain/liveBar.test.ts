@@ -267,3 +267,12 @@ test('Should stretch the last bar when only the range of the live price is beyon
   const data = history()
   expect(withLivePrice(data, live({ price: 102, volume: 5_000, high: 106 })).at(-1)).toMatchObject({ high: 106, close: 102 })
 })
+
+test('Should keep the highest and lowest trades that no longer fit in the record until the history covers them', () => {
+  const swing = Array.from({ length: 330 }, (_, index): [number, number] => [index === 3 ? 140 : index === 5 ? 80 : 104, MIDDAY + index])
+  const seen = seenAfter(swing)
+  expect(seen?.trades).toHaveLength(300)
+  expect(withSeenRange(live({ price: 104, time: MIDDAY + 329 }), seen)).toMatchObject({ high: 140, low: 80 })
+  const covered = seeTrade(seen, history({ tradedAt: MIDDAY + 29 }), live({ price: 104, time: MIDDAY + 330 }))
+  expect(withSeenRange(live({ price: 104, time: MIDDAY + 330 }), covered)).toMatchObject({ high: 104, low: 104 })
+})

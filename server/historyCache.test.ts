@@ -360,3 +360,8 @@ test('Should keep the trade time of the tail when merging, and none when the tai
   expect(mergeHistory(cached, { ...history(tail.bars), tradedAt: 2_000 }).tradedAt).toBe(2_000)
   expect(mergeHistory(cached, history(tail.bars)).tradedAt).toBeUndefined()
 })
+
+test('Should keep the trade time of the cached bars when the tail brings no bars', () => {
+  const cached = { ...history(full.bars), tradedAt: 1_000 }
+  expect(mergeHistory(cached, { ...history([]), tradedAt: 2_000 }).tradedAt).toBe(1_000)
+})

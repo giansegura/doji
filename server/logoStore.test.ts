@@ -244,3 +244,14 @@ test('Should ask again for a symbol remembered as having no logo when the source
   const logo = await versioned(dir, 'two', 'https://b/new.png', fetched).get('AAPL')
   expect(logo?.bytes.toString()).toBe('https://b/new.png')
 })
+
+test('Should not look a logo up again on every request after the new sources found nothing', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'doji-logos-'))
+  const fetched: string[] = []
+  await versioned(dir, 'one', 'https://a/old.png', fetched).get('AAPL')
+  const store = versioned(dir, 'two', 'https://b/missing.png', fetched)
+  await store.get('AAPL')
+  const again = versioned(dir, 'two', 'https://b/missing.png', fetched)
+  expect((await again.get('AAPL'))?.bytes.toString()).toBe('https://a/old.png')
+  expect(fetched).toEqual(['https://a/old.png', 'https://b/missing.png'])
+})

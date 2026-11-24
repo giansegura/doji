@@ -285,3 +285,29 @@ test('Should close the stream when it is no longer used, and open none for an em
   renderHook(() => useQuotes([], allAt(1_000), false, open))
   expect(opened).toHaveLength(1)
 })
+
+test('Should take the symbols of a slow full answer that a later partial answer did not bring', async () => {
+  vi.useFakeTimers()
+  const { open, opened } = fakeStream()
+  const answers: ((quotes: Quote[]) => void)[] = []
+  const fetcher = vi
+    .fn<(symbols: string[]) => Promise<Quote[]>>()
+    .mockImplementationOnce(async () => [quote('AAPL', 10), quote('KO', 60)])
+    .mockImplementation(() => new Promise<Quote[]>((resolve) => answers.push(resolve)))
+  const { result } = renderHook(() => useQuotes(['AAPL', 'KO'], fetcher, false, open))
+  await act(async () => vi.advanceTimersByTimeAsync(10))
+  for (const round of [1, 2, 3]) {
+    act(() => opened[0].onTicks([liveTick('AAPL', 12, 2_000 + round)]))
+    await act(async () => vi.advanceTimersByTimeAsync(15_000))
+  }
+  act(() => opened[0].onTicks([liveTick('AAPL', 12, 2_010)]))
+  await act(async () => vi.advanceTimersByTimeAsync(15_000))
+  expect(fetcher.mock.calls.slice(-1)[0][0]).toEqual(['AAPL', 'KO'])
+  await act(async () => vi.advanceTimersByTimeAsync(15_000))
+  expect(fetcher.mock.calls.slice(-1)[0][0]).toEqual(['KO'])
+  const [full, partial] = answers.slice(-2)
+  await act(async () => partial([quote('KO', 62)]))
+  await act(async () => full([quote('AAPL', 11), quote('KO', 61)]))
+  expect(result.current.quotes.KO.price).toBe(62)
+  expect(result.current.quotes.AAPL.price).toBe(11)
+})

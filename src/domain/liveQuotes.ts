@@ -43,7 +43,7 @@ const withRegularTick = (quote: Quote | undefined, tick: LiveTick): Quote => {
     price: tick.price,
     change,
     changePercent: percentOf(change, previousClose),
-    extended: quote.extended?.session === 'pre' ? null : (quote.extended ?? null),
+    extended: today && quote.extended?.session === 'post' ? quote.extended : null,
     time: tick.time,
     ...withVolume(tick.volume ?? (today ? known : undefined)),
   }
@@ -91,7 +91,7 @@ const mergePolled = (current: Quote | undefined, polled: Quote, holdExtended: bo
   const extended = ticked
     ? { ...ticked, changePercent: percentOf(ticked.price - polled.price, polled.price) }
     : (polled.extended ?? null)
-  return { ...polled, ...zone, extended, ...withVolume(today ? current.volume : undefined) }
+  return { ...polled, ...zone, extended, ...withVolume(polled.volume ?? (today ? current.volume : undefined)) }
 }
 
 export const applyTicks = (book: QuoteBook, ticks: LiveTick[], now: number): QuoteBook =>

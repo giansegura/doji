@@ -92,8 +92,8 @@ test('Should send each batch of ticks as one event', async () => {
   const { hub, joined } = fakeHub()
   const { until } = await open(`${await start(hub)}/api/stream?symbols=AAPL`)
   joined[0].send([tick])
-  const text = await until('data: ')
-  expect(text).toContain(`data: ${JSON.stringify([tick])}\n\n`)
+  const frame = `data: ${JSON.stringify([tick])}\n\n`
+  expect(await until(frame)).toContain(frame)
 })
 
 test('Should leave when the browser closes the stream', async () => {

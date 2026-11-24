@@ -31,7 +31,7 @@ export const useQuotes = (
     if (!key) return undefined
     let active = true
     let issued = 0
-    let applied = 0
+    const appliedFor = new Map<string, number>()
     let cycle = 0
     let closeStream: (() => void) | null = null
     const list = key.split(',')
@@ -51,9 +51,10 @@ export const useQuotes = (
       fetchRef
         .current(wanted)
         .then((received) => {
-          if (!active || order < applied) return
-          applied = order
-          keep(applyPolled(bookRef.current, received, sentAt))
+          const newest = received.filter((quote) => (appliedFor.get(quote.symbol) ?? 0) < order)
+          if (!active || newest.length === 0) return
+          newest.forEach((quote) => appliedFor.set(quote.symbol, order))
+          keep(applyPolled(bookRef.current, newest, sentAt))
         })
         .catch(() => undefined)
     }

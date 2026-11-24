@@ -204,3 +204,19 @@ test('Should say prices are live while any of the symbols ticked in the last thi
   expect(isLive(book, ['MSFT', 'KO'], NOW)).toBe(false)
   expect(isLive(EMPTY_BOOK, ['AAPL'], NOW)).toBe(false)
 })
+
+test('Should drop the after-hours reading of the day before with the first regular tick of a new day', () => {
+  const yesterday = quote({ time: YESTERDAY_CLOSE, extended: { session: 'post', price: 352, changePercent: 0.84 } })
+  expect(applyTicks(bookOf([yesterday]), [tick({ time: TODAY_OPEN })], NOW).quotes.AAPL.extended).toBeNull()
+})
+
+test('Should take the volume a newer poll of the same day brings', () => {
+  const ticked = applyTicks(bookOf([quote()]), [tick()], NOW)
+  const polled = quote({ price: 352, time: MIDDAY + 9_000, volume: 2_500 })
+  expect(applyPolled(ticked, [polled], NOW).quotes.AAPL.volume).toBe(2_500)
+})
+
+test('Should keep the volume it has when a newer poll of the same day brings none', () => {
+  const ticked = applyTicks(bookOf([quote()]), [tick()], NOW)
+  expect(applyPolled(ticked, [quote({ price: 352, time: MIDDAY + 9_000 })], NOW).quotes.AAPL.volume).toBe(1_000)
+})

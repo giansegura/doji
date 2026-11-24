@@ -3,7 +3,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { mkdir, readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { chromium } from 'playwright-core'
-import { dayInZone } from '../shared/dates'
+import { dayInZone, mondayOf } from '../shared/dates'
 import { symbolsOf } from '../shared/listItems'
 import type { AppState, Drawing, History, LiveTick, Quote, TrendLine } from '../shared/types'
 
@@ -296,9 +296,11 @@ await step('los precios en vivo mueven la lista, la pestaña y la última vela, 
   await page.getByText('Apple Inc. · 1W · NASDAQ').waitFor({ timeout: 5000 })
   await page.waitForTimeout(400)
   const weekly = await legend('1W')
+  const weekStart = mondayOf(lastBar?.time ?? '')
+  const weekHigh = Math.max(higher, ...history.bars.filter((bar) => bar.time >= weekStart).map((bar) => bar.high))
   check(
-    weekly.includes(`H${higher.toFixed(2)}`) && weekly.includes(`C${lower.toFixed(2)}`),
-    `la última vela semanal no cerró en ${lower.toFixed(2)}: ${weekly}`,
+    weekly.includes(`H${weekHigh.toFixed(2)}`) && weekly.includes(`C${lower.toFixed(2)}`),
+    `la última vela semanal no cerró en ${lower.toFixed(2)} con máximo ${weekHigh.toFixed(2)}: ${weekly}`,
   )
   await button('D').click()
   await page.getByText('Apple Inc. · 1D · NASDAQ').waitFor({ timeout: 5000 })

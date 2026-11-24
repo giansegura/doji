@@ -136,6 +136,7 @@ export const createLogoStore = (deps: {
       await save(symbol, found.logo)
       return found.logo
     }
+    if (saved && found.certain) await save(symbol, saved)
     if (saved) return saved
     if (found.certain) await save(symbol, null)
     return null

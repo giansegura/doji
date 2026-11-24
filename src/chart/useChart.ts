@@ -30,9 +30,9 @@ import type {
   SmaConfig,
   Timeframe,
 } from '../../shared/types'
-import { priceDigits } from '../../shared/symbols'
 import { type LivePrice, withLivePrice } from '../domain/liveBar'
 import type { Theme } from '../theme/tokens'
+import { formatWithPrecision, priceFormatOf } from './priceFormat'
 import { createBandPrimitive } from './bandPrimitive'
 import { type HoverStore, createHoverStore } from './hoverStore'
 import { type SeriesData, buildSeriesData } from './seriesData'
@@ -563,8 +563,7 @@ export const useChart = ({ history, timeframe, theme, indicators, settings, live
 
     syncMain(chart, series, chartType)
     series.main.update(data, theme)
-    const precision = priceDigits(symbol, data.bars.at(-1)?.close ?? 0)
-    series.main.series.applyOptions({ priceFormat: { type: 'price', precision, minMove: 1 / 10 ** precision } })
+    series.main.series.applyOptions({ priceFormat: priceFormatOf(symbol, data.bars.at(-1)?.close ?? 0) })
     series.volume?.setData(data.volume)
     series.rsi?.setData(data.rsi)
     series.rsiMa?.setData(data.rsiMa)
@@ -636,6 +635,12 @@ export const useChart = ({ history, timeframe, theme, indicators, settings, live
   useEffect(() => {
     if (seriesRef.current) tickSeries(seriesRef.current, data, smaConfigs)
   }, [data])
+
+  const livePrecision = priceFormatOf(symbol, data.bars.at(-1)?.close ?? 0).precision
+
+  useEffect(() => {
+    seriesRef.current?.main.series.applyOptions({ priceFormat: formatWithPrecision(livePrecision) })
+  }, [livePrecision])
 
   return { containerRef, handles, data, rsiPaneTop: tops.rsi, macdPaneTop: tops.macd, hover }
 }

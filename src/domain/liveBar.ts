@@ -13,7 +13,9 @@ export type LivePrice = {
 
 type Trade = { time: number; price: number }
 
-export type SeenTrades = { symbol: string; day: string; trades: Trade[] }
+type Range = { high: number; low: number; until: number }
+
+export type SeenTrades = { symbol: string; day: string; trades: Trade[]; older?: Range }
 
 const MAX_SEEN_TRADES = 300
 
@@ -83,21 +85,35 @@ const isSameSymbol = (history: History, live: LivePrice): boolean =>
 const sameTrades = (a: Trade[], b: Trade[]): boolean =>
   a.length === b.length && a.every((trade, index) => trade.time === b[index].time && trade.price === b[index].price)
 
+const foldRange = (range: Range | undefined, trades: Trade[]): Range | undefined => {
+  if (trades.length === 0) return range
+  const prices = trades.map((trade) => trade.price)
+  const until = Math.max(...trades.map((trade) => trade.time))
+  if (!range) return { high: Math.max(...prices), low: Math.min(...prices), until }
+  return { high: Math.max(range.high, ...prices), low: Math.min(range.low, ...prices), until: Math.max(range.until, until) }
+}
+
 export const seeTrade = (seen: SeenTrades | null, history: History | null, live: LivePrice | null): SeenTrades | null => {
   const last = history?.bars.at(-1)
   if (!history || !last || !live || !isSameSymbol(history, live) || live.day !== last.time) return null
   const since = history.tradedAt ?? Number.NEGATIVE_INFINITY
-  const known = seen && seen.symbol === live.symbol && seen.day === live.day ? seen.trades : []
+  const same = seen !== null && seen.symbol === live.symbol && seen.day === live.day
+  const known = same ? seen.trades : []
   const latest = known.at(-1)
   const repeated = latest !== undefined && latest.time === live.time && latest.price === live.price
-  const trades = (repeated ? known : [...known, { time: live.time, price: live.price }])
-    .filter((trade) => trade.time > since)
-    .slice(-MAX_SEEN_TRADES)
-  return seen && known === seen.trades && sameTrades(trades, known) ? seen : { symbol: live.symbol, day: live.day, trades }
+  const uncovered = (repeated ? known : [...known, { time: live.time, price: live.price }]).filter((trade) => trade.time > since)
+  const dropped = uncovered.slice(0, Math.max(uncovered.length - MAX_SEEN_TRADES, 0))
+  const trades = uncovered.slice(dropped.length)
+  const kept = same && seen.older && seen.older.until > since ? seen.older : undefined
+  const older = foldRange(kept, dropped)
+  if (same && sameTrades(trades, known) && older === seen.older) return seen
+  return { symbol: live.symbol, day: live.day, trades, ...(older ? { older } : {}) }
 }
 
 export const withSeenRange = (live: LivePrice | null, seen: SeenTrades | null): LivePrice | null => {
-  if (!live || !seen || seen.trades.length === 0) return live
+  if (!live || !seen || (seen.trades.length === 0 && !seen.older)) return live
   const prices = seen.trades.map((trade) => trade.price)
-  return { ...live, high: Math.max(...prices), low: Math.min(...prices) }
+  const highs = seen.older ? [...prices, seen.older.high] : prices
+  const lows = seen.older ? [...prices, seen.older.low] : prices
+  return { ...live, high: Math.max(...highs), low: Math.min(...lows) }
 }
