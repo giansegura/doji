@@ -43,3 +43,12 @@ test('Should offer the ruler to measure and mark it while armed', async () => {
   await userEvent.setup().click(ruler)
   expect(onTool).toHaveBeenCalledWith('measure')
 })
+
+test('Should offer a long and a short position', async () => {
+  const onTool = vi.fn()
+  renderWithTheme(<LeftToolbar tool="cursor" onTool={onTool} />)
+  const user = userEvent.setup()
+  await user.click(screen.getByRole('button', { name: 'Long position' }))
+  await user.click(screen.getByRole('button', { name: 'Short position' }))
+  expect(onTool.mock.calls.map(([tool]) => tool)).toEqual(['long', 'short'])
+})

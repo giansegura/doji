@@ -9,6 +9,15 @@ const scaled = (point: LinePoint, factor: number): LinePoint => ({ ...point, val
 
 const rescale = (drawing: Drawing, factor: number): Drawing => {
   if (drawing.kind === 'hline') return { ...drawing, value: drawing.value * factor }
+  if (drawing.kind === 'position') {
+    return {
+      ...drawing,
+      p1: scaled(drawing.p1, factor),
+      p2: scaled(drawing.p2, factor),
+      stop: drawing.stop * factor,
+      target: drawing.target * factor,
+    }
+  }
   if (drawing.kind === 'channel') {
     return {
       ...drawing,

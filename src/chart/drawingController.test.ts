@@ -825,3 +825,36 @@ test('Should leave the levels alone on the RSI pane and under a drawing of the u
   expect(record.selected).toBe('mine')
   expect(record.lines).toHaveLength(1)
 })
+
+test('Should place a long position with one click, its stop below and its target twice as far above', () => {
+  const { record, controller } = harness()
+  controller.setTool('long')
+  expect(controller.pointerMove('price', { x: 40, y: 100 })).toBe('crosshair')
+  expect(controller.pointerDown('price', { x: 40, y: 100 })).toBe(true)
+  expect(record.lines).toEqual([
+    {
+      kind: 'position',
+      id: 'id1',
+      pane: 'price',
+      timeframe: 'D',
+      side: 'long',
+      p1: { date: 'd40', value: 100 },
+      p2: { date: 'd160', value: 100 },
+      stop: 60,
+      target: 180,
+      color: '#2962FF',
+      width: 2,
+      pricedAt: '2020-08-31',
+    },
+  ])
+  expect(record.selected).toBe('id1')
+  expect(record.toolDone).toBe(1)
+})
+
+test('Should place a short position the other way round and only on the price pane', () => {
+  const { record, controller } = harness()
+  controller.setTool('short')
+  expect(controller.pointerDown('rsi', { x: 40, y: 50 })).toBe(false)
+  controller.pointerDown('price', { x: 40, y: 100 })
+  expect(record.lines[0]).toMatchObject({ kind: 'position', side: 'short', stop: 140, target: 20 })
+})

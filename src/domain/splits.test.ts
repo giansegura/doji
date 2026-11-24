@@ -145,3 +145,29 @@ test('Should leave the new drawings of the RSI pane untouched', () => {
   expect(out.changed).toBe(false)
   expect(out.lines[0].value).toBe(400)
 })
+
+test('Should rescale the entry, the stop and the target of a position drawn before a split', () => {
+  const position = {
+    id: 'p',
+    pane: 'price' as const,
+    timeframe: 'D' as const,
+    color: '#2962FF',
+    width: 1,
+    pricedAt: '2020-01-01',
+    kind: 'position' as const,
+    side: 'long' as const,
+    p1: { date: '2020-05-01', value: 400 },
+    p2: { date: '2020-06-01', value: 400 },
+    stop: 380,
+    target: 440,
+  }
+  const [adjusted] = adjustLinesForSplits([position], [{ date: '2020-08-31', numerator: 4, denominator: 1 }]).lines
+  expect(adjusted).toEqual({
+    ...position,
+    p1: { date: '2020-05-01', value: 100 },
+    p2: { date: '2020-06-01', value: 100 },
+    stop: 95,
+    target: 110,
+    pricedAt: '2020-08-31',
+  })
+})

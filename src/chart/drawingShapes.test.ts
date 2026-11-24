@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import type { Channel, HorizontalLine, Rectangle, TrendLine } from '../../shared/types'
+import type { Channel, HorizontalLine, Position, Rectangle, TrendLine } from '../../shared/types'
 import { type ShapeGeometry, hitTestOutline, moveDrawing, offsetAt, outlineOf } from './drawingShapes'
 
 const geometry: ShapeGeometry = {
@@ -168,4 +168,73 @@ test('Should not move a drawing to where the pane has no values', () => {
   ;[trend, hline, channel, rect].forEach((drawing) =>
     expect(moveDrawing(valueless, drawing, 'body', { x: 0, y: 0 }, { x: 10, y: 10 })).toBeNull(),
   )
+})
+
+const position: Position = {
+  ...base,
+  kind: 'position',
+  side: 'long',
+  p1: { date: 'd100', value: 100 },
+  p2: { date: 'd200', value: 100 },
+  stop: 90,
+  target: 120,
+}
+
+test('Should outline a position as its entry, stop and target lines, the two zones and a handle for each level', () => {
+  expect(outlineOf(position, geometry)).toEqual({
+    segments: [
+      [{ x: 100, y: 100 }, { x: 200, y: 100 }],
+      [{ x: 100, y: 90 }, { x: 200, y: 90 }],
+      [{ x: 100, y: 120 }, { x: 200, y: 120 }],
+    ],
+    fill: null,
+    zones: [
+      { tone: 'profit', points: [{ x: 100, y: 100 }, { x: 200, y: 100 }, { x: 200, y: 120 }, { x: 100, y: 120 }] },
+      { tone: 'loss', points: [{ x: 100, y: 100 }, { x: 200, y: 100 }, { x: 200, y: 90 }, { x: 100, y: 90 }] },
+    ],
+    handles: [
+      { part: 'p1', at: { x: 100, y: 100 } },
+      { part: 'p2', at: { x: 200, y: 100 } },
+      { part: 'stop', at: { x: 100, y: 90 } },
+      { part: 'target', at: { x: 100, y: 120 } },
+    ],
+  })
+})
+
+test('Should grab a position anywhere inside its zones', () => {
+  const outline = outlineOf(position, geometry)
+  expect(outline && hitTestOutline({ x: 150, y: 110 }, outline)).toBe('body')
+  expect(outline && hitTestOutline({ x: 150, y: 95 }, outline)).toBe('body')
+  expect(outline && hitTestOutline({ x: 250, y: 110 }, outline)).toBeNull()
+})
+
+test('Should move the stop and the target of a position on their own', () => {
+  expect(moveDrawing(geometry, position, 'stop', { x: 100, y: 90 }, { x: 140, y: 85 })).toEqual({ ...position, stop: 85 })
+  expect(moveDrawing(geometry, position, 'target', { x: 100, y: 120 }, { x: 100, y: 130 })).toEqual({ ...position, target: 130 })
+})
+
+test('Should keep the stop and the target of a position on their side of the entry', () => {
+  expect(moveDrawing(geometry, position, 'stop', { x: 100, y: 90 }, { x: 100, y: 105 })).toEqual(position)
+  expect(moveDrawing(geometry, position, 'target', { x: 100, y: 120 }, { x: 100, y: 95 })).toEqual(position)
+  const short: Position = { ...position, side: 'short', stop: 110, target: 80 }
+  expect(moveDrawing(geometry, short, 'stop', { x: 100, y: 110 }, { x: 100, y: 95 })).toEqual(short)
+})
+
+test('Should stretch a position in time from its right handle, keeping its levels', () => {
+  expect(moveDrawing(geometry, position, 'p2', { x: 200, y: 100 }, { x: 260, y: 140 })).toEqual({ ...position, p2: { date: 'd260', value: 100 } })
+})
+
+test('Should move the entry of a position with its levels in place, and the whole position with its body', () => {
+  expect(moveDrawing(geometry, position, 'p1', { x: 100, y: 100 }, { x: 110, y: 104 })).toEqual({
+    ...position,
+    p1: { date: 'd110', value: 104 },
+    p2: { date: 'd200', value: 104 },
+  })
+  expect(moveDrawing(geometry, position, 'body', { x: 150, y: 110 }, { x: 170, y: 115 })).toEqual({
+    ...position,
+    p1: { date: 'd120', value: 105 },
+    p2: { date: 'd220', value: 105 },
+    stop: 95,
+    target: 125,
+  })
 })

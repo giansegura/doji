@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
-import type { Drawing, HorizontalLine, TrendLine } from '../../shared/types'
-import { alertLevel, createAlertWatcher, latestPrice, sideChange } from './alerts'
+import type { Drawing, HorizontalLine, Position, TrendLine } from '../../shared/types'
+import { alertLevel, armedSymbols, createAlertWatcher, latestPrice, sideChange } from './alerts'
 
 const base = { id: 'a', pane: 'price' as const, timeframe: 'D' as const, color: '#2962FF', width: 2, pricedAt: '2020-01-01' }
 
@@ -133,4 +133,32 @@ test('Should not fire for a line that was not there yet when the previous price 
   const lines = { KO: [trend()] }
   watcher.check(lines, { KO: 90 }, '2026-10-30')
   expect(watcher.check(lines, { KO: 105 }, '2026-11-02')).toEqual([])
+})
+
+const position = (over: Partial<Position> = {}): Position => ({
+  ...base,
+  kind: 'position',
+  side: 'long',
+  p1: { date: '2026-11-02', value: 100 },
+  p2: { date: '2026-11-20', value: 100 },
+  stop: 95,
+  target: 110,
+  alert: true,
+  ...over,
+})
+
+test('Should fire an armed position when the price reaches its target or its stop, from its entry day on', () => {
+  const watcher = createAlertWatcher()
+  watcher.check({ KO: [position()] }, { KO: 105 }, '2026-11-24')
+  expect(watcher.check({ KO: [position()] }, { KO: 111 }, '2026-11-24')).toEqual([
+    { symbol: 'KO', drawingId: 'a', level: 110, price: 111, direction: 'up' },
+  ])
+  expect(watcher.check({ KO: [position()] }, { KO: 94 }, '2026-11-24')).toEqual([
+    { symbol: 'KO', drawingId: 'a', level: 110, price: 94, direction: 'down' },
+    { symbol: 'KO', drawingId: 'a', level: 95, price: 94, direction: 'down' },
+  ])
+  const early = createAlertWatcher()
+  early.check({ KO: [position({ p1: { date: '2026-12-01', value: 100 } })] }, { KO: 105 }, '2026-11-24')
+  expect(early.check({ KO: [position({ p1: { date: '2026-12-01', value: 100 } })] }, { KO: 111 }, '2026-11-24')).toEqual([])
+  expect(armedSymbols({ KO: [position()], PEP: [position({ alert: false })] })).toEqual(['KO'])
 })

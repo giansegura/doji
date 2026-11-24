@@ -57,6 +57,10 @@ Para otro puerto: `PORT=4790 npm start`.
   - Cuentan también los precios de pre y post mercado.
   - Una línea de tendencia que no se extiende a la derecha deja de avisar pasada su última fecha.
   - El nivel de una línea de tendencia se calcula contando días laborables entre sus extremos. En semanas con festivos puede quedar ligeramente por encima o por debajo de lo que se ve dibujado.
+- **Posiciones:** "Long position" y "Short position" en la barra izquierda. Un clic pone la entrada; el stop sale debajo (o encima, en corto) y el objetivo al doble de distancia. Pinta la zona de ganancia en verde y la de pérdida en rojo, con el precio y el % de cada una y la relación beneficio/riesgo (R:R).
+  - Se arrastran por sus agarres: el objetivo, el stop (cada uno siempre en su lado de la entrada), la entrada (los niveles se quedan) y el borde derecho (la duración). Desde dentro de la caja se mueve entera.
+  - Con la posición seleccionada, "Account" y "Risk %" calculan cuántas acciones comprar para arriesgar ese porcentaje de la cuenta si salta el stop.
+  - La campana arma una alerta que avisa al tocar el objetivo o el stop, a partir del día de entrada.
 - **Regla:** "Measure" en la barra izquierda (o `Alt+M`). Un clic marca el inicio y otro el final, o arrastra. Muestra el cambio de precio y en %, el número de velas y los días naturales. No se guarda: desaparece con el siguiente clic o con `Esc`.
 - **Deshacer:** `Cmd+Z` (o `Ctrl+Z`) deshace el último cambio en los dibujos de la acción que estás viendo; con `Shift`, lo rehace. Un arrastre entero cuenta como un solo cambio.
 - **Atajos:** las flechas arriba y abajo recorren la lista. `Alt+T` arma la línea de tendencia, `Alt+H` la horizontal, `Alt+C` el canal, `Alt+R` el rectángulo y `Alt+M` la regla; `Esc` vuelve al cursor.

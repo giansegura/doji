@@ -12,7 +12,7 @@ import {
   createDrawingController,
   isLineVisible,
 } from './drawingController'
-import { DRAFT_ID, type ShapeView, draftDrawing, viewOf } from './drawingViews'
+import { DRAFT_ID, type ShapeView, type Tones, draftDrawing, viewOf } from './drawingViews'
 import { type DrawingsPrimitive, type MeasureView, createDrawingsPrimitive } from './drawingsPrimitive'
 import { type Measure, measureLines, readMeasure } from './measure'
 import { createPaneGeometry } from './paneGeometry'
@@ -32,6 +32,7 @@ type UseDrawingArgs = {
   defaultColor: string
   looks: Partial<Record<DrawingKind, LineLook>>
   measureColors: { up: string; down: string }
+  tones: Tones
   levels: number[]
   levelLook: LineLook
   handleFill: string
@@ -88,7 +89,9 @@ export const useDrawing = (args: UseDrawingArgs) => {
       const style = { timeframe: current.timeframe, color: current.defaultColor, width: DEFAULT_WIDTH, pricedAt: current.priceBasis }
       const drafted = draft && draft.pane === pane ? [draftDrawing(draft, style)].map((shape) => withLook(shape, lookFor(kindOf(shape)))) : []
       return [...saved, ...drafted]
-        .map((drawing) => viewOf(drawing, geometry, drawing.id === selectedRef.current || drawing.id === DRAFT_ID, current.symbol))
+        .map((drawing) =>
+          viewOf(drawing, geometry, drawing.id === selectedRef.current || drawing.id === DRAFT_ID, current.symbol, current.tones),
+        )
         .filter(notNull)
     }
 

@@ -4,6 +4,7 @@ import { priceDigits } from '../shared/symbols'
 import type { Bar, Drawing, History, LinePoint, Quote, SmaConfig, Timeframe } from '../shared/types'
 import { alertLevel } from '../src/domain/alerts'
 import { toMonthly } from '../src/domain/monthly'
+import { positionReading } from '../src/domain/position'
 import { rsi, sma } from '../src/domain/rsi'
 import { adjustLinesForSplits } from '../src/domain/splits'
 import { bollinger, ema, macd } from '../src/domain/studies'
@@ -88,6 +89,22 @@ const pointOf = (point: LinePoint, digits: number) => ({ date: point.date, level
 const describeDrawing = (drawing: Drawing, today: string, priceDigits: number) => {
   const digits = drawing.pane === 'price' ? priceDigits : PERCENT_DIGITS
   const { id, pane, timeframe } = drawing
+  if (drawing.kind === 'position') {
+    const reading = positionReading(drawing)
+    return {
+      id,
+      kind: 'position',
+      side: drawing.side,
+      from: drawing.p1.date,
+      to: drawing.p2.date,
+      entry: roundTo(drawing.p1.value, digits),
+      stop: roundTo(drawing.stop, digits),
+      target: roundTo(drawing.target, digits),
+      rewardToRisk: roundTo(reading.rewardToRisk, PERCENT_DIGITS),
+      alert: drawing.alert === true,
+      ...(reading.shares !== null ? { shares: reading.shares } : {}),
+    }
+  }
   if (drawing.kind === 'hline') return { id, kind: 'horizontal', pane, level: roundTo(drawing.value, digits), alert: drawing.alert === true }
   const ends = { from: pointOf(drawing.p1, digits), to: pointOf(drawing.p2, digits) }
   if (drawing.kind === 'channel') return { id, kind: 'channel', pane, timeframe, ...ends, offset: roundTo(drawing.offset, digits) }

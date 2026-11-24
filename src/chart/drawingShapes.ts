@@ -1,4 +1,4 @@
-import type { Channel, Drawing, HorizontalLine, LinePoint, Rectangle, TrendLine } from '../../shared/types'
+import type { Channel, Drawing, HorizontalLine, LinePoint, Position, Rectangle, TrendLine } from '../../shared/types'
 import { HANDLE_REACH, HIT_TOLERANCE, type XY, distanceToSegment, rightEnd } from './lineGeometry'
 
 export type ShapeGeometry = {
@@ -12,7 +12,9 @@ export type Segment = [XY, XY]
 
 export type Handle = { part: string; at: XY }
 
-export type Outline = { segments: Segment[]; fill: XY[] | null; handles: Handle[] }
+export type Zone = { tone: 'profit' | 'loss'; points: XY[] }
+
+export type Outline = { segments: Segment[]; fill: XY[] | null; handles: Handle[]; zones?: Zone[] }
 
 type TwoPoints = { p1: LinePoint; p2: LinePoint }
 
@@ -93,7 +95,44 @@ const rectOutline = (rect: Rectangle, geometry: ShapeGeometry): Outline | null =
   }
 }
 
+const box = (left: number, right: number, from: number, to: number): XY[] => [
+  { x: left, y: from },
+  { x: right, y: from },
+  { x: right, y: to },
+  { x: left, y: to },
+]
+
+const positionOutline = (position: Position, geometry: ShapeGeometry): Outline | null => {
+  const a = geometry.toXY(position.p1)
+  const b = geometry.toXY(position.p2)
+  const stop = geometry.toY(position.stop)
+  const target = geometry.toY(position.target)
+  if (!a || !b || stop === null || target === null) return null
+  const left = Math.min(a.x, b.x)
+  const right = Math.max(a.x, b.x)
+  const entry = a.y
+  return {
+    segments: [
+      [{ x: left, y: entry }, { x: right, y: entry }],
+      [{ x: left, y: stop }, { x: right, y: stop }],
+      [{ x: left, y: target }, { x: right, y: target }],
+    ],
+    fill: null,
+    zones: [
+      { tone: 'profit', points: box(left, right, entry, target) },
+      { tone: 'loss', points: box(left, right, entry, stop) },
+    ],
+    handles: [
+      { part: 'p1', at: { x: left, y: entry } },
+      { part: 'p2', at: { x: right, y: entry } },
+      { part: 'stop', at: { x: left, y: stop } },
+      { part: 'target', at: { x: left, y: target } },
+    ],
+  }
+}
+
 export const outlineOf = (drawing: Drawing, geometry: ShapeGeometry): Outline | null => {
+  if (drawing.kind === 'position') return positionOutline(drawing, geometry)
   if (drawing.kind === 'hline') return levelOutline(drawing, geometry)
   if (drawing.kind === 'channel') return channelOutline(drawing, geometry)
   if (drawing.kind === 'rect') return rectOutline(drawing, geometry)
@@ -102,8 +141,13 @@ export const outlineOf = (drawing: Drawing, geometry: ShapeGeometry): Outline | 
 
 export const hitTestOutline = (p: XY, outline: Outline): string | null => {
   const handle = outline.handles.find(({ at }) => Math.hypot(p.x - at.x, p.y - at.y) <= HANDLE_REACH)
+  const inside = (outline.zones ?? []).some(({ points }) => {
+    const xs = points.map((point) => point.x)
+    const ys = points.map((point) => point.y)
+    return p.x >= Math.min(...xs) && p.x <= Math.max(...xs) && p.y >= Math.min(...ys) && p.y <= Math.max(...ys)
+  })
   if (handle) return handle.part
-  return outline.segments.some(([a, b]) => distanceToSegment(p, a, b) <= HIT_TOLERANCE) ? BODY : null
+  return inside || outline.segments.some(([a, b]) => distanceToSegment(p, a, b) <= HIT_TOLERANCE) ? BODY : null
 }
 
 export const offsetAt = (geometry: ShapeGeometry, p1: LinePoint, p2: LinePoint, xy: XY): number | null => {
@@ -164,7 +208,36 @@ const moveChannel = (geometry: ShapeGeometry, channel: Channel, part: string, st
   return offset === null ? null : { ...channel, offset }
 }
 
+const onItsSide = (position: Position, level: 'stop' | 'target', price: number): boolean => {
+  const above = price > position.p1.value
+  const wantsAbove = (position.side === 'long') === (level === 'target')
+  return price !== position.p1.value && above === wantsAbove
+}
+
+const movePosition = (geometry: ShapeGeometry, position: Position, part: string, start: XY, to: XY): Position | null => {
+  if (part === 'stop' || part === 'target') {
+    const price = geometry.toPoint(to)?.value
+    if (price === undefined) return null
+    return onItsSide(position, part, price) ? { ...position, [part]: price } : position
+  }
+  if (part === 'p2') {
+    const end = movePoint(geometry, position.p2, to)
+    return end ? { ...position, p2: { date: end.date, value: position.p1.value } } : null
+  }
+  if (part === 'p1') {
+    const entry = movePoint(geometry, position.p1, to)
+    if (!entry || !onItsSide({ ...position, p1: entry }, 'stop', position.stop) || !onItsSide({ ...position, p1: entry }, 'target', position.target))
+      return entry ? position : null
+    return { ...position, p1: entry, p2: { date: position.p2.date, value: entry.value } }
+  }
+  const moved = moveBoth(geometry, position, start, to)
+  if (!moved) return null
+  const shift = moved.p1.value - position.p1.value
+  return { ...moved, p2: { ...moved.p2, value: moved.p1.value }, stop: position.stop + shift, target: position.target + shift }
+}
+
 export const moveDrawing = (geometry: ShapeGeometry, drawing: Drawing, part: string, start: XY, to: XY): Drawing | null => {
+  if (drawing.kind === 'position') return movePosition(geometry, drawing, part, start, to)
   if (drawing.kind === 'hline') return moveLevel(geometry, drawing, start, to)
   if (drawing.kind === 'channel') return moveChannel(geometry, drawing, part, start, to)
   if (part === 'p1' || part === 'p2') return moveEnd(geometry, drawing, part, to)

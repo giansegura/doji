@@ -173,8 +173,8 @@ export const StyleRow = styled.div`
   gap: 4px;
 `
 
-export const LineText = styled.input`
-  width: 110px;
+export const LineText = styled.input<{ $narrow?: boolean }>`
+  width: ${(props) => (props.$narrow ? 72 : 110)}px;
   height: 26px;
   padding: 0 8px;
   font-size: 12px;

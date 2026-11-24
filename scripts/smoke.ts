@@ -725,6 +725,35 @@ await step('la regla mide entre dos puntos sin guardar nada y se quita con Esc',
   await page.keyboard.press('Escape')
 })
 
+await step('una posición larga se pone con un clic, calcula las acciones y su objetivo se arrastra', async () => {
+  const { price } = await panes()
+  const positions = async () => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'position')
+  const [x, y] = at(price, 0.5, 0.5)
+  await button('Long position').click()
+  await page.mouse.click(x, y)
+  const [placed] = await positions()
+  check(placed?.kind === 'position' && placed.side === 'long', `la posición no se guardó: ${JSON.stringify(placed)}`)
+  check(placed.stop < placed.p1.value && placed.target > placed.p1.value, 'el stop o el objetivo no están en su lado')
+  check((await button('Cursor').getAttribute('aria-pressed')) === 'true', 'la herramienta no volvió al cursor')
+  await page.getByRole('textbox', { name: 'Account size' }).fill('10000')
+  await page.keyboard.press('Enter')
+  await page.getByRole('textbox', { name: 'Risk %' }).fill('1')
+  await page.keyboard.press('Enter')
+  await button('Alert').click()
+  const [sized] = await positions()
+  check(sized?.kind === 'position' && sized.account === 10000 && sized.riskPercent === 1 && sized.alert === true, `la posición no guardó su tamaño o su alerta: ${JSON.stringify(sized)}`)
+  await page.mouse.move(700, 10)
+  await page.waitForTimeout(300)
+  await drag([x, y - 80], [x, y - 120])
+  const [stretched] = await positions()
+  check(
+    stretched?.kind === 'position' && stretched.target > placed.target && stretched.stop === placed.stop,
+    `el objetivo no subió al arrastrarlo: ${JSON.stringify(stretched)}`,
+  )
+  await page.keyboard.press('Delete')
+  check((await positions()).length === 0, 'la posición no se borró')
+})
+
 await step('los soportes y resistencias se activan, se fijan con un clic y se quitan', async () => {
   const { price } = await panes()
   const strip = { x: price.x + price.width * 0.05, y: price.y + 20, width: price.width * 0.3, height: price.height * 0.6 }

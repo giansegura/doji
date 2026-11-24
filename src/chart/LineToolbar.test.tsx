@@ -282,3 +282,42 @@ test('Should follow a text changed elsewhere while the field is untouched, and n
   fireEvent.pointerDown(document.body)
   expect(onChange).not.toHaveBeenCalled()
 })
+
+const position: Drawing = {
+  ...base,
+  kind: 'position',
+  side: 'long',
+  p1: line.p1,
+  p2: { date: line.p2.date, value: line.p1.value },
+  stop: 190,
+  target: 220,
+}
+
+test('Should size a position from the account and the risk typed, saving each on Enter', async () => {
+  const onChange = vi.fn()
+  renderWithTheme(<LineToolbar line={position} onChange={onChange} onDelete={vi.fn()} />)
+  const user = userEvent.setup()
+  await user.type(screen.getByRole('textbox', { name: 'Account size' }), '10000{Enter}')
+  expect(onChange).toHaveBeenLastCalledWith({ ...position, account: 10000 })
+  await user.type(screen.getByRole('textbox', { name: 'Risk %' }), '1.5{Enter}')
+  expect(onChange).toHaveBeenLastCalledWith({ ...position, riskPercent: 1.5 })
+})
+
+test('Should clear the sizing of a position and ignore what is not a positive number', async () => {
+  const onChange = vi.fn()
+  renderWithTheme(<LineToolbar line={{ ...position, account: 5000 } as Drawing} onChange={onChange} onDelete={vi.fn()} />)
+  const user = userEvent.setup()
+  const account = screen.getByRole('textbox', { name: 'Account size' })
+  expect((account as HTMLInputElement).value).toBe('5000')
+  await user.clear(account)
+  await user.keyboard('{Enter}')
+  expect(onChange).toHaveBeenLastCalledWith(position)
+  await user.type(screen.getByRole('textbox', { name: 'Risk %' }), 'mucho{Enter}')
+  expect(onChange).toHaveBeenCalledTimes(1)
+})
+
+test('Should arm an alert on a position and offer no text on it', () => {
+  renderWithTheme(<LineToolbar line={position} onChange={vi.fn()} onDelete={vi.fn()} />)
+  expect(screen.getByRole('button', { name: 'Alert' })).toBeTruthy()
+  expect(screen.queryByRole('textbox', { name: 'Text on the line' })).toBeNull()
+})

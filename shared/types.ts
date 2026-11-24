@@ -95,13 +95,27 @@ export type Channel = DrawingBase & { kind: 'channel'; p1: LinePoint; p2: LinePo
 
 export type Rectangle = DrawingBase & { kind: 'rect'; p1: LinePoint; p2: LinePoint }
 
-export type Drawing = TrendLine | HorizontalLine | Channel | Rectangle
+export type PositionSide = 'long' | 'short'
+
+export type Position = DrawingBase & {
+  kind: 'position'
+  side: PositionSide
+  p1: LinePoint
+  p2: LinePoint
+  stop: number
+  target: number
+  alert?: boolean
+  account?: number
+  riskPercent?: number
+}
+
+export type Drawing = TrendLine | HorizontalLine | Channel | Rectangle | Position
 
 export type EarningsTiming = 'pre' | 'post'
 
 export type Earnings = { past: string[]; next: string | null; nextIsEstimate: boolean; timing?: Record<string, EarningsTiming> }
 
-export type DrawingKind = 'trend' | 'hline' | 'channel' | 'rect'
+export type DrawingKind = 'trend' | 'hline' | 'channel' | 'rect' | 'position'
 
 export type LineLook = Pick<DrawingBase, 'color' | 'width' | 'lineStyle' | 'opacity'> & { hidePrice?: true }
 

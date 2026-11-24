@@ -11,7 +11,9 @@ export type AlertWatcher = {
 }
 
 const isArmed = (drawing: Drawing): boolean =>
-  drawing.pane === 'price' && (drawing.kind === undefined || drawing.kind === 'trend' || drawing.kind === 'hline') && drawing.alert === true
+  drawing.pane === 'price' &&
+  (drawing.kind === undefined || drawing.kind === 'trend' || drawing.kind === 'hline' || drawing.kind === 'position') &&
+  drawing.alert === true
 
 const trendLevel = (line: TrendLine, today: string): number | null => {
   const [left, right] = line.p1.date <= line.p2.date ? [line.p1, line.p2] : [line.p2, line.p1]
@@ -23,8 +25,14 @@ const trendLevel = (line: TrendLine, today: string): number | null => {
 
 export const alertLevel = (drawing: Drawing, today: string): number | null => {
   if (drawing.kind === 'hline') return drawing.value
-  if (drawing.kind === 'channel' || drawing.kind === 'rect') return null
+  if (drawing.kind === 'channel' || drawing.kind === 'rect' || drawing.kind === 'position') return null
   return trendLevel(drawing, today)
+}
+
+export const alertLevels = (drawing: Drawing, today: string): number[] => {
+  if (drawing.kind === 'position') return today >= drawing.p1.date ? [drawing.target, drawing.stop] : []
+  const level = alertLevel(drawing, today)
+  return level === null ? [] : [level]
 }
 
 export const sideChange = (before: number, after: number): Direction | null => {
@@ -47,10 +55,12 @@ export const createAlertWatcher = (): AlertWatcher => {
     const previous = seen.get(symbol)
     if (previous === undefined) return []
     return drawings.filter(isArmed).flatMap((drawing) => {
-      const before = alertLevel(drawing, previous.day)
-      const level = alertLevel(drawing, today)
-      const direction = before === null || level === null ? null : sideChange(previous.price - before, price - level)
-      return level !== null && direction ? [{ symbol, drawingId: drawing.id, level, price, direction }] : []
+      const before = alertLevels(drawing, previous.day)
+      return alertLevels(drawing, today).flatMap((level, index) => {
+        const earlier = before[index]
+        const direction = earlier === undefined ? null : sideChange(previous.price - earlier, price - level)
+        return direction ? [{ symbol, drawingId: drawing.id, level, price, direction }] : []
+      })
     })
   }
 
