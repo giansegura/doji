@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path'
 import { chromium } from 'playwright-core'
 import { dayInZone, mondayOf } from '../shared/dates'
 import { symbolsOf } from '../shared/listItems'
-import type { AppState, Drawing, History, LiveTick, Quote, TrendLine } from '../shared/types'
+import type { AppState, Drawing, History, LiveTick, Quote, ThemeName, TrendLine } from '../shared/types'
 
 type Box = { x: number; y: number; width: number; height: number }
 
@@ -202,6 +202,42 @@ const timeAxisPixels = async (): Promise<string> => {
   return image.toString('base64')
 }
 
+const chooseTheme = async (label: 'Doji' | 'Midnight' | 'Light'): Promise<void> => {
+  await button('Theme').click()
+  await page.getByRole('menuitemradio', { name: label }).click()
+  await page.waitForTimeout(300)
+}
+
+const flipTheme = (current: ThemeName): Promise<void> => chooseTheme(current === 'light' ? 'Midnight' : 'Light')
+
+const chartPixel = (box: Box): Promise<number[]> =>
+  page.evaluate((area) => {
+    const counts = new Map<string, number>()
+    for (let x = area.x + area.width * 0.2; x < area.x + area.width * 0.7; x += 7) {
+      for (let y = area.y + 3; y < area.y + 40; y += 3) {
+        for (const element of document.querySelectorAll('.tv-lightweight-charts canvas')) {
+          const canvas = element as HTMLCanvasElement
+          const rect = canvas.getBoundingClientRect()
+          if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) continue
+          const scale = canvas.width / rect.width
+          const pixel = canvas.getContext('2d')?.getImageData(Math.round((x - rect.left) * scale), Math.round((y - rect.top) * scale), 1, 1).data
+          if (!pixel || pixel[3] !== 255) continue
+          const key = `${pixel[0]},${pixel[1]},${pixel[2]}`
+          counts.set(key, (counts.get(key) ?? 0) + 1)
+          break
+        }
+      }
+    }
+    const [common] = [...counts].sort((a, b) => b[1] - a[1])
+    return common ? common[0].split(',').map(Number) : []
+  }, box)
+
+const near = (pixel: number[], wanted: number[]): boolean =>
+  pixel.length === 3 && pixel.every((value, index) => Math.abs(value - wanted[index]) <= 3)
+
+const backgroundOf = (locator: ReturnType<typeof page.locator>): Promise<string> =>
+  locator.evaluate((node) => getComputedStyle(node).backgroundColor)
+
 const waitForChart = async (): Promise<void> => {
   await page.waitForSelector('canvas', { timeout: 20_000 })
   await page.waitForTimeout(1500)
@@ -230,6 +266,29 @@ await step('la leyenda sigue al cursor y vuelve a la última vela', async () => 
   await page.mouse.move(700, 10)
   await page.waitForTimeout(300)
   check((await legend()) === resting, 'la leyenda no volvió a la última vela')
+})
+
+await step('doji abre con su propio tema: logo, icono de la pestaña, violeta y fondos cálidos', async () => {
+  check((await savedState()).theme === 'doji', 'el tema por defecto no es el de doji')
+  await page.getByRole('banner').getByRole('img', { name: 'doji' }).waitFor({ timeout: 5000 })
+  check((await page.locator('link[rel="icon"]').getAttribute('href')) === '/favicon.svg', 'la pestaña no usa el icono de doji')
+  const icon = await fetch(`${url}/favicon.svg`)
+  check(icon.ok && (icon.headers.get('content-type') ?? '').startsWith('image/svg+xml'), `el icono no se sirve: ${icon.status}`)
+  check((await icon.text()).includes('#7C5CFF'), 'el icono no es el violeta de doji')
+  const active = await button('D').evaluate((node) => getComputedStyle(node).color)
+  check(active === 'rgb(124, 92, 255)', `el periodo activo no usa el violeta de doji: ${active}`)
+  check((await backgroundOf(page.getByRole('banner'))) === 'rgb(14, 13, 12)', 'la barra superior no tiene el fondo de doji')
+  const { price } = await panes()
+  check(near(await chartPixel(price), [21, 20, 18]), `el gráfico no tiene el fondo de doji: ${await chartPixel(price)}`)
+})
+
+await step('elige Midnight, el aspecto de siempre, desde el selector de temas', async () => {
+  await chooseTheme('Midnight')
+  check((await savedState()).theme === 'midnight', 'Midnight no se guardó')
+  check((await backgroundOf(page.getByRole('banner'))) === 'rgb(0, 0, 0)', 'la barra superior no es negra en Midnight')
+  const { price } = await panes()
+  check(near(await chartPixel(price), [19, 23, 34]), `el gráfico no tiene el fondo de Midnight: ${await chartPixel(price)}`)
+  check((await page.getByRole('menuitemradio').count()) === 0, 'el selector de temas siguió abierto')
 })
 
 await step('los precios en vivo mueven la lista, la pestaña y la última vela, y marcan en verde o rojo lo que cambia', async () => {
@@ -699,9 +758,9 @@ await step('dos gráficos a la vez con periodos distintos y los mismos dibujos',
 
 await step('la vista no salta al cambiar de tema y volver', async () => {
   const before = await timeAxisPixels()
-  await button(/Switch to light theme/).click()
-  await page.waitForTimeout(400)
-  await button(/Switch to dark theme/).click()
+  await chooseTheme('Light')
+  await page.waitForTimeout(100)
+  await chooseTheme('Midnight')
   const after = await timeAxisPixels()
   check(before === after, 'la vista volvió a la última vela')
 })
@@ -720,8 +779,7 @@ await step('la vista no salta al quitar y poner el volumen', async () => {
 await step('cambia de tema', async () => {
   const background = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor)
   const dark = await background()
-  await button(/Switch to light theme/).click()
-  await page.waitForTimeout(300)
+  await chooseTheme('Light')
   check((await background()) !== dark, 'el fondo no cambió')
   check((await savedState()).theme === 'light', 'el tema no se guardó')
 })
@@ -761,6 +819,54 @@ await step('cambia de acción desde la lista', async () => {
   const title = await page.title()
   check(/^MSFT [\d,]+\.\d{2}( [▲▼])? [+−]?\d+\.\d{2}%$/.test(title), `título de la pestaña inesperado: ${title}`)
   check(state.lines.MSFT === undefined, 'MSFT tiene líneas que no se dibujaron')
+})
+
+await step('cada acción recuerda su vista al volver a ella, también tras recargar', async () => {
+  const { price } = await panes()
+  const symbol = (await savedState()).symbol
+  const settle = async (): Promise<void> => {
+    await page.mouse.move(700, 10)
+    await page.waitForTimeout(500)
+  }
+  await page.mouse.move(...at(price, 0.5, 0.5))
+  await page.mouse.wheel(0, 500)
+  await page.waitForTimeout(300)
+  await drag(at(price, 0.4, 0.55), at(price, 0.75, 0.55))
+  const start = at(price, 0.85, 0.2)
+  await drag(start, [start[0], start[1] + 70])
+  await button('Auto').waitFor({ timeout: 3000 })
+  const existing = (await drawingsOf(symbol)).map((drawing) => drawing.id)
+  await button('Horizontal line').click()
+  await page.mouse.click(...at(price, 0.5, 0.5))
+  await settle()
+  const reference = (await drawingsOf(symbol)).find((drawing) => !existing.includes(drawing.id))
+  check(reference?.kind === 'hline', 'la línea de referencia no se guardó')
+  const axis = await timeAxisPixels()
+  const line = await blueCentre(price)
+  check(line !== null, 'no se encontró la línea de referencia')
+  const sameView = async (moment: string): Promise<void> => {
+    await settle()
+    check((await timeAxisPixels()) === axis, `${moment}: el eje de fechas no es el que se dejó`)
+    check((await button('Auto').count()) === 1, `${moment}: se perdió el desplazamiento vertical`)
+    const back = await blueCentre(price)
+    check(back !== null && Math.abs(back[1] - (line as [number, number])[1]) <= 1, `${moment}: la línea cambió de altura`)
+  }
+  await row('AAPL').click()
+  await page.getByText(/Apple Inc\. · 1D/).waitFor({ timeout: 15_000 })
+  await settle()
+  check((await button('Auto').count()) === 0, 'AAPL heredó el desplazamiento vertical de otra acción')
+  check((await timeAxisPixels()) !== axis, 'AAPL heredó el tramo de fechas de otra acción')
+  await row(symbol).click()
+  await page.waitForFunction((wanted) => document.title.startsWith(`${wanted} `), symbol, { timeout: 15_000 })
+  await sameView('al volver')
+  await page.reload()
+  await waitForChart()
+  await sameView('tras recargar')
+  const placed = await blueCentre(price)
+  await page.mouse.click(price.x + price.width * 0.15, (placed as [number, number])[1])
+  await page.keyboard.press('Delete')
+  check(!(await drawingsOf(symbol)).some((drawing) => drawing.id === reference?.id), 'la línea de referencia no se borró')
+  await button('Auto').click()
 })
 
 await step('añade KO y PEP seguidos sin cerrar el buscador ni cambiar el gráfico', async () => {
@@ -1040,6 +1146,32 @@ await step('renombra la lista', async () => {
   check((await savedState()).watchlists[1].name === 'Bancos', 'el nombre no se guardó')
 })
 
+await step('pone un icono a la lista desde la paleta o a mano, se ve en la cabecera y sigue tras recargar', async () => {
+  const trigger = button('Watchlists')
+  const iconOf = async (): Promise<string | undefined> => {
+    const state = await savedState()
+    return state.watchlists.find((list) => list.id === state.activeWatchlistId)?.icon
+  }
+  await trigger.click()
+  await button('Icon for Bancos').click()
+  await page.getByRole('group', { name: 'Icons for Bancos' }).getByRole('button', { name: '🏦', exact: true }).click()
+  check((await trigger.textContent())?.startsWith('🏦Bancos') === true, `la cabecera no muestra el icono: ${await trigger.textContent()}`)
+  check((await iconOf()) === '🏦', 'el icono no se guardó')
+  await page.reload()
+  await waitForChart()
+  check((await trigger.textContent())?.startsWith('🏦Bancos') === true, 'el icono no siguió tras recargar')
+  await trigger.click()
+  await button('Icon for Bancos').click()
+  await page.getByRole('textbox', { name: 'Any emoji for Bancos' }).fill('🦄')
+  await page.keyboard.press('Enter')
+  check((await iconOf()) === '🦄', 'el emoji escrito a mano no se guardó')
+  await button('Icon for Bancos').click()
+  await button('No icon').click()
+  await page.keyboard.press('Escape')
+  check((await iconOf()) === undefined, 'el icono no se quitó')
+  check((await trigger.textContent())?.startsWith('Bancos') === true, 'la cabecera sigue con icono')
+})
+
 await step('vuelve a la primera lista', async () => {
   await button('Watchlists').click()
   await page.getByRole('menuitem', { name: 'Watchlist', exact: true }).click()
@@ -1206,7 +1338,7 @@ await step('importa una configuración solo tras confirmar', async () => {
   const exported = JSON.parse(await readFile(exportedPath, 'utf8')) as AppState
   const other = {
     ...exported,
-    theme: exported.theme === 'dark' ? 'light' : 'dark',
+    theme: exported.theme === 'light' ? 'midnight' : 'light',
     symbol: 'MSFT',
     watchlists: [{ id: 'importada', name: 'Importada', items: [{ symbol: 'MSFT', name: 'Microsoft Corporation', exchange: 'NASDAQ' }] }],
     activeWatchlistId: 'importada',
@@ -1234,7 +1366,7 @@ await step('importar lo exportado devuelve la configuración anterior', async ()
   check(JSON.stringify(current) === JSON.stringify(exported), 'la configuración no volvió a ser la exportada')
 })
 
-await step('una IA conectada por MCP añade una línea con alerta y una nota que aparecen sin recargar', async () => {
+await step('una IA conectada por MCP añade una línea con alerta, una nota y una lista que aparecen sin recargar', async () => {
   const environment = Object.fromEntries(
     Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
   )
@@ -1270,6 +1402,25 @@ await step('una IA conectada por MCP añade una línea con alerta y una nota que
   check(seeded?.kind === 'hline', 'la línea propia no se guardó antes de que escribiera la IA')
   const added = await call('add_horizontal_line', { symbol, price: level, alert: true, color: '#FF00FF' })
   await call('write_note', { symbol, text: 'Nota escrita por la IA' })
+  const listsBefore = (await savedState()).watchlists.length
+  const created = await call('create_watchlist', { name: 'Lista de la IA', symbols: ['KO', 'PEP', 'ZZZZ'] })
+  check(created.added.join() === 'KO,PEP' && created.notFound.join() === 'ZZZZ', `create_watchlist respondió ${JSON.stringify(created)}`)
+  await call('add_section', { watchlist: 'Lista de la IA', title: 'Bebidas' })
+  await call('add_to_watchlist', { watchlist: 'Lista de la IA', symbols: ['MNST'], section: 'Bebidas' })
+  await call('remove_from_watchlist', { watchlist: 'Lista de la IA', symbols: ['PEP'] })
+  await call('rename_watchlist', { watchlist: 'Lista de la IA', name: 'Refrescos' })
+  const withList = await savedState()
+  const made = withList.watchlists.find((list) => list.name === 'Refrescos')
+  check(withList.watchlists.length === listsBefore + 1, 'la IA no creó exactamente una lista')
+  check(
+    JSON.stringify(made?.items.map((item) => ('kind' in item ? `[${item.title}]` : item.symbol))) === '["KO","[Bebidas]","MNST"]',
+    `la lista de la IA quedó mal: ${JSON.stringify(made?.items)}`,
+  )
+  check(withList.activeWatchlistId !== made?.id, 'crear la lista cambió la que había en pantalla')
+  await page.waitForTimeout(6000)
+  await button('Watchlists').click()
+  await page.getByRole('button', { name: 'Rename Refrescos', exact: true }).waitFor({ timeout: 5000 })
+  await page.keyboard.press('Escape')
   await noteMark.waitFor({ timeout: 8000 })
   const { price } = await panes()
   await page.mouse.move(700, 10)
@@ -1282,12 +1433,12 @@ await step('una IA conectada por MCP añade una línea con alerta y una nota que
   check(kept?.kind === 'hline' && kept.alert === true && kept.value === level, 'deshacer quitó o cambió la línea de la IA')
   check(afterUndo.some((drawing) => drawing.id === seeded?.id), 'deshacer quitó la línea propia: el historial no se olvidó al llegar lo de la IA')
   const themeBefore = (await savedState()).theme
-  await button(/Switch to .* theme/).click()
+  await flipTheme(themeBefore)
   const afterToggle = await savedState()
   check(afterToggle.theme !== themeBefore, 'el cambio de tema de la pestaña chocó con lo que guardó la IA')
   check((afterToggle.lines[symbol] ?? []).some((drawing) => drawing.id === added.id), 'la línea de la IA se perdió')
   check((await page.getByText(/changed in another tab/).count()) === 0, 'la pestaña se recargó por un conflicto')
-  await button(/Switch to .* theme/).click()
+  await flipTheme(afterToggle.theme)
   const latest = await savedState()
   const cleaned = await fetch(`${url}/api/state`, {
     method: 'PUT',
@@ -1299,6 +1450,7 @@ await step('una IA conectada por MCP añade una línea con alerta y una nota que
         [symbol]: (latest.lines[symbol] ?? []).filter((drawing) => drawing.id !== added.id && drawing.id !== seeded?.id),
       },
       notes: Object.fromEntries(Object.entries(latest.notes).filter(([key]) => key !== symbol)),
+      watchlists: latest.watchlists.filter((list) => list.name !== 'Refrescos'),
     }),
   })
   check(cleaned.ok, 'no se pudo limpiar lo que añadió la IA')
@@ -1349,7 +1501,7 @@ await step('al cerrar con un estado grande se guarda el último cambio', async (
   await waitForChart()
   const before = await savedState()
   check(new TextEncoder().encode(JSON.stringify(before)).length > 65_536, 'el estado de prueba no supera el límite del navegador')
-  await button(/Switch to .* theme/).click()
+  await flipTheme(before.theme)
   await page.goto('about:blank')
   const after = await savedState()
   check(after.theme !== before.theme, 'el último cambio se perdió al cerrar')
@@ -1369,12 +1521,34 @@ await step('una pestaña atrasada no pisa lo que guardó otra', async () => {
   await other.close()
   const afterOther = await savedState()
   check(afterOther.timeframe === 'W', 'la segunda pestaña no guardó')
-  await button(/Switch to .* theme/).click()
+  await flipTheme(afterOther.theme)
   await page.getByText('The settings changed in another tab and were reloaded').waitFor({ timeout: 5000 })
   const final = await savedState()
   check(final.timeframe === 'W', 'la pestaña atrasada pisó el cambio de la otra')
   check(final.theme === afterOther.theme, 'la pestaña atrasada guardó su cambio sobre un estado viejo')
   await page.getByText(/ · 1W · /).waitFor({ timeout: 5000 })
+})
+
+await step('el tema doji pinta velas y rellenos con sus colores y se recuerda al recargar', async () => {
+  await chooseTheme('Doji')
+  await page.reload()
+  await waitForChart()
+  check((await savedState()).theme === 'doji', 'el tema doji no se guardó')
+  const { price } = await panes()
+  await page.mouse.move(700, 10)
+  check(near(await chartPixel(price), [21, 20, 18]), `el gráfico no recuperó el fondo de doji: ${await chartPixel(price)}`)
+  check(await hasColor(price, [60, 198, 138]), 'no hay velas alcistas con el verde de doji')
+  check(await hasColor(price, [242, 92, 105]), 'no hay velas bajistas con el rojo de doji')
+  await button('Chart').click()
+  await page.getByRole('radio', { name: 'Area', exact: true }).click()
+  await page.keyboard.press('Escape')
+  await page.mouse.move(700, 10)
+  await page.waitForTimeout(500)
+  check(await hasColor(price, [124, 92, 255]), 'la línea del gráfico de área no usa el violeta de doji')
+  await button('Chart').click()
+  await page.getByRole('radio', { name: 'Candles', exact: true }).click()
+  await page.keyboard.press('Escape')
+  check((await savedState()).chart.type === 'candles', 'no volvió a velas')
 })
 
 await step('una petición mal formada no tumba el servidor', async () => {

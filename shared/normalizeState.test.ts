@@ -363,3 +363,27 @@ test('Should keep how the watchlist is sorted and drop a sort it does not know',
   expect(normalizeState({ watchlistSort: { column: 'volume', direction: 'desc' } }).watchlistSort).toBeNull()
   expect(normalizeState({ watchlistSort: { column: 'last', direction: 'up' } }).watchlistSort).toBeNull()
 })
+
+test('Should keep each known theme and open new configurations with the doji theme', () => {
+  expect(normalizeState({ theme: 'doji' }).theme).toBe('doji')
+  expect(normalizeState({ theme: 'midnight' }).theme).toBe('midnight')
+  expect(normalizeState({ theme: 'light' }).theme).toBe('light')
+  expect(normalizeState({}).theme).toBe('doji')
+  expect(normalizeState({ theme: 'sepia' }).theme).toBe('doji')
+})
+
+test('Should keep the look of a configuration saved with the former dark theme', () => {
+  expect(normalizeState({ theme: 'dark' }).theme).toBe('midnight')
+})
+
+test('Should keep the icon of a watchlist and drop one that is not valid', () => {
+  const lists = normalizeState({
+    watchlists: [
+      { id: 'a', name: 'Bancos', icon: '🏦', items: [] },
+      { id: 'b', name: 'Otra', icon: '   ', items: [] },
+      { id: 'c', name: 'Tercera', icon: 42, items: [] },
+    ],
+  }).watchlists
+  expect(lists.map((list) => list.icon)).toEqual(['🏦', undefined, undefined])
+  expect('icon' in lists[1]).toBe(false)
+})

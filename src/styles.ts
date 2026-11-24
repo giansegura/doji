@@ -83,7 +83,7 @@ export const Veil = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${(props) => (props.theme.name === 'dark' ? 'rgba(19, 23, 34, 0.6)' : 'rgba(255, 255, 255, 0.6)')};
+  background: ${(props) => props.theme.ui.veil};
   color: ${(props) => props.theme.ui.textMuted};
   font-size: 14px;
 `

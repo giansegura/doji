@@ -1,6 +1,8 @@
+<img src="public/favicon.svg" width="56" height="56" alt="doji" />
+
 # doji
 
-Gráficos de bolsa privados, en local: velas diarias y semanales, volumen, RSI, medias móviles, líneas de tendencia y listas de seguimiento, con tema claro y oscuro.
+Gráficos de bolsa privados, en local: velas diarias y semanales, volumen, RSI, medias móviles, líneas de tendencia y listas de seguimiento, con varios temas.
 
 La interfaz está en inglés.
 
@@ -20,12 +22,14 @@ Para otro puerto: `PORT=4790 npm start`.
 - **Símbolo:** el botón de arriba a la izquierda abre el buscador (ticker o nombre de empresa). `Enter` elige el primer resultado, aunque lo pulses antes de que termine la búsqueda. También encuentra pares de divisas (por ejemplo `EURUSD` o `USDJPY`), que se muestran como en TradingView: sin el `=X` de Yahoo, con las banderas de las dos monedas y cuatro decimales (tres en los pares con yenes).
 - **Periodo:** `D` diario, `W` semanal, `M` mensual.
 - **Pestaña del navegador:** muestra el ticker, su último precio, una flecha y el cambio del día en porcentaje, los mismos de la lista.
+- **Temas:** el botón de la paleta, arriba a la derecha, elige entre **Doji** (el tema por defecto: tinta cálida y violeta), **Midnight** (el aspecto oscuro anterior, negro con el gráfico azul marino) y **Light**. Se guarda con el resto de la configuración; las configuraciones guardadas con el antiguo tema oscuro abren en Midnight.
 - **Dos gráficos:** el botón que hay junto a los periodos abre un segundo gráfico de la misma acción al lado del primero, con su propio periodo (selector `D`/`W`/`M` en su esquina). Comparten dibujos, indicadores y herramienta: una línea trazada sobre el precio en uno aparece en el otro. Los dibujos hechos sobre el RSI solo se ven en el periodo en que se dibujaron, porque el RSI cambia con el periodo.
 - **Indicadores:** volumen, RSI, Bandas de Bollinger y MACD se activan o quitan desde el menú "Indicators", cada uno con sus ajustes. El volumen puede llevar su media móvil. El MACD va en un panel propio, debajo del RSI.
 - **Medias móviles:** en el mismo menú, "Add moving average" (hasta seis). Se calculan sobre el cierre y cada una puede ser simple o exponencial con el botón `SMA`/`EMA`. Cada una tiene su periodo; el círculo de color abre la paleta (16 colores, o cualquier otro con el selector) y el grosor; la `×` la quita.
 - **Gráfico:** el menú "Chart" cambia el tipo (velas, barras, línea, área, línea base), la escala de precios (normal, logarítmica, porcentaje, indexada a 100, invertida) y el cursor (libre o imán). El icono de la cámara guarda una imagen del gráfico.
 - **Configuración:** el menú "Settings" exporta todo (listas, líneas, indicadores, tema y ajustes del gráfico) a un archivo `doji-config-AAAA-MM-DD.json` y lo vuelve a importar. Importar reemplaza la configuración actual entera, por eso pide confirmación.
 - **Mover el gráfico:** arrastra para desplazarlo en el tiempo; el precio se encaja solo a la pantalla. Si empiezas el arrastre hacia arriba o hacia abajo, el gráfico se mueve también en vertical y deja de encajarse: desde ese momento se arrastra libre en cualquier dirección. El botón "Auto" de la esquina inferior derecha, o un doble clic en el eje de precios, lo vuelve a encajar; al cambiar de acción se encaja solo.
+- **Cada acción recuerda su vista:** al volver a una acción, el gráfico enseña el mismo tramo de fechas y, si lo habías movido en vertical, la misma altura. Se guarda en el navegador, así que también sobrevive a recargar la página; el segundo gráfico tiene su propia memoria. Si vuelves en otro periodo (semanal en vez de diario), se enseñan las mismas fechas y el ajuste vertical vuelve a automático.
 - **Línea de tendencia:** elige la herramienta en la barra izquierda y haz clic en dos puntos, sobre el precio o sobre el RSI.
   - Clic en una línea para seleccionarla; arrastra un extremo o el cuerpo para moverla.
   - Con la línea seleccionada aparece una barra para cambiar color, grosor, extenderla a la derecha o borrarla.
@@ -45,6 +49,7 @@ Para otro puerto: `PORT=4790 npm start`.
 - **Atajos:** las flechas arriba y abajo recorren la lista. `Alt+T` arma la línea de tendencia, `Alt+H` la horizontal, `Alt+C` el canal y `Alt+R` el rectángulo; `Esc` vuelve al cursor.
 - **Listas:** el nombre de la lista (arriba a la derecha) abre el desplegable para cambiar de lista, crear una nueva, renombrarla, duplicarla o borrarla (pide confirmación). Siempre queda al menos una.
 - **Símbolos de la lista:** `+` abre el buscador para añadir a la lista activa; puedes añadir varios seguidos escribiendo el ticker y pulsando `Enter`, y cerrarlo con `Esc`. Añadir no cambia el gráfico. Pasa el ratón por una fila para quitarla; arrastra las filas para reordenar.
+- **Icono de una lista:** en el desplegable de listas, el botón de la cara abre una paleta de emojis; también puedes escribir cualquier otro y pulsar `Enter`, o quitarlo con «No icon». El icono se ve delante del nombre.
 - **Ordenar la lista:** pulsa la cabecera de una columna (Symbol, Last, Chg% o Ext) para ordenar de mayor a menor (de la A a la Z en Symbol); un segundo clic invierte el orden y el tercero vuelve a tu orden. Las secciones se respetan: se ordena dentro de cada una. Mientras hay un orden activo no se pueden arrastrar filas.
 - **Secciones:** el botón que hay junto a `+` añade un separador con título dentro de la lista. Se arrastra como cualquier fila y, al pasar el ratón, se puede renombrar o quitar.
 - **Notas:** el panel "Notes", debajo de la lista, guarda un texto por acción (tesis, precio de entrada, plan). Un punto azul avisa de que la acción tiene nota aunque el panel esté plegado.
@@ -65,8 +70,14 @@ Herramientas que ofrece:
 | `add_horizontal_line` | Dibuja una línea horizontal, con alerta si se pide. |
 | `set_alert` | Arma o desarma la alerta de una línea existente. |
 | `write_note` | Escribe en la nota de una acción. |
+| `create_watchlist` | Crea una lista, con sus símbolos si se le dan, sin cambiar la que tienes en pantalla. |
+| `add_to_watchlist` | Añade símbolos a una lista, al final o dentro de una de sus secciones. |
+| `add_section` | Añade una sección a una lista. |
+| `remove_from_watchlist` | Quita símbolos de una lista; sus dibujos, alertas y notas se quedan. |
+| `rename_watchlist` | Cambia el nombre de una lista. |
+| `set_watchlist_icon` | Pone o quita el emoji de una lista (`create_watchlist` también acepta uno). |
 
-La IA no puede borrar dibujos ni cambiar tus listas, pero `write_note` en modo `replace` sustituye la nota entera y borra lo que tuviera. Lo que añade aparece en doji en unos segundos, sin recargar; las alertas solo saltan con doji abierto en una pestaña.
+La IA no puede borrar listas enteras ni dibujos. Sí puede quitar símbolos de una lista (`remove_from_watchlist`) y `write_note` en modo `replace` sustituye la nota entera; las aplicaciones de IA suelen pedir confirmación antes de usar herramientas marcadas como destructivas. Lo que añade aparece en doji en unos segundos, sin recargar; las alertas solo saltan con doji abierto en una pestaña.
 
 Para usarlo, doji tiene que estar en marcha (`npm start`). Después se registra en tu aplicación de IA el comando `<doji>/node_modules/.bin/tsx <doji>/mcp/index.ts`, cambiando `<doji>` por la ruta completa de la carpeta:
 

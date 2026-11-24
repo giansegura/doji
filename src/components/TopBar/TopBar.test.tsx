@@ -22,7 +22,7 @@ const setup = (indicators: Indicators = DEFAULT_STATE.indicators) => {
     <TopBar
       symbol="AAPL"
       timeframe="D"
-      theme="dark"
+      theme="midnight"
       indicators={indicators}
       chart={DEFAULT_STATE.chart}
       notice={null}
@@ -269,10 +269,29 @@ test('Should ask for an image of the chart', async () => {
   expect(handlers.onScreenshot).toHaveBeenCalledTimes(1)
 })
 
-test('Should ask for the opposite theme', async () => {
+test('Should list the themes with the current one checked', async () => {
+  const { user } = setup()
+  await user.click(screen.getByRole('button', { name: 'Theme' }))
+  const options = screen.getAllByRole('menuitemradio')
+  expect(options.map((option) => [option.textContent, option.getAttribute('aria-checked')])).toEqual([
+    ['Doji', 'false'],
+    ['Midnight', 'true'],
+    ['Light', 'false'],
+  ])
+})
+
+test('Should ask for the theme picked and close the list', async () => {
   const { handlers, user } = setup()
-  await user.click(screen.getByRole('button', { name: 'Switch to light theme' }))
-  expect(handlers.onTheme).toHaveBeenCalledWith('light')
+  await user.click(screen.getByRole('button', { name: 'Theme' }))
+  await user.click(screen.getByRole('menuitemradio', { name: 'Doji' }))
+  expect(handlers.onTheme).toHaveBeenCalledWith('doji')
+  expect(screen.queryByRole('menuitemradio')).toBeNull()
+})
+
+test('Should show the doji mark at the start of the bar', () => {
+  setup()
+  const bar = screen.getByRole('img', { name: 'doji' }).closest('header')
+  expect(bar?.firstElementChild?.getAttribute('aria-label')).toBe('doji')
 })
 
 test('Should show a notice about saving when there is one', () => {
@@ -298,7 +317,7 @@ test('Should show a notice about saving when there is one', () => {
     />,
   )
   expect(screen.getByRole('status').textContent).toBe('Could not save your changes')
-  expect(screen.getByRole('button', { name: 'Switch to dark theme' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Theme' })).toBeTruthy()
 })
 
 const configFile = (content: unknown, name = 'mi-config.json'): File =>
@@ -503,7 +522,7 @@ test('Should show a forex pair like TradingView on the symbol button', () => {
     <TopBar
       symbol="EURUSD=X"
       timeframe="D"
-      theme="dark"
+      theme="midnight"
       indicators={DEFAULT_STATE.indicators}
       notice={null}
       onOpenSearch={noop}
@@ -520,4 +539,14 @@ test('Should show a forex pair like TradingView on the symbol button', () => {
     />,
   )
   expect(screen.getByRole('button', { name: 'EURUSD' }).textContent).toBe('EURUSD')
+})
+
+test('Should close the list of themes with Escape or a click elsewhere', async () => {
+  const { user } = setup()
+  await user.click(screen.getByRole('button', { name: 'Theme' }))
+  await user.keyboard('{Escape}')
+  expect(screen.queryByRole('menu', { name: 'Theme' })).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Theme' }))
+  await user.click(document.body)
+  expect(screen.queryByRole('menu', { name: 'Theme' })).toBeNull()
 })

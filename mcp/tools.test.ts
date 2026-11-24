@@ -79,7 +79,7 @@ const fakeApi = (over: { conflicts?: number; down?: boolean; state?: AppState } 
     },
     getHistory: async (symbol) => {
       fail()
-      if (symbol === 'ZZZZ') throw new Error('doji has no data for ZZZZ.')
+      if (symbol === 'ZZZZ') throw Object.assign(new Error('doji has no data for ZZZZ.'), { missing: true })
       return historyOf(symbol)
     },
     getQuotes: async (symbols) =>
@@ -109,16 +109,22 @@ const connect = async (api: DojiApi) => {
   return { client, call }
 }
 
-test('Should offer six tools and tell the reading ones from the writing ones', async () => {
+test('Should offer its tools and tell the reading ones from the writing ones and the ones that remove', async () => {
   const { client } = await connect(fakeApi().api)
   const { tools } = await client.listTools()
-  expect(tools.map((tool) => [tool.name, tool.annotations?.readOnlyHint ?? false])).toEqual([
-    ['get_watchlists', true],
-    ['scan_watchlist', true],
-    ['get_chart', true],
-    ['add_horizontal_line', false],
-    ['set_alert', false],
-    ['write_note', false],
+  expect(tools.map((tool) => [tool.name, tool.annotations?.readOnlyHint ?? false, tool.annotations?.destructiveHint ?? false])).toEqual([
+    ['get_watchlists', true, false],
+    ['scan_watchlist', true, false],
+    ['get_chart', true, false],
+    ['add_horizontal_line', false, false],
+    ['set_alert', false, false],
+    ['write_note', false, true],
+    ['create_watchlist', false, false],
+    ['add_to_watchlist', false, false],
+    ['add_section', false, false],
+    ['remove_from_watchlist', false, true],
+    ['rename_watchlist', false, false],
+    ['set_watchlist_icon', false, false],
   ])
   expect(tools.every((tool) => (tool.description ?? '').length > 40)).toBe(true)
 })
@@ -136,6 +142,7 @@ test('Should list the watchlists with their sections, the active one and what is
       {
         id: 'main',
         name: 'Principal',
+        icon: null,
         active: true,
         items: [
           { section: 'En cartera' },
@@ -144,7 +151,7 @@ test('Should list the watchlists with their sections, the active one and what is
           { symbol: 'PEP', name: 'PepsiCo' },
         ],
       },
-      { id: 'tech', name: 'Tech', active: false, items: [{ symbol: 'NVDA', name: 'NVIDIA' }] },
+      { id: 'tech', name: 'Tech', icon: null, active: false, items: [{ symbol: 'NVDA', name: 'NVIDIA' }] },
     ],
   })
 })
@@ -283,4 +290,107 @@ test('Should scan every symbol of a long watchlist', async () => {
   const { data } = await call('scan_watchlist')
   expect(data.rows).toHaveLength(46)
   expect(data.rows.at(-1)).toMatchObject({ symbol: 'S44' })
+})
+
+const itemsIn = (state: AppState, name: string) =>
+  state.watchlists.find((list) => list.name === name)?.items.map((item) => ('kind' in item ? `[${item.title}]` : item.symbol))
+
+test('Should create a watchlist with the symbols doji knows and say which ones it does not', async () => {
+  const { api, box } = fakeApi()
+  const { call } = await connect(api)
+  const { data } = await call('create_watchlist', { name: 'Dividendos', symbols: ['ko', 'PG', 'ZZZZ'] })
+  expect(data).toEqual({ id: 'ai-1', name: 'Dividendos', added: ['KO', 'PG'], icon: null, notFound: ['ZZZZ'] })
+  expect(itemsIn(box.state, 'Dividendos')).toEqual(['KO', 'PG'])
+  expect(box.state.watchlists.find((list) => list.name === 'Dividendos')?.items[1]).toEqual({ symbol: 'PG', name: 'PG Inc.', exchange: 'NYSE' })
+  expect(box.state.activeWatchlistId).toBe('main')
+})
+
+test('Should create an empty watchlist and refuse a name already taken', async () => {
+  const { api, box } = fakeApi()
+  const { call } = await connect(api)
+  expect((await call('create_watchlist', { name: 'Vacía' })).data).toEqual({ id: 'ai-1', name: 'Vacía', added: [], icon: null, notFound: [] })
+  expect(itemsIn(box.state, 'Vacía')).toEqual([])
+  expect(await call('create_watchlist', { name: 'tech' })).toMatchObject({ failed: true, text: 'There is already a watchlist called "Tech".' })
+})
+
+test('Should add symbols to the active watchlist or to the one named, inside a section if asked', async () => {
+  const { api, box } = fakeApi()
+  const { call } = await connect(api)
+  expect((await call('add_to_watchlist', { symbols: ['MSFT', 'KO'] })).data).toEqual({
+    watchlist: 'Principal',
+    added: ['MSFT'],
+    already: ['KO'],
+    notFound: [],
+  })
+  expect(itemsIn(box.state, 'Principal')).toEqual(['[En cartera]', 'KO', '[Vigilando]', 'PEP', 'MSFT'])
+  await call('add_to_watchlist', { watchlist: 'Principal', symbols: ['V'], section: 'en cartera' })
+  expect(itemsIn(box.state, 'Principal')).toEqual(['[En cartera]', 'KO', 'V', '[Vigilando]', 'PEP', 'MSFT'])
+  await call('add_to_watchlist', { watchlist: 'tech', symbols: ['AMD', 'ZZZZ'] })
+  expect(itemsIn(box.state, 'Tech')).toEqual(['NVDA', 'AMD'])
+})
+
+test('Should refuse a watchlist or a section that does not exist', async () => {
+  const { call } = await connect(fakeApi().api)
+  expect(await call('add_to_watchlist', { watchlist: 'Nada', symbols: ['MSFT'] })).toMatchObject({
+    failed: true,
+    text: 'There is no watchlist called "Nada". The watchlists are: Principal, Tech.',
+  })
+  expect(await call('add_to_watchlist', { symbols: ['MSFT'], section: 'Bancos' })).toMatchObject({
+    failed: true,
+    text: 'Principal has no section called "Bancos". Its sections are: En cartera, Vigilando.',
+  })
+})
+
+test('Should add a section to a watchlist', async () => {
+  const { api, box } = fakeApi()
+  const { call } = await connect(api)
+  expect((await call('add_section', { watchlist: 'Tech', title: 'Semis' })).data).toEqual({ watchlist: 'Tech', id: 'ai-1', title: 'Semis' })
+  expect(itemsIn(box.state, 'Tech')).toEqual(['NVDA', '[Semis]'])
+})
+
+test('Should remove symbols from a watchlist and say which ones were not in it', async () => {
+  const { api, box } = fakeApi()
+  const { call } = await connect(api)
+  expect((await call('remove_from_watchlist', { symbols: ['pep', 'AAPL'] })).data).toEqual({
+    watchlist: 'Principal',
+    removed: ['PEP'],
+    missing: ['AAPL'],
+  })
+  expect(itemsIn(box.state, 'Principal')).toEqual(['[En cartera]', 'KO', '[Vigilando]'])
+})
+
+test('Should rename a watchlist', async () => {
+  const { api, box } = fakeApi()
+  const { call } = await connect(api)
+  expect((await call('rename_watchlist', { watchlist: 'Tech', name: 'Semis' })).data).toEqual({ id: 'tech', name: 'Semis' })
+  expect(box.state.watchlists.map((list) => list.name)).toEqual(['Principal', 'Semis'])
+})
+
+test('Should say how to start doji instead of calling every symbol unknown when doji is not running', async () => {
+  const { call } = await connect(fakeApi({ down: true }).api)
+  expect(await call('create_watchlist', { name: 'Dividendos', symbols: ['KO'] })).toMatchObject({
+    failed: true,
+    text: 'doji is not running at http://127.0.0.1:4780. Start it with "npm start" in the doji folder.',
+  })
+})
+
+test('Should create a watchlist with an icon and show the icons in the list of watchlists', async () => {
+  const { api } = fakeApi()
+  const { call } = await connect(api)
+  expect((await call('create_watchlist', { name: 'Bancos', icon: '🏦' })).data).toMatchObject({ name: 'Bancos', icon: '🏦' })
+  const { data } = await call('get_watchlists')
+  expect(data.watchlists.map((list: { name: string; icon: string | null }) => [list.name, list.icon])).toEqual([
+    ['Principal', null],
+    ['Tech', null],
+    ['Bancos', '🏦'],
+  ])
+})
+
+test('Should put an icon on a watchlist and take it away', async () => {
+  const { api, box } = fakeApi()
+  const { call } = await connect(api)
+  expect((await call('set_watchlist_icon', { watchlist: 'Tech', icon: '💻' })).data).toEqual({ id: 'tech', icon: '💻' })
+  expect(box.state.watchlists[1].icon).toBe('💻')
+  expect((await call('set_watchlist_icon', { watchlist: 'Tech', icon: '' })).data).toEqual({ id: 'tech', icon: null })
+  expect(box.state.watchlists[1].icon).toBeUndefined()
 })

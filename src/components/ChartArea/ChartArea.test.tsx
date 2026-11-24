@@ -45,7 +45,7 @@ const setup = (initial: Props = {}) => {
   const onRetry = vi.fn()
   const onLinesChange = vi.fn()
   const ui = (props: Props) => (
-    <ThemeProvider theme={themes.dark}>
+    <ThemeProvider theme={themes.midnight}>
       <ChartArea
         symbol={props.symbol ?? 'AAPL'}
         status={props.status ?? 'ready'}

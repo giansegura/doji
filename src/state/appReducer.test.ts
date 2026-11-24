@@ -209,7 +209,7 @@ test('Should change the chart settings', () => {
 })
 
 test('Should keep the same state when nothing changes', () => {
-  expect(appReducer(base, { type: 'setTheme', theme: 'dark' })).toBe(base)
+  expect(appReducer(base, { type: 'setTheme', theme: 'doji' })).toBe(base)
   expect(appReducer(base, { type: 'setTimeframe', timeframe: 'D' })).toBe(base)
   expect(appReducer(base, { type: 'removeFromWatchlist', symbol: 'ZZZ' })).toBe(base)
 })
@@ -316,4 +316,22 @@ test('Should sort the watchlist and stop sorting it', () => {
   expect(sortedBy.watchlistSort).toEqual({ column: 'change', direction: 'desc' })
   expect(appReducer(sortedBy, { type: 'setWatchlistSort', sort: null }).watchlistSort).toBeNull()
   expect(activeWatchlist(sortedBy).items).toEqual(activeWatchlist(base).items)
+})
+
+test('Should put an icon on a watchlist, change it and take it away', () => {
+  const id = base.watchlists[0].id
+  const withIcon = appReducer(base, { type: 'setWatchlistIcon', id, icon: '🏦' })
+  expect(withIcon.watchlists[0].icon).toBe('🏦')
+  expect(appReducer(withIcon, { type: 'setWatchlistIcon', id, icon: '🏦' })).toBe(withIcon)
+  expect(appReducer(withIcon, { type: 'setWatchlistIcon', id, icon: '🚀 rápido' }).watchlists[0].icon).toBe('🚀')
+  const without = appReducer(withIcon, { type: 'setWatchlistIcon', id, icon: null })
+  expect('icon' in without.watchlists[0]).toBe(false)
+  expect(appReducer(base, { type: 'setWatchlistIcon', id: 'nada', icon: '🏦' })).toBe(base)
+})
+
+test('Should copy the icon when duplicating a watchlist', () => {
+  const id = base.watchlists[0].id
+  const withIcon = appReducer(base, { type: 'setWatchlistIcon', id, icon: '🏦' })
+  const copied = appReducer(withIcon, { type: 'duplicateWatchlist', id, newId: 'copia' })
+  expect(copied.watchlists.find((list) => list.id === 'copia')?.icon).toBe('🏦')
 })

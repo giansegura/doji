@@ -32,7 +32,7 @@ export const useAutoFit = (handles: ChartHandles | null, symbol: string) => {
   }, [autoFit, handles])
 
   useEffect(() => {
-    autoFit.fit()
+    autoFit.sync()
   }, [autoFit, symbol])
 
   useEffect(() => {

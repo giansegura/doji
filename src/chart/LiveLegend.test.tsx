@@ -27,7 +27,7 @@ const counter = { renders: 0 }
 const Host = ({ hover, data }: { hover: HoverStore; data: SeriesData }) => {
   counter.renders += 1
   return (
-    <ThemeProvider theme={themes.dark}>
+    <ThemeProvider theme={themes.midnight}>
       <LiveLegend
         hover={hover}
         data={data}

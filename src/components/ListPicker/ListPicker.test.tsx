@@ -11,7 +11,7 @@ const lists: SymbolList[] = [
 ]
 
 const setup = (over: { lists?: SymbolList[]; activeId?: string } = {}) => {
-  const handlers = { onSelect: vi.fn(), onCreate: vi.fn(), onRename: vi.fn(), onDelete: vi.fn(), onDuplicate: vi.fn() }
+  const handlers = { onSelect: vi.fn(), onCreate: vi.fn(), onRename: vi.fn(), onDelete: vi.fn(), onDuplicate: vi.fn(), onIcon: vi.fn() }
   renderWithTheme(<ListPicker lists={over.lists ?? lists} activeId={over.activeId ?? 'a'} {...handlers} />)
   return { handlers, user: userEvent.setup() }
 }
@@ -135,4 +135,63 @@ test('Should close the menu with Escape', async () => {
   await openMenu(user)
   await user.keyboard('{Escape}')
   expect(screen.queryByRole('menu')).toBeNull()
+})
+
+const withIcons: SymbolList[] = [
+  { id: 'a', name: 'Tecnología', items: [] },
+  { id: 'b', name: 'Bancos', items: [], icon: '🏦' },
+]
+
+test('Should show the icon of a watchlist before its name', async () => {
+  const { user } = setup({ lists: withIcons, activeId: 'b' })
+  expect(screen.getByRole('button', { name: 'Watchlists' }).textContent).toBe('🏦Bancos')
+  await openMenu(user)
+  expect(screen.getByRole('menuitem', { name: 'Bancos' }).textContent).toBe('🏦Bancos')
+  expect(screen.getByRole('menuitem', { name: 'Tecnología' }).textContent).toBe('Tecnología')
+})
+
+test('Should pick the icon of a watchlist from the palette and go back to the lists', async () => {
+  const { handlers, user } = setup({ lists: withIcons })
+  await openMenu(user)
+  await user.click(screen.getByRole('button', { name: 'Icon for Tecnología' }))
+  const palette = screen.getByRole('group', { name: 'Icons for Tecnología' })
+  expect(palette.querySelectorAll('[aria-pressed]').length).toBeGreaterThanOrEqual(20)
+  await user.click(screen.getByRole('button', { name: '💻' }))
+  expect(handlers.onIcon).toHaveBeenCalledWith('a', '💻')
+  expect(screen.queryByRole('group', { name: 'Icons for Tecnología' })).toBeNull()
+  expect(screen.getByRole('menu')).toBeTruthy()
+})
+
+test('Should mark the icon a watchlist already has', async () => {
+  const { user } = setup({ lists: withIcons })
+  await openMenu(user)
+  await user.click(screen.getByRole('button', { name: 'Icon for Bancos' }))
+  expect(screen.getByRole('button', { name: '🏦' }).getAttribute('aria-pressed')).toBe('true')
+  expect(screen.getByRole('button', { name: '💻' }).getAttribute('aria-pressed')).toBe('false')
+})
+
+test('Should take any emoji typed by hand', async () => {
+  const { handlers, user } = setup({ lists: withIcons })
+  await openMenu(user)
+  await user.click(screen.getByRole('button', { name: 'Icon for Tecnología' }))
+  await user.type(screen.getByRole('textbox', { name: 'Any emoji for Tecnología' }), '🦄{Enter}')
+  expect(handlers.onIcon).toHaveBeenCalledWith('a', '🦄')
+})
+
+test('Should take the icon away', async () => {
+  const { handlers, user } = setup({ lists: withIcons })
+  await openMenu(user)
+  await user.click(screen.getByRole('button', { name: 'Icon for Bancos' }))
+  await user.click(screen.getByRole('button', { name: 'No icon' }))
+  expect(handlers.onIcon).toHaveBeenCalledWith('b', null)
+})
+
+test('Should close the palette with Escape and keep the menu open', async () => {
+  const { handlers, user } = setup({ lists: withIcons })
+  await openMenu(user)
+  await user.click(screen.getByRole('button', { name: 'Icon for Bancos' }))
+  await user.keyboard('{Escape}')
+  expect(screen.queryByRole('group', { name: 'Icons for Bancos' })).toBeNull()
+  expect(screen.getByRole('menu')).toBeTruthy()
+  expect(handlers.onIcon).not.toHaveBeenCalled()
 })

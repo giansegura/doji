@@ -20,6 +20,7 @@ export type Theme = {
     preMarket: string
     postMarket: string
     shadow: string
+    veil: string
     font: string
   }
   chart: {
@@ -69,9 +70,60 @@ const shared = {
   macdSignal: '#FF6D00',
 }
 
+const DOJI_VIOLET = '#7C5CFF'
+const DOJI_UP = '#3CC68A'
+const DOJI_DOWN = '#F25C69'
+const DOJI_GOLD = '#F0A04B'
+
 export const themes: Record<ThemeName, Theme> = {
-  dark: {
-    name: 'dark',
+  doji: {
+    name: 'doji',
+    ui: {
+      bg: '#151412',
+      panel: '#0E0D0C',
+      popup: '#1C1A17',
+      border: '#2E2B27',
+      separator: '#24221F',
+      gap: 4,
+      text: '#ECE7DE',
+      textMuted: '#8F897E',
+      hover: '#24221F',
+      active: '#2A2347',
+      accent: DOJI_VIOLET,
+      onAccent: '#FFFFFF',
+      up: DOJI_UP,
+      down: DOJI_DOWN,
+      preMarket: DOJI_GOLD,
+      postMarket: '#7DB4F0',
+      shadow: 'rgba(0, 0, 0, 0.6)',
+      veil: 'rgba(21, 20, 18, 0.6)',
+      font: FONT,
+    },
+    chart: {
+      bg: '#151412',
+      text: '#B5AFA4',
+      grid: 'rgba(60, 56, 50, 0.45)',
+      border: '#2E2B27',
+      crosshair: '#9A9488',
+      crosshairLabel: '#3A3631',
+      up: DOJI_UP,
+      down: DOJI_DOWN,
+      volumeUp: 'rgba(236, 231, 222, 0.32)',
+      volumeDown: 'rgba(236, 231, 222, 0.32)',
+      rsi: '#A08AFF',
+      rsiMa: '#F2C14E',
+      rsiBand: 'rgba(124, 92, 255, 0.08)',
+      rsiLevel: '#8F897E',
+      line: DOJI_VIOLET,
+      volumeMa: DOJI_GOLD,
+      bandBasis: DOJI_GOLD,
+      band: '#6EC1E4',
+      macd: DOJI_VIOLET,
+      macdSignal: DOJI_GOLD,
+    },
+  },
+  midnight: {
+    name: 'midnight',
     ui: {
       bg: '#131722',
       panel: '#000000',
@@ -90,6 +142,7 @@ export const themes: Record<ThemeName, Theme> = {
       preMarket: PRE_MARKET,
       postMarket: POST_MARKET,
       shadow: 'rgba(0, 0, 0, 0.5)',
+      veil: 'rgba(19, 23, 34, 0.6)',
       font: FONT,
     },
     chart: {
@@ -124,6 +177,7 @@ export const themes: Record<ThemeName, Theme> = {
       preMarket: PRE_MARKET,
       postMarket: POST_MARKET,
       shadow: 'rgba(0, 0, 0, 0.15)',
+      veil: 'rgba(255, 255, 255, 0.6)',
       font: FONT,
     },
     chart: {
@@ -139,5 +193,11 @@ export const themes: Record<ThemeName, Theme> = {
     },
   },
 }
+
+export const THEME_OPTIONS: { name: ThemeName; label: string }[] = [
+  { name: 'doji', label: 'Doji' },
+  { name: 'midnight', label: 'Midnight' },
+  { name: 'light', label: 'Light' },
+]
 
 export const LINE_COLORS = ['#2962FF', '#F23645', '#089981', '#FF9800', '#9C27B0', '#00BCD4', '#FDD835', '#787B86']

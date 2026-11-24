@@ -51,10 +51,10 @@ export const MenuAnchor = styled.div`
   position: relative;
 `
 
-export const Menu = styled.div`
+export const Menu = styled.div<{ $right?: boolean }>`
   position: absolute;
   top: 34px;
-  left: 0;
+  ${(props) => (props.$right ? 'right: 0;' : 'left: 0;')}
   z-index: 30;
   display: flex;
   flex-direction: column;
@@ -114,6 +114,47 @@ export const Menus = styled.div`
   display: flex;
   align-items: center;
   gap: 4px;
+`
+
+export const ThemeOption = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 4px;
+  color: ${(props) => props.theme.ui.text};
+  text-align: left;
+
+  &:hover {
+    background: ${(props) => props.theme.ui.hover};
+  }
+
+  &[aria-checked='true'] {
+    color: ${(props) => props.theme.ui.accent};
+  }
+`
+
+export const ThemeSwatch = styled.span<{ $panel: string; $chart: string; $accent: string }>`
+  display: flex;
+  flex-shrink: 0;
+  overflow: hidden;
+  width: 30px;
+  height: 18px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px ${(props) => props.theme.ui.border};
+  background: linear-gradient(
+    90deg,
+    ${(props) => props.$panel} 0 33%,
+    ${(props) => props.$chart} 33% 66%,
+    ${(props) => props.$accent} 66% 100%
+  );
+`
+
+export const Brand = styled.span`
+  display: inline-flex;
+  flex-shrink: 0;
+  margin: 0 6px 0 2px;
 `
 
 export const MenuSection = styled.div<{ $first?: boolean }>`
