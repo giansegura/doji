@@ -75,6 +75,13 @@ npm run smoke -- http://127.0.0.1:4780 /tmp/capturas   # prueba completa en Chro
 
 La prueba completa dibuja y borra líneas y cambia el tema y la lista: ejecútala contra una carpeta de datos de prueba (`DOJI_DATA_DIR`), no contra la tuya.
 
+## Contribuir
+
+- Cada cambio va en una rama y entra por un pull request; a `main` no se sube directamente.
+- El título del pull request sigue [Conventional Commits](https://www.conventionalcommits.org/), en inglés: `type(optional-scope): summary`, con el resumen en minúscula inicial y sin punto final. Tipos: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
+- Los pull requests se fusionan siempre con squash, y el commit resultante toma el título del pull request.
+- Antes de fusionar tienen que pasar tres comprobaciones: `tests`, `build` y `conventional-title`. CodeRabbit revisa cada pull request.
+
 ## Avisos
 
 - Proyecto personal, sin relación con TradingView ni con Yahoo. Nada de lo que muestra es una recomendación de inversión.
