@@ -1,8 +1,10 @@
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import type { ListItem, Quote, SymbolInfo, WatchlistSort } from '../../../shared/types'
+import { ThemeProvider } from 'styled-components'
 import { renderWithTheme } from '../../test/render'
+import { themes } from '../../theme/tokens'
 import { Watchlist } from '.'
 
 const items: SymbolInfo[] = [
@@ -287,13 +289,13 @@ test('Should ask to sort by the column whose header is clicked', async () => {
 
 test('Should mark the sorted column with an arrow that shows the direction', () => {
   setup({ sort: { column: 'change', direction: 'desc' } })
-  expect(screen.getByRole('button', { name: 'Sort by Change %' }).textContent).toBe('Change % ▼')
+  expect(screen.getByRole('button', { name: 'Sort by Change %, highest first' }).textContent).toBe('Change % ▼')
   expect(screen.getByRole('button', { name: 'Sort by Symbol' }).textContent).toBe('Symbol')
 })
 
 test('Should point the arrow up when the order is ascending', () => {
   setup({ sort: { column: 'symbol', direction: 'asc' } })
-  expect(screen.getByRole('button', { name: 'Sort by Symbol' }).textContent).toBe('Symbol ▲')
+  expect(screen.getByRole('button', { name: 'Sort by Symbol, A to Z' }).textContent).toBe('Symbol ▲')
 })
 
 test('Should not let the rows be dragged while the list is sorted', () => {
@@ -320,4 +322,35 @@ test('Should paint rises and falls with the green and red of TradingView', () =>
   setup()
   expect(getComputedStyle(screen.getByText('+1.19%')).color).toBe('rgb(34, 171, 148)')
   expect(getComputedStyle(screen.getByText('−0.40%')).color).toBe('rgb(242, 54, 69)')
+})
+
+test('Should name the direction of the order in the header of the sorted column', () => {
+  setup({ sort: { column: 'last', direction: 'asc' } })
+  expect(screen.getByRole('button', { name: 'Sort by Last, lowest first' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Sort by Symbol' })).toBeTruthy()
+})
+
+test('Should drop a drag that began before the list got sorted', () => {
+  const handlers = {
+    onSelect: vi.fn(),
+    onRemove: vi.fn(),
+    onMove: vi.fn(),
+    onAdd: vi.fn(),
+    onAddSection: vi.fn(),
+    onRenameSection: vi.fn(),
+    onRemoveSection: vi.fn(),
+    onSort: vi.fn(),
+  }
+  const view = (sort: WatchlistSort | null) => (
+    <ThemeProvider theme={themes.dark}>
+      <Watchlist items={items} quotes={quotes} activeSymbol="AAPL" sort={sort} {...handlers} />
+    </ThemeProvider>
+  )
+  const { rerender } = render(view(null))
+  fireEvent.dragStart(screen.getAllByRole('listitem')[0], carrier())
+  rerender(view({ column: 'change', direction: 'desc' }))
+  const rows = screen.getAllByRole('listitem')
+  fireEvent.dragOver(rows[2])
+  fireEvent.drop(rows[2])
+  expect(handlers.onMove).not.toHaveBeenCalled()
 })

@@ -38,6 +38,16 @@ const COLUMNS: ColumnSpec[] = [
 
 const ARROWS = { asc: ' ▲', desc: ' ▼' }
 
+const DIRECTIONS = { asc: 'lowest first', desc: 'highest first' }
+
+const SYMBOL_DIRECTIONS = { asc: 'A to Z', desc: 'Z to A' }
+
+const sortLabel = (column: SortColumn, label: string, sort: WatchlistSort | null): string => {
+  if (sort?.column !== column) return `Sort by ${label}`
+  const direction = column === 'symbol' ? SYMBOL_DIRECTIONS[sort.direction] : DIRECTIONS[sort.direction]
+  return `Sort by ${label}, ${direction}`
+}
+
 const keyOf = (item: ListItem): string => (isSection(item) ? `section:${item.id}` : item.symbol)
 
 const SectionIcon = () => (
@@ -77,7 +87,7 @@ export const Watchlist = ({
 
   const handleDrop = (event: DragEvent, index: number) => {
     event.preventDefault()
-    if (dragIndex !== null && dragIndex !== index) onMove(dragIndex, index)
+    if (sort === null && dragIndex !== null && dragIndex !== index) onMove(dragIndex, index)
     setDragIndex(null)
   }
 
@@ -109,8 +119,8 @@ export const Watchlist = ({
           <Styles.ColumnLabel
             key={column}
             type="button"
-            aria-label={`Sort by ${label}`}
-            title={`Sort by ${label}`}
+            aria-label={sortLabel(column, label, sort)}
+            title={sortLabel(column, label, sort)}
             $right={right}
             $wideOnly={wideOnly}
             $widestOnly={widestOnly}
