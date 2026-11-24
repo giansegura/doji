@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { addDays, addMonths, addWeekdays, mondayOf, monthStartOf, monthsBetween, weekdaysBetween, weeksBetween } from './dates'
+import { addDays, addMonths, addWeekdays, dayInZone, mondayOf, monthStartOf, monthsBetween, weekdaysBetween, weeksBetween } from './dates'
 
 test('Should return the Monday of the week', () => {
   expect(mondayOf('2026-11-25')).toBe('2026-11-23')
@@ -48,4 +48,15 @@ test('Should add months and land on the first day of the month', () => {
   expect(addMonths('2026-11-15', 3)).toBe('2027-02-01')
   expect(addMonths('2026-01-20', -2)).toBe('2025-11-01')
   expect(addMonths('2026-11-15', 0)).toBe('2026-11-01')
+})
+
+test('Should give the date of an instant in the time zone of an exchange', () => {
+  const lateEvening = Date.parse('2026-11-24T23:30:00Z')
+  expect(dayInZone('America/New_York', lateEvening)).toBe('2026-11-24')
+  expect(dayInZone('Europe/Madrid', lateEvening)).toBe('2026-11-25')
+  expect(dayInZone('Asia/Tokyo', lateEvening)).toBe('2026-11-25')
+})
+
+test('Should fall back to the date in UTC for a time zone it does not know', () => {
+  expect(dayInZone('Marte/Olympus', Date.parse('2026-11-24T23:30:00Z'))).toBe('2026-11-24')
 })

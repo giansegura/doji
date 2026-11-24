@@ -57,6 +57,11 @@ const formatterFor = (timeZone: string): Intl.DateTimeFormat => {
   }
 }
 
+const tradeTimeOf = (meta: Json): number | null => {
+  const seconds = asNumber(meta.regularMarketTime)
+  return seconds !== null && seconds > 0 ? seconds * 1000 : null
+}
+
 const marketName = (raw: string): string => (raw === FOREX_EXCHANGE ? 'Forex' : raw)
 
 const exchangeName = (meta: Json): string => {
@@ -106,6 +111,7 @@ export const parseHistory = (json: unknown, fetchedAt: string): History => {
 
   const formatter = formatterFor(asString(meta.exchangeTimezoneName) ?? 'UTC')
   const toDate = (seconds: number): string => formatter.format(new Date(seconds * 1000))
+  const tradedAt = tradeTimeOf(meta)
   return {
     info: {
       symbol,
@@ -116,6 +122,7 @@ export const parseHistory = (json: unknown, fetchedAt: string): History => {
     splits: parseSplits(result, toDate),
     fetchedAt,
     stale: false,
+    ...(tradedAt === null ? {} : { tradedAt }),
   }
 }
 
@@ -174,12 +181,16 @@ export const parseQuotes = (json: unknown, now: Date): Quote[] =>
       const previousClose = asNumber(meta.chartPreviousClose) ?? asNumber(meta.previousClose)
       if (!symbol || price === null || !previousClose) return null
       const change = price - previousClose
+      const time = tradeTimeOf(meta)
+      const timezone = asString(meta.exchangeTimezoneName)
       return {
         symbol,
         price,
         change,
         changePercent: (change / previousClose) * 100,
         extended: toExtended(meta, price, now),
+        ...(time === null ? {} : { time }),
+        ...(timezone === null ? {} : { timezone }),
       }
     })
     .filter((quote): quote is Quote => quote !== null)

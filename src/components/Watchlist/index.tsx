@@ -18,6 +18,7 @@ type WatchlistProps = {
   onRenameSection: (id: string, title: string) => void
   onRemoveSection: (id: string) => void
   sort: WatchlistSort | null
+  live?: boolean
   onSort: (column: SortColumn) => void
   header?: ReactNode
 }
@@ -32,11 +33,15 @@ type ColumnSpec = { column: SortColumn; label: string; right?: boolean; wideOnly
 const COLUMNS: ColumnSpec[] = [
   { column: 'symbol', label: 'Symbol' },
   { column: 'last', label: 'Last', right: true, wideOnly: true },
-  { column: 'change', label: 'Change %', right: true },
+  { column: 'change', label: 'Chg%', right: true },
   { column: 'ext', label: 'Ext', right: true, widestOnly: true },
 ]
 
 const ARROWS = { asc: ' ▲', desc: ' ▼' }
+
+const LIVE = 'Live prices'
+
+const NOT_LIVE = 'Prices refresh every 15 seconds'
 
 const DIRECTIONS = { asc: 'lowest first', desc: 'highest first' }
 
@@ -68,6 +73,7 @@ export const Watchlist = ({
   onRenameSection,
   onRemoveSection,
   sort,
+  live = false,
   onSort,
   header,
 }: WatchlistProps) => {
@@ -106,6 +112,7 @@ export const Watchlist = ({
       <Styles.Header>
         {header ?? <Styles.Title>Watchlist</Styles.Title>}
         <Styles.HeaderActions>
+          <Styles.LiveMark role="img" aria-label={live ? LIVE : NOT_LIVE} title={live ? LIVE : NOT_LIVE} $live={live} />
           <Styles.IconButton type="button" aria-label="Add section" title="Add section" onClick={() => setEditing(NEW_SECTION)}>
             <SectionIcon />
           </Styles.IconButton>

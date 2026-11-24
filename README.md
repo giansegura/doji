@@ -45,7 +45,7 @@ Para otro puerto: `PORT=4790 npm start`.
 - **Atajos:** las flechas arriba y abajo recorren la lista. `Alt+T` arma la línea de tendencia, `Alt+H` la horizontal, `Alt+C` el canal y `Alt+R` el rectángulo; `Esc` vuelve al cursor.
 - **Listas:** el nombre de la lista (arriba a la derecha) abre el desplegable para cambiar de lista, crear una nueva, renombrarla, duplicarla o borrarla (pide confirmación). Siempre queda al menos una.
 - **Símbolos de la lista:** `+` abre el buscador para añadir a la lista activa; puedes añadir varios seguidos escribiendo el ticker y pulsando `Enter`, y cerrarlo con `Esc`. Añadir no cambia el gráfico. Pasa el ratón por una fila para quitarla; arrastra las filas para reordenar.
-- **Ordenar la lista:** pulsa la cabecera de una columna (Symbol, Last, Change % o Ext) para ordenar de mayor a menor (de la A a la Z en Symbol); un segundo clic invierte el orden y el tercero vuelve a tu orden. Las secciones se respetan: se ordena dentro de cada una. Mientras hay un orden activo no se pueden arrastrar filas.
+- **Ordenar la lista:** pulsa la cabecera de una columna (Symbol, Last, Chg% o Ext) para ordenar de mayor a menor (de la A a la Z en Symbol); un segundo clic invierte el orden y el tercero vuelve a tu orden. Las secciones se respetan: se ordena dentro de cada una. Mientras hay un orden activo no se pueden arrastrar filas.
 - **Secciones:** el botón que hay junto a `+` añade un separador con título dentro de la lista. Se arrastra como cualquier fila y, al pasar el ratón, se puede renombrar o quitar.
 - **Notas:** el panel "Notes", debajo de la lista, guarda un texto por acción (tesis, precio de entrada, plan). Un punto azul avisa de que la acción tiene nota aunque el panel esté plegado.
 - **Ancho de la lista:** arrastra el borde izquierdo de la lista para ensancharla o estrecharla; el gráfico ocupa el resto. Va de 220 a 640 px (400 por defecto) y se guarda con el resto de la configuración. Las columnas se adaptan para que los tickers se lean enteros: por debajo de 381 px se oculta "Ext" y por debajo de 300 px también "Last".
@@ -107,18 +107,27 @@ Puedes tener la app abierta en varias pestañas: cada una guarda sobre la versi�
 
 Los precios salen de los endpoints públicos de Yahoo Finance. No es una API oficial: puede cambiar o dejar de responder sin aviso, y los precios llegan con retraso.
 
-- El precio y la vela del día se refrescan cada 15 segundos con la pestaña visible.
+- **Precios en vivo.** Con la pestaña visible, el servidor abre una única conexión con el canal de precios de Yahoo (un WebSocket) y reenvía cada cambio al navegador. La lista, el título de la pestaña, las alertas y la última vela (también en semanal y mensual, con sus indicadores) siguen al precio más o menos una vez por segundo. Un punto verde junto al nombre de la lista indica que están llegando precios en vivo; gris, que se está usando la consulta de respaldo.
+  - En las acciones de EE. UU. y en divisas el retraso ronda 1–2 segundos. Las bolsas europeas llegan por el mismo canal, pero con los 15 minutos de retraso con que Yahoo las publica.
+  - La consulta de respaldo sigue funcionando: cada 15 segundos para los símbolos que no han recibido ningún precio en vivo en el último medio minuto (mercado cerrado, índices y futuros que Yahoo no emite, canal caído) y cada minuto para todos. Si el canal deja de funcionar, doji se comporta como antes de tenerlo.
+  - Nunca retrocede: un precio solo sustituye a otro si su operación es posterior, venga del canal, de la consulta o del histórico.
+  - Cuando el precio de una fila cambia, la cifra se pone un instante en verde (sube) o en rojo (baja), y los dígitos que han cambiado siguen coloreados un par de segundos más.
+  - La vela del día conserva el máximo y el mínimo por los que ha pasado el precio en vivo aunque el histórico todavía no los traiga.
+  - La conexión con Yahoo se cierra 10 segundos después de que la última pestaña deje de mirar, y se reintenta con esperas crecientes (de 1 segundo a 1 minuto) si se cae. En pestañas ocultas no se usa, salvo que haya alertas armadas.
+  - En pre y post mercado, la columna "Ext" se mueve con el canal solo después de que la consulta confirme en qué sesión está el símbolo.
+- Sin el canal, el precio y la vela del día se refrescan cada 15 segundos con la pestaña visible.
 - Si Yahoo no responde, se muestra el último histórico guardado con un aviso de su fecha.
-- Los logos se piden primero a Yahoo y, si no lo tiene, a `financialmodelingprep.com`; a ese segundo servicio solo se le envía el ticker. Se guardan en disco y no se vuelven a pedir en un mes. Sin logo se muestra la inicial.
+- Los logos se piden primero a Finnhub (fichas cuadradas con el color de la marca; solo se aceptan las grandes), después a Yahoo y, si ninguno lo tiene, a `financialmodelingprep.com`; a los servicios que no son Yahoo solo se les envía el ticker. Se guardan en disco y no se vuelven a pedir en un mes, salvo que cambie la lista de fuentes. La app mira los píxeles de cada logo para pintarlo bien: una ficha de color llena el círculo, un logo suelto va sobre blanco con margen y un logo blanco va sobre un círculo oscuro. Sin logo se muestra la inicial.
 - El histórico completo de cada acción se vuelve a descargar cada 12 horas; entre medias solo se piden los últimos días.
 - Cambiar de acción dentro de la lista es inmediato: al abrir la app se precargan en segundo plano los históricos de la lista activa (hasta 24 acciones), con la copia que el servidor ya tenga y sin consultar a Yahoo. Al cambiar se pinta esa copia y los datos frescos la sustituyen un instante después. Una acción que nunca se ha abierto y no está en la lista sí tiene que descargarse.
-- Todo lo que habla con Yahoo está en `server/provider/yahoo.ts`; cambiar de fuente es reescribir ese archivo. La segunda fuente de logos se configura en `server/index.ts`.
+- Todo lo que habla con Yahoo está en `server/provider/`: `yahoo.ts` (históricos, precios, búsqueda), `yahooStream.ts` (canal en vivo) y `pricing.ts` (formato de sus mensajes). Cambiar de fuente es reescribir esos archivos. Las fuentes de logos están en `server/logoSources.ts`.
 
 ## Límites conocidos
 
 - Los festivos solo se conocen para la bolsa de EE. UU., y solo se aplican cuando el histórico de la acción demuestra que los respeta (al menos tres festivos sin vela en el último año). En otros mercados, y con cierres imprevistos, una línea con un extremo en el futuro se desplaza una vela por cada festivo que pasa.
 - En instrumentos que cotizan en fin de semana, el tramo posterior a la última vela se cuenta en días laborables.
 - El arrastre de filas de la lista está probado en Chrome; en Firefox no se ha comprobado.
+- Cada pestaña con precios en vivo mantiene una conexión abierta con el servidor, y los navegadores admiten unas seis por sitio: con más de cinco pestañas de doji visibles a la vez (o con alertas armadas), las siguientes se quedan esperando.
 - El servidor solo escucha en `127.0.0.1` y rechaza las peticiones a `/api` que haga otra web desde el navegador.
 
 ## Desarrollo

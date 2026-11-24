@@ -55,3 +55,20 @@ export const todayIso = (): string => {
   const now = new Date()
   return toIso(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
 }
+
+const zoneFormatters = new Map<string, Intl.DateTimeFormat>()
+
+const formatterIn = (timeZone: string): Intl.DateTimeFormat => {
+  const options = { year: 'numeric', month: '2-digit', day: '2-digit' } as const
+  try {
+    return new Intl.DateTimeFormat('en-CA', { ...options, timeZone })
+  } catch {
+    return new Intl.DateTimeFormat('en-CA', { ...options, timeZone: 'UTC' })
+  }
+}
+
+export const dayInZone = (timeZone: string, ms: number): string => {
+  const formatter = zoneFormatters.get(timeZone) ?? formatterIn(timeZone)
+  zoneFormatters.set(timeZone, formatter)
+  return formatter.format(new Date(ms))
+}

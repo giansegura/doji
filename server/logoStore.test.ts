@@ -142,6 +142,7 @@ test('Should keep symbols with dashes and dots apart on disk', async () => {
 test('Should only allow logo addresses on the known image hosts over https', () => {
   expect(isAllowedLogoUrl('https://s.yimg.com/lb/brands/150x150_apple.png')).toBe(true)
   expect(isAllowedLogoUrl('https://financialmodelingprep.com/image-stock/KO.png')).toBe(true)
+  expect(isAllowedLogoUrl('https://static2.finnhub.io/file/publicdatany/finnhubimage/stock_logo/KO.png')).toBe(true)
   expect(isAllowedLogoUrl('http://s.yimg.com/lb/brands/150x150_apple.png')).toBe(false)
   expect(isAllowedLogoUrl('https://s.yimg.com.evil.example/logo.png')).toBe(false)
   expect(isAllowedLogoUrl('https://127.0.0.1:4780/api/state')).toBe(false)
@@ -193,4 +194,53 @@ test('Should not download from an address that is not allowed', async () => {
 test('Should let a network failure through as an error', async () => {
   const { fetchImage } = fetcherFor(new Error('ECONNRESET'))
   await expect(fetchImage(LOGO_URL)).rejects.toThrow('ECONNRESET')
+})
+
+const versioned = (dir: string, version: string | undefined, url: string, fetched: string[]) =>
+  createLogoStore({
+    sources: [at(url)],
+    fetchImage: async (asked) => {
+      fetched.push(asked)
+      return asked.includes('missing') ? null : png(asked)
+    },
+    dir,
+    now: () => new Date('2026-11-24T10:00:00Z'),
+    version,
+  })
+
+test('Should look a logo up again when the sources have changed since it was saved', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'doji-logos-'))
+  const fetched: string[] = []
+  await versioned(dir, 'one', 'https://a/old.png', fetched).get('AAPL')
+  await versioned(dir, 'one', 'https://a/old.png', fetched).get('AAPL')
+  expect(fetched).toEqual(['https://a/old.png'])
+  const logo = await versioned(dir, 'two', 'https://b/new.png', fetched).get('AAPL')
+  expect(fetched).toEqual(['https://a/old.png', 'https://b/new.png'])
+  expect(logo?.bytes.toString()).toBe('https://b/new.png')
+  await versioned(dir, 'two', 'https://b/new.png', fetched).get('AAPL')
+  expect(fetched).toHaveLength(2)
+})
+
+test('Should look up again a logo saved before the sources had a version', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'doji-logos-'))
+  const fetched: string[] = []
+  await versioned(dir, undefined, 'https://a/old.png', fetched).get('AAPL')
+  await versioned(dir, 'two', 'https://b/new.png', fetched).get('AAPL')
+  expect(fetched).toEqual(['https://a/old.png', 'https://b/new.png'])
+})
+
+test('Should keep serving the saved logo when the new sources have none', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'doji-logos-'))
+  const fetched: string[] = []
+  await versioned(dir, 'one', 'https://a/old.png', fetched).get('AAPL')
+  const logo = await versioned(dir, 'two', 'https://b/missing.png', fetched).get('AAPL')
+  expect(logo?.bytes.toString()).toBe('https://a/old.png')
+})
+
+test('Should ask again for a symbol remembered as having no logo when the sources have changed', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'doji-logos-'))
+  const fetched: string[] = []
+  expect(await versioned(dir, 'one', 'https://a/missing.png', fetched).get('AAPL')).toBeNull()
+  const logo = await versioned(dir, 'two', 'https://b/new.png', fetched).get('AAPL')
+  expect(logo?.bytes.toString()).toBe('https://b/new.png')
 })

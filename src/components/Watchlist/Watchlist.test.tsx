@@ -62,7 +62,7 @@ test('Should not show the absolute change', () => {
   expect(within(row('AAPL')).queryByText('+2.70')).toBeNull()
   expect(within(row('MSFT')).queryByText('−1.72')).toBeNull()
   expect(screen.queryByText('Cambio')).toBeNull()
-  expect(screen.getByText('Change %')).toBeTruthy()
+  expect(screen.getByText('Chg%')).toBeTruthy()
 })
 
 test('Should show the logo of each company before its ticker', () => {
@@ -280,7 +280,7 @@ test('Should show a forex pair like TradingView with the decimals of forex', () 
 
 test('Should ask to sort by the column whose header is clicked', async () => {
   const { handlers, user } = setup()
-  await user.click(screen.getByRole('button', { name: 'Sort by Change %' }))
+  await user.click(screen.getByRole('button', { name: 'Sort by Chg%' }))
   await user.click(screen.getByRole('button', { name: 'Sort by Symbol' }))
   await user.click(screen.getByRole('button', { name: 'Sort by Last' }))
   await user.click(screen.getByRole('button', { name: 'Sort by Ext' }))
@@ -289,7 +289,7 @@ test('Should ask to sort by the column whose header is clicked', async () => {
 
 test('Should mark the sorted column with an arrow that shows the direction', () => {
   setup({ sort: { column: 'change', direction: 'desc' } })
-  expect(screen.getByRole('button', { name: 'Sort by Change %, highest first' }).textContent).toBe('Change % ▼')
+  expect(screen.getByRole('button', { name: 'Sort by Chg%, highest first' }).textContent).toBe('Chg% ▼')
   expect(screen.getByRole('button', { name: 'Sort by Symbol' }).textContent).toBe('Symbol')
 })
 
@@ -353,4 +353,101 @@ test('Should drop a drag that began before the list got sorted', () => {
   fireEvent.dragOver(rows[2])
   fireEvent.drop(rows[2])
   expect(handlers.onMove).not.toHaveBeenCalled()
+})
+
+test('Should say that prices are live', () => {
+  const noop = () => undefined
+  renderWithTheme(
+    <Watchlist
+      items={items}
+      quotes={quotes}
+      activeSymbol="AAPL"
+      sort={null}
+      live
+      onSelect={noop}
+      onRemove={noop}
+      onMove={noop}
+      onAdd={noop}
+      onAddSection={noop}
+      onRenameSection={noop}
+      onRemoveSection={noop}
+      onSort={noop}
+    />,
+  )
+  const mark = screen.getByRole('img', { name: 'Live prices' })
+  expect(mark.getAttribute('title')).toBe('Live prices')
+  expect(getComputedStyle(mark).backgroundColor).toBe('rgb(34, 171, 148)')
+})
+
+test('Should say that prices refresh every fifteen seconds when they are not live', () => {
+  setup()
+  const mark = screen.getByRole('img', { name: 'Prices refresh every 15 seconds' })
+  expect(getComputedStyle(mark).backgroundColor).toBe('rgb(120, 123, 134)')
+  expect(screen.queryByRole('img', { name: 'Live prices' })).toBeNull()
+})
+
+const listWith = (price: number) => (
+  <ThemeProvider theme={themes.dark}>
+    <Watchlist
+      items={items}
+      quotes={{ ...quotes, AAPL: { ...quotes.AAPL, price } }}
+      activeSymbol="AAPL"
+      sort={null}
+      onSelect={() => undefined}
+      onRemove={() => undefined}
+      onMove={() => undefined}
+      onAdd={() => undefined}
+      onAddSection={() => undefined}
+      onRenameSection={() => undefined}
+      onRemoveSection={() => undefined}
+      onSort={() => undefined}
+    />
+  </ThemeProvider>
+)
+
+const flashOf = (symbol: string) => row(symbol).querySelector('[data-flash]')
+
+const partsOf = (flash: Element | null) => [...(flash?.children ?? [])].map((part) => part.textContent)
+
+test('Should not mark a price that has not changed since it was first shown', () => {
+  const { rerender } = render(listWith(229.35))
+  rerender(listWith(229.35))
+  expect(flashOf('AAPL')).toBeNull()
+  expect(within(row('AAPL')).getByText('229.35')).toBeTruthy()
+})
+
+test('Should mark as a rise the digits that changed when the price goes up', () => {
+  const { rerender } = render(listWith(229.35))
+  rerender(listWith(229.61))
+  const flash = flashOf('AAPL')
+  expect(flash?.getAttribute('data-flash')).toBe('up')
+  expect(partsOf(flash)).toEqual(['229.', '61'])
+  expect(flash?.textContent).toBe('229.61')
+  expect(flashOf('MSFT')).toBeNull()
+})
+
+test('Should mark as a fall the digits that changed when the price goes down', () => {
+  const { rerender } = render(listWith(229.35))
+  rerender(listWith(228.9))
+  const flash = flashOf('AAPL')
+  expect(flash?.getAttribute('data-flash')).toBe('down')
+  expect(partsOf(flash)).toEqual(['22', '8.90'])
+})
+
+test('Should start the mark again with every change of the price', () => {
+  const { rerender } = render(listWith(229.35))
+  rerender(listWith(229.61))
+  const first = flashOf('AAPL')
+  rerender(listWith(229.64))
+  const second = flashOf('AAPL')
+  expect(second).not.toBe(first)
+  expect(partsOf(second)).toEqual(['229.6', '4'])
+})
+
+test('Should leave the mark as it is when the list is drawn again with the same price', () => {
+  const { rerender } = render(listWith(229.35))
+  rerender(listWith(229.61))
+  const first = flashOf('AAPL')
+  rerender(listWith(229.61))
+  expect(flashOf('AAPL')).toBe(first)
 })

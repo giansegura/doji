@@ -2,6 +2,7 @@ import { type RefObject, useState } from 'react'
 import { displaySymbol } from '../../../shared/symbols'
 import type { ChartSettings, History, Indicators, Timeframe, Drawing } from '../../../shared/types'
 import { ChartView } from '../../chart/ChartView'
+import type { LivePrice } from '../../domain/liveBar'
 import type { Tool } from '../../state/appReducer'
 import * as Styles from '../../styles'
 
@@ -13,6 +14,7 @@ type ChartAreaProps = {
   timeframe: Timeframe
   indicators: Indicators
   settings: ChartSettings
+  live?: LivePrice | null
   screenshotRef?: RefObject<(() => void) | null>
   lines: Drawing[]
   tool: Tool
@@ -35,6 +37,7 @@ export const ChartArea = ({
   timeframe,
   indicators,
   settings,
+  live = null,
   screenshotRef,
   lines,
   tool,
@@ -72,6 +75,7 @@ export const ChartArea = ({
         timeframe={timeframe}
         indicators={indicators}
         settings={settings}
+        live={live}
         screenshotRef={screenshotRef}
         lines={loading ? NO_LINES : lines}
         tool={loading ? 'cursor' : tool}

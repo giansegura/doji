@@ -16,7 +16,7 @@ export type ImageFetchLike = (
   arrayBuffer: () => Promise<ArrayBuffer>
 }>
 
-type Meta = { fetchedAt: string; contentType: string | null }
+type Meta = { fetchedAt: string; contentType: string | null; version?: string }
 
 type Lookup = { logo: Logo | null; certain: boolean }
 
@@ -24,7 +24,7 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const KEEP_MS = 30 * DAY_MS
 const MISSING_MS = 7 * DAY_MS
 const MAX_BYTES = 512 * 1024
-const LOGO_HOSTS = ['s.yimg.com', 'financialmodelingprep.com']
+const LOGO_HOSTS = ['static2.finnhub.io', 's.yimg.com', 'financialmodelingprep.com']
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
 const IMAGE_HEADERS = { 'User-Agent': 'Mozilla/5.0' }
 
@@ -54,6 +54,7 @@ export const createLogoStore = (deps: {
   fetchImage: (url: string) => Promise<Logo | null>
   dir: string
   now: () => Date
+  version?: string
 }): LogoStore => {
   const inFlight = new Map<string, Promise<Logo | null>>()
   let queue: Promise<unknown> = Promise.resolve()
@@ -67,7 +68,11 @@ export const createLogoStore = (deps: {
     try {
       const parsed = JSON.parse(await readFile(pathsFor(symbol).meta, 'utf8')) as Partial<Meta> | null
       if (!parsed || typeof parsed.fetchedAt !== 'string') return null
-      return { fetchedAt: parsed.fetchedAt, contentType: typeof parsed.contentType === 'string' ? parsed.contentType : null }
+      return {
+        fetchedAt: parsed.fetchedAt,
+        contentType: typeof parsed.contentType === 'string' ? parsed.contentType : null,
+        version: typeof parsed.version === 'string' ? parsed.version : undefined,
+      }
     } catch {
       return null
     }
@@ -91,7 +96,8 @@ export const createLogoStore = (deps: {
     const paths = pathsFor(symbol)
     await mkdir(deps.dir, { recursive: true })
     if (logo) await writeAtomic(paths.image, logo.bytes)
-    await writeAtomic(paths.meta, JSON.stringify({ fetchedAt: deps.now().toISOString(), contentType: logo?.contentType ?? null }))
+    const meta: Meta = { fetchedAt: deps.now().toISOString(), contentType: logo?.contentType ?? null, version: deps.version }
+    await writeAtomic(paths.meta, JSON.stringify(meta))
   }
 
   const lookup = async (symbol: string): Promise<Lookup> => {
@@ -116,6 +122,7 @@ export const createLogoStore = (deps: {
 
   const isFresh = (meta: Meta, saved: Logo | null): boolean => {
     const age = deps.now().getTime() - Date.parse(meta.fetchedAt)
+    if (meta.version !== deps.version) return false
     if (meta.contentType) return saved !== null && age < KEEP_MS
     return age < MISSING_MS
   }

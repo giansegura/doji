@@ -354,3 +354,9 @@ test('Should download a history it is asked to hand over but does not keep', asy
   expect(kept.bars).toEqual(full.bars)
   expect(calls).toEqual([{ symbol: 'AAPL', fromDate: undefined }])
 })
+
+test('Should keep the trade time of the tail when merging, and none when the tail has none', () => {
+  const cached = { ...history(full.bars), tradedAt: 1_000 }
+  expect(mergeHistory(cached, { ...history(tail.bars), tradedAt: 2_000 }).tradedAt).toBe(2_000)
+  expect(mergeHistory(cached, history(tail.bars)).tradedAt).toBeUndefined()
+})

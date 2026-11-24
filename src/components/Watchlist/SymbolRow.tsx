@@ -3,6 +3,7 @@ import { displaySymbol } from '../../../shared/symbols'
 import type { ExtendedQuote, ExtendedSession, Quote, SymbolInfo } from '../../../shared/types'
 import { formatPercent, formatPrice } from '../../chart/format'
 import { SymbolLogo } from '../SymbolLogo'
+import { LastPrice } from './LastPrice'
 import * as Styles from './styles'
 
 type SymbolRowProps = {
@@ -39,7 +40,7 @@ export const SymbolRow = ({ item, quote, active, onSelect, onRemove }: SymbolRow
             />
           )}
         </Styles.Symbol>
-        <Styles.Number $wideOnly>{quote ? formatPrice(quote.price, item.symbol) : MISSING}</Styles.Number>
+        <Styles.Number $wideOnly>{quote ? <LastPrice price={quote.price} symbol={item.symbol} /> : MISSING}</Styles.Number>
         <Styles.Number $color={changeColor}>{quote ? formatPercent(quote.changePercent) : MISSING}</Styles.Number>
         {extended ? (
           <Styles.Number

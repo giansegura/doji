@@ -69,6 +69,7 @@ export const mergeHistory = (cached: History, tail: History): History => {
     splits: [...splits.values()].sort(byDate((split) => split.date)),
     fetchedAt: tail.fetchedAt,
     stale: false,
+    ...(tail.tradedAt === undefined ? {} : { tradedAt: tail.tradedAt }),
   }
 }
 
