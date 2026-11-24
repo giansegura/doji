@@ -17,6 +17,7 @@ import { configFileName, serializeConfig } from './domain/configFile'
 import { downloadText } from './domain/download'
 import { armedSymbols } from './domain/alerts'
 import { newId } from './domain/newId'
+import { tabTitle } from './domain/tabTitle'
 import { adjustLinesForSplits } from './domain/splits'
 import { useAlerts } from './hooks/useAlerts'
 import { useHistory } from './hooks/useHistory'
@@ -24,39 +25,39 @@ import { usePrefetchHistories } from './hooks/usePrefetchHistories'
 import { useQuotes } from './hooks/useQuotes'
 import { useShortcuts } from './hooks/useShortcuts'
 import { type Action, type Tool, activeWatchlist } from './state/appReducer'
-import { resolvePendingAdd } from './state/pendingAdd'
 import { useAppState } from './state/useAppState'
 import * as Styles from './styles'
 import { GlobalStyle } from './theme/GlobalStyle'
 import { themes } from './theme/tokens'
 
-type WorkspaceProps = { state: AppState; dispatch: (action: Action) => void; notice: string | null }
+type WorkspaceProps = { state: AppState; dispatch: (action: Action) => void; notice: string | null; replaced: number }
 
 type SearchMode = 'chart' | 'watchlist' | null
 
 const NO_DRAWINGS: Drawing[] = []
 
-const Workspace = ({ state, dispatch, notice }: WorkspaceProps) => {
+const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   const [tool, setTool] = useState<Tool>('cursor')
   const [searchMode, setSearchMode] = useState<SearchMode>(null)
-  const [pendingAdd, setPendingAdd] = useState<string | null>(null)
   const screenshotRef = useRef<(() => void) | null>(null)
   const { status, history, errorCode, retry } = useHistory(state.symbol)
   const list = activeWatchlist(state)
   const listSymbols = symbolsOf(list.items).map((item) => item.symbol)
   const alertSymbols = armedSymbols(state.lines)
-  const quotes = useQuotes([...new Set([...listSymbols, ...alertSymbols])], undefined, alertSymbols.length > 0)
+  const quotes = useQuotes([...new Set([...listSymbols, ...alertSymbols, state.symbol])], undefined, alertSymbols.length > 0)
   const { fired, dismiss } = useAlerts({ lines: state.lines, quotes, dispatch })
   usePrefetchHistories(listSymbols)
   const drawings = state.lines[state.symbol] ?? NO_DRAWINGS
   const { changeDrawings, forgetDrawings } = useShortcuts({ symbol: state.symbol, drawings, symbols: listSymbols, dispatch, onTool: setTool })
 
   useEffect(() => {
-    const decision = resolvePendingAdd(pendingAdd, { status, history, errorCode })
-    if (decision.type === 'wait') return
-    if (decision.type === 'add') dispatch({ type: 'addToWatchlist', info: decision.info })
-    setPendingAdd(null)
-  }, [pendingAdd, status, history, errorCode, dispatch])
+    forgetDrawings()
+  }, [replaced, forgetDrawings])
+
+  useEffect(() => {
+    const bars = history?.info.symbol === state.symbol ? history.bars : []
+    document.title = tabTitle(state.symbol, quotes[state.symbol] ?? null, bars)
+  }, [history, quotes, state.symbol])
 
   useEffect(() => {
     if (!history || history.info.symbol !== state.symbol) return
@@ -79,7 +80,10 @@ const Workspace = ({ state, dispatch, notice }: WorkspaceProps) => {
   }
 
   const handlePick = (info: SymbolInfo) => {
-    if (searchMode === 'watchlist') setPendingAdd(info.symbol)
+    if (searchMode === 'watchlist') {
+      dispatch({ type: 'addToWatchlist', info })
+      return
+    }
     dispatch({ type: 'setSymbol', symbol: info.symbol })
     setSearchMode(null)
   }
@@ -161,13 +165,15 @@ const Workspace = ({ state, dispatch, notice }: WorkspaceProps) => {
           onChange={(text) => dispatch({ type: 'setNote', symbol: state.symbol, text })}
         />
       </Styles.List>
-      {searchMode && <SymbolSearch onPick={handlePick} onClose={() => setSearchMode(null)} />}
+      {searchMode && (
+        <SymbolSearch onPick={handlePick} onClose={() => setSearchMode(null)} stayOpen={searchMode === 'watchlist'} />
+      )}
     </Styles.Layout>
   )
 }
 
 export const App = () => {
-  const { state, dispatch, loadFailed, notice, retry } = useAppState()
+  const { state, dispatch, loadFailed, notice, retry, replaced } = useAppState()
 
   if (loadFailed) {
     return (
@@ -190,7 +196,7 @@ export const App = () => {
   return (
     <ThemeProvider theme={themes[state.theme]}>
       <GlobalStyle />
-      <Workspace state={state} dispatch={dispatch} notice={notice} />
+      <Workspace state={state} dispatch={dispatch} notice={notice} replaced={replaced} />
     </ThemeProvider>
   )
 }

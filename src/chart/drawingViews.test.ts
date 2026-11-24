@@ -57,3 +57,7 @@ test('Should mark an armed trend line at its right-most end', () => {
   expect(viewOf({ ...trend, alert: true }, geometry, false)?.alert).toEqual({ x: 200, y: 80 })
   expect(viewOf(trend, geometry, false)?.alert).toBeNull()
 })
+
+test('Should label a horizontal line of a forex pair with the decimals of forex', () => {
+  expect(viewOf({ ...hline, value: 1.096731 }, geometry, false, 'EURUSD=X')?.label?.text).toBe('1.0967')
+})

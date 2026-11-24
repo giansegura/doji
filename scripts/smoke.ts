@@ -1,5 +1,7 @@
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { mkdir, readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { chromium } from 'playwright-core'
 import { symbolsOf } from '../shared/listItems'
 import type { AppState, Drawing, TrendLine } from '../shared/types'
@@ -140,6 +142,39 @@ const blueCentre = (box: Box): Promise<[number, number] | null> =>
     const column = found.filter((point) => Math.abs(point[0] - middleX) < 1).map((point) => point[1]).sort((a, b) => a - b)
     return [middleX, column[Math.floor(column.length / 2)]] as [number, number]
   }, box)
+
+const hasColor = (box: Box, [red, green, blue]: [number, number, number]): Promise<boolean> =>
+  page.evaluate(
+    ({ area, wanted }) =>
+      [...document.querySelectorAll('.tv-lightweight-charts canvas')].some((element) => {
+        const canvas = element as HTMLCanvasElement
+        const rect = canvas.getBoundingClientRect()
+        const scale = canvas.width / rect.width
+        const left = Math.max(area.x, rect.left)
+        const top = Math.max(area.y, rect.top)
+        const right = Math.min(area.x + area.width, rect.right)
+        const bottom = Math.min(area.y + area.height, rect.bottom)
+        if (right - left < 1 || bottom - top < 1) return false
+        const pixels = canvas
+          .getContext('2d')
+          ?.getImageData(
+            Math.round((left - rect.left) * scale),
+            Math.round((top - rect.top) * scale),
+            Math.floor((right - left) * scale),
+            Math.floor((bottom - top) * scale),
+          ).data
+        if (!pixels) return false
+        for (let index = 0; index < pixels.length; index += 4) {
+          const near =
+            Math.abs(pixels[index] - wanted[0]) < 40 &&
+            Math.abs(pixels[index + 1] - wanted[1]) < 40 &&
+            Math.abs(pixels[index + 2] - wanted[2]) < 40
+          if (near && pixels[index + 3] > 200) return true
+        }
+        return false
+      }),
+    { area: box, wanted: [red, green, blue] },
+  )
 
 const drag = async (from: [number, number], to: [number, number]): Promise<void> => {
   await page.mouse.move(...from)
@@ -526,7 +561,7 @@ await step('una alerta salta cuando el precio cruza la línea y se desarma sola'
   await page.waitForResponse(quotesRoute, { timeout: 25_000 })
   reported = target + 1
   await page.getByRole('status').filter({ hasText: 'AAPL crossed' }).first().waitFor({ timeout: 40_000 })
-  await page.unroute(quotesRoute)
+  await page.unrouteAll({ behavior: 'wait' })
   const [after] = await levels()
   check(after?.kind === 'hline' && after.alert === undefined, 'la alerta no se desarmó al saltar')
   await page.getByRole('button', { name: /^Dismiss AAPL crossed/ }).first().click()
@@ -619,7 +654,7 @@ await step('cambiar a una acción de la lista no espera a la fuente', async () =
   check(held >= 1, 'no se pidieron los datos frescos por detrás')
   console.log(`       NVDA en pantalla en ${shown} ms con la fuente retenida 4 s`)
   await page.waitForTimeout(4500)
-  await page.unroute(fresh)
+  await page.unrouteAll({ behavior: 'wait' })
   check((await savedState()).symbol === 'NVDA', 'el símbolo no se guardó')
 })
 
@@ -634,23 +669,62 @@ await step('cambia de acción desde la lista', async () => {
   check((await button('Auto').count()) === 0, 'el ajuste automático no volvió al cambiar de acción')
   const state = await savedState()
   check(state.symbol === 'MSFT', 'el símbolo no se guardó')
+  await page.waitForFunction(() => document.title.startsWith('MSFT '), undefined, { timeout: 5000 })
+  const title = await page.title()
+  check(/^MSFT [\d,]+\.\d{2}( [▲▼])? [+−]?\d+\.\d{2}%$/.test(title), `título de la pestaña inesperado: ${title}`)
   check(state.lines.MSFT === undefined, 'MSFT tiene líneas que no se dibujaron')
 })
 
-await step('añade KO desde el buscador', async () => {
+await step('añade KO y PEP seguidos sin cerrar el buscador ni cambiar el gráfico', async () => {
+  const onScreen = (await savedState()).symbol
+  const field = page.getByPlaceholder('Search symbol or company')
   await button('Add symbol').click()
-  await page.getByPlaceholder('Search symbol or company').fill('KO')
+  await field.fill('KO')
   await page.getByRole('option').filter({ hasText: 'Coca-Cola' }).first().click()
-  await page.getByText(/Coca-Cola.* · 1D/).waitFor({ timeout: 15_000 })
+  await row('KO').waitFor({ timeout: 15_000 })
+  await page.getByText('KO added. Type another ticker, or press Esc to finish.').waitFor({ timeout: 3000 })
+  await field.fill('PEP')
+  await page.getByRole('option').filter({ hasText: 'PepsiCo' }).first().waitFor({ timeout: 15_000 })
+  await page.keyboard.press('Enter')
+  await row('PEP').waitFor({ timeout: 15_000 })
+  check(await page.getByRole('dialog', { name: 'Symbol search' }).isVisible(), 'el buscador se cerró al añadir')
+  await page.keyboard.press('Escape')
   const state = await savedState()
-  check(activeItems(state).some((item) => item.symbol === 'KO'), 'KO no se añadió a la lista')
-  await row('KO').waitFor({ timeout: 3000 })
+  check(['KO', 'PEP'].every((symbol) => activeItems(state).some((item) => item.symbol === symbol)), 'KO y PEP no están en la lista')
+  check(state.symbol === onScreen, `el gráfico cambió a ${state.symbol} al añadir`)
 })
 
-await step('quita KO de la lista', async () => {
-  await row('KO').hover()
-  await button('Remove KO').click()
-  check(!activeItems(await savedState()).some((item) => item.symbol === 'KO'), 'KO sigue en la lista')
+await step('quita KO y PEP de la lista', async () => {
+  for (const symbol of ['KO', 'PEP']) {
+    await row(symbol).hover()
+    await button(`Remove ${symbol}`).click()
+  }
+  const items = activeItems(await savedState())
+  check(!items.some((item) => item.symbol === 'KO' || item.symbol === 'PEP'), 'KO o PEP siguen en la lista')
+})
+
+await step('un par de divisas se busca, se añade y se ve como en TradingView', async () => {
+  const before = (await savedState()).symbol
+  await button('Add symbol').click()
+  await page.getByPlaceholder('Search symbol or company').fill('EURUSD')
+  const option = page.getByRole('option').filter({ hasText: 'Forex' }).filter({ hasText: /^EURUSD/ }).first()
+  await option.waitFor({ timeout: 15_000 })
+  check(!(await option.textContent())?.includes('=X'), 'el buscador enseña el símbolo de Yahoo')
+  await option.click()
+  await row('EURUSD').waitFor({ timeout: 5000 })
+  await page.keyboard.press('Escape')
+  await row('EURUSD').click()
+  await page.getByText(/EUR\/USD · 1D · Forex/).waitFor({ timeout: 15_000 })
+  check(activeItems(await savedState()).some((item) => item.symbol === 'EURUSD=X'), 'el par no se guardó con su símbolo de Yahoo')
+  await page.waitForFunction(() => document.title.startsWith('EURUSD '), undefined, { timeout: 5000 })
+  check(/^EURUSD \d\.\d{4}( [▲▼])? [+−]?\d+\.\d{2}%$/.test(await page.title()), `título del par inesperado: ${await page.title()}`)
+  check((await row('EURUSD').locator('[data-currency]').count()) === 2, 'el par no muestra sus dos banderas')
+  await row('EURUSD').getByText(/^\d\.\d{4}$/).first().waitFor({ timeout: 20_000 })
+  await row('EURUSD').hover()
+  await button('Remove EURUSD').click()
+  check(!activeItems(await savedState()).some((item) => item.symbol === 'EURUSD=X'), 'el par sigue en la lista')
+  await row(before).click()
+  await page.waitForFunction((symbol) => document.title.startsWith(`${symbol} `), before, { timeout: 15_000 })
 })
 
 await step('Enter antes de que lleguen los resultados elige el primero', async () => {
@@ -658,7 +732,8 @@ await step('Enter antes de que lleguen los resultados elige el primero', async (
   await button('Add symbol').click()
   await page.getByPlaceholder('Search symbol or company').pressSequentially('KO')
   await page.keyboard.press('Enter')
-  await page.getByRole('dialog', { name: 'Symbol search' }).waitFor({ state: 'detached', timeout: 10_000 })
+  await row('KO').waitFor({ timeout: 15_000 })
+  await page.keyboard.press('Escape')
   const added = activeItems(await savedState())
     .map((item) => item.symbol)
     .filter((symbol) => !before.includes(symbol))
@@ -821,6 +896,7 @@ await step('añade un símbolo solo a la lista nueva', async () => {
   await page.getByPlaceholder('Search symbol or company').fill('NFLX')
   await page.getByRole('option').filter({ hasText: 'Netflix' }).first().click()
   await row('NFLX').waitFor({ timeout: 15_000 })
+  await page.keyboard.press('Escape')
   const state = await savedState()
   check(symbolsOf(state.watchlists[1].items).map((item) => item.symbol).join(',') === 'NFLX', 'NFLX no está en la lista nueva')
   check(!symbolsOf(state.watchlists[0].items).some((item) => item.symbol === 'NFLX'), 'NFLX se coló en la primera lista')
@@ -1027,6 +1103,66 @@ await step('importar lo exportado devuelve la configuración anterior', async ()
   await page.keyboard.press('Escape')
   const { rev: _rev, ...current } = await savedState()
   check(JSON.stringify(current) === JSON.stringify(exported), 'la configuración no volvió a ser la exportada')
+})
+
+await step('una IA conectada por MCP añade una línea con alerta y una nota que aparecen sin recargar', async () => {
+  const environment = Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  )
+  const client = new Client({ name: 'smoke', version: '1' })
+  await client.connect(
+    new StdioClientTransport({
+      command: resolve('node_modules/.bin/tsx'),
+      args: [resolve('mcp/index.ts')],
+      env: { ...environment, DOJI_URL: url },
+      stderr: 'pipe',
+    }),
+  )
+  const call = async (name: string, args: Record<string, unknown>) => {
+    const result = await client.callTool({ name, arguments: args })
+    const [first] = result.content as { text: string }[]
+    check(result.isError !== true, `${name} falló: ${first.text}`)
+    return JSON.parse(first.text)
+  }
+  const { symbol } = await savedState()
+  const noteMark = page.getByRole('img', { name: 'Has a note' })
+  check((await noteMark.count()) === 0, `${symbol} ya tenía una nota antes de la prueba`)
+  const scan = await call('scan_watchlist', {})
+  check(Array.isArray(scan.rows) && scan.rows.length > 0, 'scan_watchlist no devolvió filas')
+  const chart = await call('get_chart', { symbol, bars: 5 })
+  check(typeof chart.price.close === 'number' && chart.recentBars.rows.length === 5, 'get_chart no devolvió el precio y las velas')
+  const level = Number((chart.price.close * 0.97).toFixed(2))
+  const added = await call('add_horizontal_line', { symbol, price: level, alert: true, color: '#FF00FF' })
+  await call('write_note', { symbol, text: 'Nota escrita por la IA' })
+  await noteMark.waitFor({ timeout: 8000 })
+  const { price } = await panes()
+  await page.mouse.move(700, 10)
+  await page.waitForTimeout(300)
+  check(await hasColor(price, [255, 0, 255]), 'la línea de la IA no se ve en el gráfico')
+  await page.keyboard.press('Control+z')
+  await page.waitForTimeout(400)
+  const kept = (await drawingsOf(symbol)).find((drawing) => drawing.id === added.id)
+  check(kept?.kind === 'hline' && kept.alert === true && kept.value === level, 'deshacer quitó o cambió la línea de la IA')
+  const themeBefore = (await savedState()).theme
+  await button(/Switch to .* theme/).click()
+  const afterToggle = await savedState()
+  check(afterToggle.theme !== themeBefore, 'el cambio de tema de la pestaña chocó con lo que guardó la IA')
+  check((afterToggle.lines[symbol] ?? []).some((drawing) => drawing.id === added.id), 'la línea de la IA se perdió')
+  check((await page.getByText(/changed in another tab/).count()) === 0, 'la pestaña se recargó por un conflicto')
+  await button(/Switch to .* theme/).click()
+  const latest = await savedState()
+  const cleaned = await fetch(`${url}/api/state`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...latest,
+      lines: { ...latest.lines, [symbol]: (latest.lines[symbol] ?? []).filter((drawing) => drawing.id !== added.id) },
+      notes: Object.fromEntries(Object.entries(latest.notes).filter(([key]) => key !== symbol)),
+    }),
+  })
+  check(cleaned.ok, 'no se pudo limpiar lo que añadió la IA')
+  await noteMark.waitFor({ state: 'detached', timeout: 8000 })
+  await client.close()
 })
 
 await step('la API rechaza las peticiones hechas desde otras webs', async () => {

@@ -1,3 +1,5 @@
+import { priceDigits } from '../../shared/symbols'
+
 const MINUS = '−'
 
 const VOLUME_UNITS: [number, string][] = [
@@ -10,12 +12,10 @@ const fixed = (digits: number): Intl.NumberFormat =>
   new Intl.NumberFormat('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 
 const twoDecimals = fixed(2)
-const fourDecimals = fixed(4)
+const byDigits = new Map([2, 3, 4].map((digits) => [digits, fixed(digits)]))
 
-export const formatPrice = (value: number): string => {
-  const magnitude = Math.abs(value)
-  return (magnitude > 0 && magnitude < 1 ? fourDecimals : twoDecimals).format(value)
-}
+export const formatPrice = (value: number, symbol = ''): string =>
+  (byDigits.get(priceDigits(symbol, value)) ?? twoDecimals).format(value)
 
 export const formatSigned = (value: number): string => {
   const rounded = Math.round(value * 100) / 100

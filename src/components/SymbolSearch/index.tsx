@@ -1,4 +1,5 @@
 import { type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from 'react'
+import { displaySymbol } from '../../../shared/symbols'
 import type { SymbolInfo } from '../../../shared/types'
 import { searchSymbols } from '../../api/client'
 import * as Styles from './styles'
@@ -7,6 +8,7 @@ type SymbolSearchProps = {
   onPick: (info: SymbolInfo) => void
   onClose: () => void
   search?: (query: string) => Promise<SymbolInfo[]>
+  stayOpen?: boolean
 }
 
 type SearchState = { status: 'idle' | 'searching' | 'done' | 'failed'; results: SymbolInfo[]; text: string }
@@ -14,28 +16,39 @@ type SearchState = { status: 'idle' | 'searching' | 'done' | 'failed'; results: 
 const TYPING_PAUSE_MS = 250
 const IDLE: SearchState = { status: 'idle', results: [], text: '' }
 
-const hintFor = ({ status, results }: SearchState): string | null => {
+const hintFor = ({ status, results }: SearchState, added: string | null): string | null => {
   if (results.length > 0) return null
+  if (status === 'idle' && added) return `${displaySymbol(added)} added. Type another ticker, or press Esc to finish.`
   if (status === 'idle') return 'Type a ticker or a company name'
   if (status === 'searching') return 'Searching…'
   if (status === 'failed') return 'Search failed'
   return 'No results'
 }
 
-export const SymbolSearch = ({ onPick, onClose, search = searchSymbols }: SymbolSearchProps) => {
+export const SymbolSearch = ({ onPick, onClose, search = searchSymbols, stayOpen = false }: SymbolSearchProps) => {
   const [query, setQuery] = useState('')
   const [state, setState] = useState<SearchState>(IDLE)
   const [highlight, setHighlight] = useState(0)
+  const [added, setAdded] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const searchRef = useRef(search)
-  const pickRef = useRef(onPick)
   const awaitedRef = useRef(false)
-  const hint = hintFor(state)
+  const hint = hintFor(state, added)
+
+  const choose = (info: SymbolInfo) => {
+    onPick(info)
+    if (!stayOpen) return
+    setAdded(info.symbol)
+    setQuery('')
+    inputRef.current?.focus()
+  }
+
+  const chooseRef = useRef(choose)
 
   useEffect(() => {
     searchRef.current = search
-    pickRef.current = onPick
-  }, [search, onPick])
+    chooseRef.current = choose
+  })
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -59,7 +72,7 @@ export const SymbolSearch = ({ onPick, onClose, search = searchSymbols }: Symbol
           awaitedRef.current = false
           setState({ status: 'done', results, text })
           setHighlight(0)
-          if (awaited && results[0]) pickRef.current(results[0])
+          if (awaited && results[0]) chooseRef.current(results[0])
         })
         .catch(() => {
           if (!active) return
@@ -85,7 +98,7 @@ export const SymbolSearch = ({ onPick, onClose, search = searchSymbols }: Symbol
       awaitedRef.current = query.trim() !== '' && state.status !== 'failed'
       return
     }
-    if (state.results[highlight]) onPick(state.results[highlight])
+    if (state.results[highlight]) choose(state.results[highlight])
   }
 
   const handleBackdrop = (event: MouseEvent) => {
@@ -113,9 +126,9 @@ export const SymbolSearch = ({ onPick, onClose, search = searchSymbols }: Symbol
                 role="option"
                 aria-selected={index === highlight}
                 onMouseEnter={() => setHighlight(index)}
-                onClick={() => onPick(result)}
+                onClick={() => choose(result)}
               >
-                <Styles.ResultSymbol>{result.symbol}</Styles.ResultSymbol>
+                <Styles.ResultSymbol>{displaySymbol(result.symbol)}</Styles.ResultSymbol>
                 <Styles.ResultName>{result.name}</Styles.ResultName>
                 <Styles.ResultExchange>{result.exchange}</Styles.ResultExchange>
               </Styles.Result>

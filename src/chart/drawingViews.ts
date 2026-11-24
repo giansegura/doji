@@ -20,8 +20,8 @@ export const DRAFT_ID = 'draft'
 
 const ALERT_MARGIN = 14
 
-const labelOf = (drawing: Drawing, outline: Outline): AxisLabel | null =>
-  drawing.kind === 'hline' ? { y: outline.segments[0][0].y, text: formatPrice(drawing.value) } : null
+const labelOf = (drawing: Drawing, outline: Outline, symbol: string): AxisLabel | null =>
+  drawing.kind === 'hline' ? { y: outline.segments[0][0].y, text: formatPrice(drawing.value, symbol) } : null
 
 const alertOf = (drawing: Drawing, outline: Outline, width: number): XY | null => {
   const [[from, to]] = outline.segments
@@ -30,7 +30,7 @@ const alertOf = (drawing: Drawing, outline: Outline, width: number): XY | null =
   return from.x <= to.x ? to : from
 }
 
-export const viewOf = (drawing: Drawing, geometry: ShapeGeometry, selected: boolean): ShapeView | null => {
+export const viewOf = (drawing: Drawing, geometry: ShapeGeometry, selected: boolean, symbol = ''): ShapeView | null => {
   const outline = outlineOf(drawing, geometry)
   if (!outline) return null
   return {
@@ -38,7 +38,7 @@ export const viewOf = (drawing: Drawing, geometry: ShapeGeometry, selected: bool
     color: drawing.color,
     width: drawing.width,
     selected,
-    label: labelOf(drawing, outline),
+    label: labelOf(drawing, outline, symbol),
     alert: alertOf(drawing, outline, geometry.width),
   }
 }

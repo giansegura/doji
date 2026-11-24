@@ -168,3 +168,18 @@ test('Should hide the MACD legend without a MACD pane', () => {
   setup({ indicators, macdPaneTop: null, values: { ...values, macd: { line: 1.234, signal: 0.9, histogram: 0.334 } } })
   expect(text()).not.toContain('MACD')
 })
+
+test('Should show the prices of a forex pair with the decimals of forex', () => {
+  renderWithTheme(
+    <Legend
+      info={{ symbol: 'EURUSD=X', name: 'EUR/USD', exchange: 'Forex' }}
+      timeframe="D"
+      values={{ ...values, bar: { time: '2026-11-23', open: 1.09039, high: 1.09673, low: 1.08991, close: 1.096731, volume: 0 }, previousClose: 1.0906 }}
+      indicators={DEFAULT_STATE.indicators}
+      rsiPaneTop={null}
+      macdPaneTop={null}
+    />,
+  )
+  expect(text()).toContain('1.0967')
+  expect(text()).toContain('1.0899')
+})

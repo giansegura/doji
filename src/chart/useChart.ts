@@ -29,6 +29,7 @@ import type {
   SmaConfig,
   Timeframe,
 } from '../../shared/types'
+import { priceDigits } from '../../shared/symbols'
 import type { Theme } from '../theme/tokens'
 import { createBandPrimitive } from './bandPrimitive'
 import { type HoverStore, createHoverStore } from './hoverStore'
@@ -519,6 +520,8 @@ export const useChart = ({ history, timeframe, theme, indicators, settings }: Us
 
     syncMain(chart, series, chartType)
     series.main.update(data, theme)
+    const precision = priceDigits(symbol, data.bars.at(-1)?.close ?? 0)
+    series.main.series.applyOptions({ priceFormat: { type: 'price', precision, minMove: 1 / 10 ** precision } })
     series.volume?.setData(data.volume)
     series.rsi?.setData(data.rsi)
     series.rsiMa?.setData(data.rsiMa)

@@ -496,3 +496,28 @@ test('Should keep the lengths of the indicators whole', async () => {
     expect.objectContaining({ bollinger: { visible: true, length: 30, multiplier: 2 } }),
   )
 })
+
+test('Should show a forex pair like TradingView on the symbol button', () => {
+  const noop = () => undefined
+  renderWithTheme(
+    <TopBar
+      symbol="EURUSD=X"
+      timeframe="D"
+      theme="dark"
+      indicators={DEFAULT_STATE.indicators}
+      notice={null}
+      onOpenSearch={noop}
+      onTimeframe={noop}
+      onTheme={noop}
+      onIndicators={noop}
+      chart={DEFAULT_STATE.chart}
+      onChart={noop}
+      onScreenshot={noop}
+      onExportConfig={noop}
+      onImportConfig={noop}
+      split={false}
+      onSplit={noop}
+    />,
+  )
+  expect(screen.getByRole('button', { name: 'EURUSD' }).textContent).toBe('EURUSD')
+})

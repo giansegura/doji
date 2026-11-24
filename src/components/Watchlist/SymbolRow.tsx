@@ -1,4 +1,5 @@
 import { useTheme } from 'styled-components'
+import { displaySymbol } from '../../../shared/symbols'
 import type { ExtendedQuote, ExtendedSession, Quote, SymbolInfo } from '../../../shared/types'
 import { formatPercent, formatPrice } from '../../chart/format'
 import { SymbolLogo } from '../SymbolLogo'
@@ -15,8 +16,8 @@ type SymbolRowProps = {
 const MISSING = '—'
 const SESSION_LABELS: Record<ExtendedSession, string> = { pre: 'Pre-market', post: 'Post-market' }
 
-const describeExtended = (extended: ExtendedQuote): string =>
-  `${SESSION_LABELS[extended.session]}: ${formatPrice(extended.price)} (${formatPercent(extended.changePercent)})`
+const describeExtended = (extended: ExtendedQuote, symbol: string): string =>
+  `${SESSION_LABELS[extended.session]}: ${formatPrice(extended.price, symbol)} (${formatPercent(extended.changePercent)})`
 
 export const SymbolRow = ({ item, quote, active, onSelect, onRemove }: SymbolRowProps) => {
   const theme = useTheme()
@@ -28,7 +29,7 @@ export const SymbolRow = ({ item, quote, active, onSelect, onRemove }: SymbolRow
       <Styles.RowButton type="button" title={item.name} aria-current={active ? 'true' : undefined} onClick={onSelect}>
         <Styles.Symbol>
           <SymbolLogo symbol={item.symbol} />
-          <Styles.Ticker>{item.symbol}</Styles.Ticker>
+          <Styles.Ticker>{displaySymbol(item.symbol)}</Styles.Ticker>
           {extended && (
             <Styles.SessionDot
               $session={extended.session}
@@ -38,13 +39,13 @@ export const SymbolRow = ({ item, quote, active, onSelect, onRemove }: SymbolRow
             />
           )}
         </Styles.Symbol>
-        <Styles.Number $wideOnly>{quote ? formatPrice(quote.price) : MISSING}</Styles.Number>
+        <Styles.Number $wideOnly>{quote ? formatPrice(quote.price, item.symbol) : MISSING}</Styles.Number>
         <Styles.Number $color={changeColor}>{quote ? formatPercent(quote.changePercent) : MISSING}</Styles.Number>
         {extended ? (
           <Styles.Number
             $widestOnly
             $color={extended.changePercent < 0 ? theme.ui.down : theme.ui.up}
-            title={describeExtended(extended)}
+            title={describeExtended(extended, item.symbol)}
           >
             {formatPercent(extended.changePercent)}
           </Styles.Number>
@@ -52,7 +53,7 @@ export const SymbolRow = ({ item, quote, active, onSelect, onRemove }: SymbolRow
           <Styles.Number $widestOnly>{MISSING}</Styles.Number>
         )}
       </Styles.RowButton>
-      <Styles.RemoveButton type="button" aria-label={`Remove ${item.symbol}`} onClick={onRemove}>
+      <Styles.RemoveButton type="button" aria-label={`Remove ${displaySymbol(item.symbol)}`} onClick={onRemove}>
         ×
       </Styles.RemoveButton>
     </>

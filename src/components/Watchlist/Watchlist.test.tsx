@@ -263,3 +263,14 @@ test('Should not close the section field on the Enter or Escape that belong to c
   expect(handlers.onAddSection).not.toHaveBeenCalled()
   expect(screen.getByRole('textbox', { name: 'New section name' })).toBeTruthy()
 })
+
+test('Should show a forex pair like TradingView with the decimals of forex', () => {
+  setup({
+    items: [{ symbol: 'EURUSD=X', name: 'EUR/USD', exchange: 'Forex' }],
+    quotes: { 'EURUSD=X': { symbol: 'EURUSD=X', price: 1.096731, change: 0.0061, changePercent: 0.559, extended: null } },
+  })
+  const pair = row('EURUSD')
+  expect(within(pair).getByText('EURUSD')).toBeTruthy()
+  expect(within(pair).getByText('1.0967')).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Remove EURUSD' })).toBeTruthy()
+})

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { displaySymbol } from '../../shared/symbols'
 import type { Drawing, Quote } from '../../shared/types'
 import { formatPrice } from '../chart/format'
 import { type FiredAlert, createAlertWatcher, latestPrice } from '../domain/alerts'
@@ -66,14 +67,15 @@ export const useAlerts = ({ lines, quotes, dispatch, notify = notifyDesktop, now
     }
     const describe = (hit: FiredAlert): FiredNotice => {
       counter.current += 1
-      const level = formatPrice(hit.level)
+      const level = formatPrice(hit.level, hit.symbol)
+      const shown = displaySymbol(hit.symbol)
       announce(
-        `${hit.symbol} crossed ${level}`,
-        `${hit.direction === 'up' ? 'Up' : 'Down'} through ${level}, now at ${formatPrice(hit.price)}`,
+        `${shown} crossed ${level}`,
+        `${hit.direction === 'up' ? 'Up' : 'Down'} through ${level}, now at ${formatPrice(hit.price, hit.symbol)}`,
       )
       return {
         id: `${hit.symbol}:${hit.drawingId}:${counter.current}`,
-        text: `${hit.symbol} crossed ${level} going ${hit.direction}`,
+        text: `${shown} crossed ${level} going ${hit.direction}`,
         time: clockOf(moment),
       }
     }

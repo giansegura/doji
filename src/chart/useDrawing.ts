@@ -78,7 +78,7 @@ export const useDrawing = (args: UseDrawingArgs) => {
       const style = { timeframe: current.timeframe, color: current.defaultColor, width: DEFAULT_WIDTH, pricedAt: current.priceBasis }
       const drafted = draft && draft.pane === pane ? [draftDrawing(draft, style)] : []
       return [...saved, ...drafted]
-        .map((drawing) => viewOf(drawing, geometry, drawing.id === selectedRef.current || drawing.id === DRAFT_ID))
+        .map((drawing) => viewOf(drawing, geometry, drawing.id === selectedRef.current || drawing.id === DRAFT_ID, current.symbol))
         .filter(notNull)
     }
 

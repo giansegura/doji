@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { MAX_SMAS, SMA_COLORS, SMA_MAX_LENGTH, SMA_MIN_LENGTH } from '../../../shared/limits'
+import { displaySymbol } from '../../../shared/symbols'
 import type {
   AppState,
   ChartSettings,
@@ -155,9 +156,9 @@ export const TopBar = ({
 
   return (
     <Styles.Bar>
-      <Styles.SymbolButton type="button" aria-label={symbol} onClick={onOpenSearch}>
+      <Styles.SymbolButton type="button" aria-label={displaySymbol(symbol)} onClick={onOpenSearch}>
         <SearchIcon />
-        {symbol}
+        {displaySymbol(symbol)}
       </Styles.SymbolButton>
       <Styles.Divider />
       {TIMEFRAMES.map((option) => (

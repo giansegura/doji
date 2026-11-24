@@ -9,9 +9,9 @@ const apple: SymbolInfo = { symbol: 'AAPL', name: 'Apple Inc.', exchange: 'NASDA
 const hospitality: SymbolInfo = { symbol: 'APLE', name: 'Apple Hospitality REIT, Inc.', exchange: 'NYSE' }
 const applied: SymbolInfo = { symbol: 'AMAT', name: 'Applied Materials, Inc.', exchange: 'NASDAQ' }
 
-const setup = (search: (query: string) => Promise<SymbolInfo[]>) => {
+const setup = (search: (query: string) => Promise<SymbolInfo[]>, stayOpen = false) => {
   const handlers = { onPick: vi.fn(), onClose: vi.fn() }
-  renderWithTheme(<SymbolSearch search={search} {...handlers} />)
+  renderWithTheme(<SymbolSearch search={search} stayOpen={stayOpen} {...handlers} />)
   return { handlers, user: userEvent.setup(), input: screen.getByPlaceholderText('Search symbol or company') }
 }
 
@@ -163,4 +163,57 @@ test('Should forget an early Enter when the search finds nothing', async () => {
   await user.type(input, 'app')
   await screen.findByText('Apple Inc.')
   expect(handlers.onPick).not.toHaveBeenCalled()
+})
+
+test('Should list a forex pair like TradingView, marked as Forex, and pick it with its Yahoo symbol', async () => {
+  const pair: SymbolInfo = { symbol: 'EUR=X', name: 'USD/EUR', exchange: 'Forex' }
+  const { handlers, user, input } = setup(async () => [pair])
+  await user.type(input, 'usdeur')
+  const option = await screen.findByRole('option', { name: /USDEUR/ })
+  expect(option.textContent).toContain('USD/EUR')
+  expect(option.textContent).toContain('Forex')
+  expect(option.textContent).not.toContain('EUR=X')
+  await user.click(option)
+  expect(handlers.onPick).toHaveBeenCalledWith(pair)
+})
+
+const byQuery = async (query: string): Promise<SymbolInfo[]> => (query.toLowerCase().startsWith('apl') ? [hospitality] : [apple])
+
+test('Should stay open after a pick when adding to a watchlist, ready for the next ticker', async () => {
+  const { handlers, user, input } = setup(byQuery, true)
+  await user.type(input, 'app')
+  await screen.findByText('Apple Inc.')
+  await user.keyboard('{Enter}')
+  expect(handlers.onPick).toHaveBeenCalledWith(apple)
+  expect(handlers.onClose).not.toHaveBeenCalled()
+  expect((input as HTMLInputElement).value).toBe('')
+  expect(document.activeElement).toBe(input)
+  expect(screen.getByText('AAPL added. Type another ticker, or press Esc to finish.')).toBeTruthy()
+})
+
+test('Should add several symbols in a row with the ticker and Enter', async () => {
+  const { handlers, user, input } = setup(byQuery, true)
+  await user.type(input, 'app')
+  await screen.findByText('Apple Inc.')
+  await user.keyboard('{Enter}')
+  await user.type(input, 'aple')
+  await screen.findByText('Apple Hospitality REIT, Inc.')
+  await user.keyboard('{Enter}')
+  expect(handlers.onPick.mock.calls.map(([info]) => info.symbol)).toEqual(['AAPL', 'APLE'])
+})
+
+test('Should stay open too when Enter was pressed before the results arrived', async () => {
+  const { handlers, user, input } = setup(byQuery, true)
+  await user.type(input, 'app{Enter}')
+  await vi.waitFor(() => expect(handlers.onPick).toHaveBeenCalledWith(apple))
+  expect((input as HTMLInputElement).value).toBe('')
+  expect(screen.getByRole('dialog', { name: 'Symbol search' })).toBeTruthy()
+})
+
+test('Should stay open after a pick with the mouse when adding to a watchlist', async () => {
+  const { handlers, user, input } = setup(byQuery, true)
+  await user.type(input, 'app')
+  await user.click(await screen.findByRole('option', { name: /AAPL/ }))
+  expect(handlers.onPick).toHaveBeenCalledWith(apple)
+  expect((input as HTMLInputElement).value).toBe('')
 })

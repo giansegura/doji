@@ -49,7 +49,7 @@ export const Legend = ({ info, timeframe, values, indicators, rsiPaneTop, macdPa
             PRICE_FIELDS.map(([label, field]) => (
               <Styles.LegendPair key={field}>
                 <Styles.LegendLabel>{label}</Styles.LegendLabel>
-                <Styles.LegendValue $color={barColor}>{formatPrice(bar[field])}</Styles.LegendValue>
+                <Styles.LegendValue $color={barColor}>{formatPrice(bar[field], info.symbol)}</Styles.LegendValue>
               </Styles.LegendPair>
             ))}
           {bar && (
@@ -74,7 +74,7 @@ export const Legend = ({ info, timeframe, values, indicators, rsiPaneTop, macdPa
               return (
                 <Styles.LegendPair key={item.id}>
                   <Styles.LegendLabel>{`${item.kind === 'ema' ? 'EMA' : 'SMA'} ${item.length} close`}</Styles.LegendLabel>
-                  {value !== null && <Styles.LegendValue $color={item.color}>{formatPrice(value)}</Styles.LegendValue>}
+                  {value !== null && <Styles.LegendValue $color={item.color}>{formatPrice(value, info.symbol)}</Styles.LegendValue>}
                 </Styles.LegendPair>
               )
             })}
@@ -83,9 +83,9 @@ export const Legend = ({ info, timeframe, values, indicators, rsiPaneTop, macdPa
         {indicators.bollinger.visible && (
           <Styles.LegendRow>
             <Styles.LegendLabel>{`BB ${indicators.bollinger.length} ${indicators.bollinger.multiplier}`}</Styles.LegendLabel>
-            {bands?.basis != null && <Styles.LegendValue $color={theme.chart.bandBasis}>{formatPrice(bands.basis)}</Styles.LegendValue>}
-            {bands?.upper != null && <Styles.LegendValue $color={theme.chart.band}>{formatPrice(bands.upper)}</Styles.LegendValue>}
-            {bands?.lower != null && <Styles.LegendValue $color={theme.chart.band}>{formatPrice(bands.lower)}</Styles.LegendValue>}
+            {bands?.basis != null && <Styles.LegendValue $color={theme.chart.bandBasis}>{formatPrice(bands.basis, info.symbol)}</Styles.LegendValue>}
+            {bands?.upper != null && <Styles.LegendValue $color={theme.chart.band}>{formatPrice(bands.upper, info.symbol)}</Styles.LegendValue>}
+            {bands?.lower != null && <Styles.LegendValue $color={theme.chart.band}>{formatPrice(bands.lower, info.symbol)}</Styles.LegendValue>}
           </Styles.LegendRow>
         )}
       </Styles.Legend>
