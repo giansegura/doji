@@ -1,5 +1,5 @@
 import { type RefObject, useState } from 'react'
-import type { ChartSettings, History, Indicators, Timeframe, TrendLine } from '../../../shared/types'
+import type { ChartSettings, History, Indicators, Timeframe, Drawing } from '../../../shared/types'
 import { ChartView } from '../../chart/ChartView'
 import type { Tool } from '../../state/appReducer'
 import * as Styles from '../../styles'
@@ -13,14 +13,14 @@ type ChartAreaProps = {
   indicators: Indicators
   settings: ChartSettings
   screenshotRef?: RefObject<(() => void) | null>
-  lines: TrendLine[]
+  lines: Drawing[]
   tool: Tool
-  onLinesChange: (lines: TrendLine[]) => void
+  onLinesChange: (lines: Drawing[]) => void
   onToolDone: () => void
   onRetry: () => void
 }
 
-const NO_LINES: TrendLine[] = []
+const NO_LINES: Drawing[] = []
 
 const ignore = (): void => undefined
 

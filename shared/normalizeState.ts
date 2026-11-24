@@ -1,5 +1,9 @@
 import {
+  BAND_MAX_MULTIPLIER,
+  BAND_MIN_MULTIPLIER,
+  LIST_NAME_MAX_LENGTH,
   MAX_LISTS,
+  NOTE_MAX_LENGTH,
   MAX_SMAS,
   SMA_COLORS,
   SMA_MAX_LENGTH,
@@ -15,10 +19,12 @@ import {
   type Indicators,
   type LinePoint,
   type SmaConfig,
+  type ListItem,
   type SymbolInfo,
   type SymbolList,
   type Timeframe,
-  type TrendLine,
+  type Drawing,
+  type DrawingBase,
 } from './types'
 
 type Raw = Record<string, unknown>
@@ -42,7 +48,7 @@ const asFinite = (value: unknown): number | null => (typeof value === 'number' &
 
 const asBoolean = (value: unknown, fallback: boolean): boolean => (typeof value === 'boolean' ? value : fallback)
 
-const asTimeframe = (value: unknown): Timeframe | null => (value === 'D' || value === 'W' ? value : null)
+const asTimeframe = (value: unknown): Timeframe | null => (value === 'D' || value === 'W' || value === 'M' ? value : null)
 
 const notNull = <T>(value: T | null): value is T => value !== null
 
@@ -53,7 +59,23 @@ const toSymbolInfo = (raw: unknown): SymbolInfo | null => {
   return { symbol, name: asText(item.name) ?? symbol, exchange: asText(item.exchange) ?? '' }
 }
 
-const toItems = (raw: unknown): SymbolInfo[] => (Array.isArray(raw) ? raw.map(toSymbolInfo).filter(notNull) : [])
+const toSection = (item: Raw): ListItem | null => {
+  const id = asText(item.id)
+  const title = typeof item.title === 'string' ? item.title.trim().slice(0, LIST_NAME_MAX_LENGTH) : ''
+  return id && title ? { kind: 'section', id, title } : null
+}
+
+const toItem = (raw: unknown): ListItem | null =>
+  asRecord(raw).kind === 'section' ? toSection(asRecord(raw)) : toSymbolInfo(raw)
+
+const toItems = (raw: unknown): ListItem[] => (Array.isArray(raw) ? raw.map(toItem).filter(notNull) : [])
+
+const toNotes = (raw: unknown): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(asRecord(raw))
+      .filter((entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1].length > 0)
+      .map(([symbol, text]) => [symbol, text.slice(0, NOTE_MAX_LENGTH)]),
+  )
 
 const defaultLists = (): SymbolList[] =>
   DEFAULT_STATE.watchlists.map((list) => ({ ...list, items: list.items.map((item) => ({ ...item })) }))
@@ -89,31 +111,42 @@ const toWidth = (value: unknown): number => {
   return width !== null && width >= 1 && width <= 4 ? width : DEFAULT_LINE_WIDTH
 }
 
-const toLine = (raw: unknown): TrendLine | null => {
-  const line = asRecord(raw)
-  const id = asText(line.id)
-  const p1 = toPoint(line.p1)
-  const p2 = toPoint(line.p2)
-  if (!id || !p1 || !p2 || (line.pane !== 'price' && line.pane !== 'rsi')) return null
+const toBase = (item: Raw): DrawingBase | null => {
+  const id = asText(item.id)
+  if (!id || (item.pane !== 'price' && item.pane !== 'rsi')) return null
   return {
     id,
-    pane: line.pane,
-    timeframe: asTimeframe(line.timeframe) ?? 'D',
-    p1,
-    p2,
-    color: asText(line.color) ?? DEFAULT_LINE_COLOR,
-    width: toWidth(line.width),
-    extendRight: asBoolean(line.extendRight, false),
-    pricedAt: asDate(line.pricedAt) ?? NEVER_ADJUST,
+    pane: item.pane,
+    timeframe: asTimeframe(item.timeframe) ?? 'D',
+    color: asText(item.color) ?? DEFAULT_LINE_COLOR,
+    width: toWidth(item.width),
+    pricedAt: asDate(item.pricedAt) ?? NEVER_ADJUST,
   }
 }
 
-const toLines = (raw: unknown): Record<string, TrendLine[]> =>
+const toDrawing = (raw: unknown): Drawing | null => {
+  const item = asRecord(raw)
+  const base = toBase(item)
+  const p1 = toPoint(item.p1)
+  const p2 = toPoint(item.p2)
+  const value = asFinite(item.value)
+  const offset = asFinite(item.offset)
+  if (!base) return null
+  const alert = item.alert === true ? { alert: true as const } : {}
+  if (item.kind === 'hline') return value === null ? null : { ...base, kind: 'hline', value, ...alert }
+  if (!p1 || !p2) return null
+  if (item.kind === 'channel') return offset === null ? null : { ...base, kind: 'channel', p1, p2, offset }
+  if (item.kind === 'rect') return { ...base, kind: 'rect', p1, p2 }
+  if (item.kind !== undefined && item.kind !== 'trend') return null
+  return { ...base, p1, p2, extendRight: asBoolean(item.extendRight, false), ...alert }
+}
+
+const toLines = (raw: unknown): Record<string, Drawing[]> =>
   Object.fromEntries(
     Object.entries(asRecord(raw))
-      .map(([symbol, list]): [string, TrendLine[]] => [
+      .map(([symbol, list]): [string, Drawing[]] => [
         symbol,
-        Array.isArray(list) ? list.map(toLine).filter(notNull) : [],
+        Array.isArray(list) ? list.map(toDrawing).filter(notNull) : [],
       ])
       .filter(([, list]) => list.length > 0),
   )
@@ -139,21 +172,53 @@ const toSma = (raw: unknown): SmaConfig | null => {
     length,
     color: color !== null && HEX_COLOR.test(color) ? color : SMA_COLORS[0],
     width: width !== null && Number.isInteger(width) && width >= SMA_MIN_WIDTH && width <= SMA_MAX_WIDTH ? width : SMA_MIN_WIDTH,
+    ...(item.kind === 'ema' ? { kind: 'ema' as const } : {}),
   }
+}
+
+const toLength = (value: unknown, fallback: number): number => {
+  const length = asFinite(value)
+  return length !== null && Number.isInteger(length) && length >= SMA_MIN_LENGTH && length <= SMA_MAX_LENGTH
+    ? length
+    : fallback
+}
+
+const toMultiplier = (value: unknown, fallback: number): number => {
+  const multiplier = asFinite(value)
+  return multiplier !== null && multiplier >= BAND_MIN_MULTIPLIER && multiplier <= BAND_MAX_MULTIPLIER ? multiplier : fallback
 }
 
 const toIndicators = (raw: unknown): Indicators => {
   const indicators = asRecord(raw)
   const volume = asRecord(indicators.volume)
   const rsi = asRecord(indicators.rsi)
+  const volumeMa = asRecord(indicators.volumeMa)
+  const bollinger = asRecord(indicators.bollinger)
+  const macd = asRecord(indicators.macd)
+  const defaults = DEFAULT_STATE.indicators
   return {
-    volume: { visible: asBoolean(volume.visible, DEFAULT_STATE.indicators.volume.visible) },
+    volume: { visible: asBoolean(volume.visible, defaults.volume.visible) },
+    volumeMa: {
+      visible: asBoolean(volumeMa.visible, defaults.volumeMa.visible),
+      length: toLength(volumeMa.length, defaults.volumeMa.length),
+    },
     rsi: {
       visible: asBoolean(rsi.visible, DEFAULT_STATE.indicators.rsi.visible),
       length: toRsiLength(rsi.length),
       showMa: asBoolean(rsi.showMa, DEFAULT_STATE.indicators.rsi.showMa),
     },
     sma: Array.isArray(indicators.sma) ? indicators.sma.map(toSma).filter(notNull).slice(0, MAX_SMAS) : [],
+    bollinger: {
+      visible: asBoolean(bollinger.visible, defaults.bollinger.visible),
+      length: toLength(bollinger.length, defaults.bollinger.length),
+      multiplier: toMultiplier(bollinger.multiplier, defaults.bollinger.multiplier),
+    },
+    macd: {
+      visible: asBoolean(macd.visible, defaults.macd.visible),
+      fast: toLength(macd.fast, defaults.macd.fast),
+      slow: toLength(macd.slow, defaults.macd.slow),
+      signal: toLength(macd.signal, defaults.macd.signal),
+    },
   }
 }
 
@@ -191,5 +256,7 @@ export const normalizeState = (raw: unknown): AppState => {
     chart: toChart(source.chart),
     listWidth: toListWidth(source.listWidth),
     lines: toLines(source.lines),
+    notes: toNotes(source.notes),
+    secondChart: asTimeframe(source.secondChart),
   }
 }

@@ -97,3 +97,16 @@ test('Should not refresh while the tab is hidden', async () => {
   expect(fetcher).toHaveBeenCalledTimes(1)
   visibility.mockRestore()
 })
+
+test('Should keep refreshing while the tab is hidden when asked to work in the background', async () => {
+  vi.useFakeTimers()
+  const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+  const fetcher = vi.fn(async (symbols: string[]) => symbols.map((symbol) => ({ symbol, price: 1, change: 0, changePercent: 0 })))
+  renderHook(() => useQuotes(['AAPL'], fetcher, true))
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(15_000)
+  })
+  expect(fetcher).toHaveBeenCalledTimes(2)
+  visibility.mockRestore()
+  vi.useRealTimers()
+})

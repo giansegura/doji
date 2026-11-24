@@ -1,7 +1,8 @@
 import type { Logical } from 'lightweight-charts'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { LinePoint, PaneId, Timeframe, TrendLine } from '../../shared/types'
+import type { Drawing, PaneId, Timeframe } from '../../shared/types'
 import { newId } from '../domain/newId'
+import { isTyping } from '../domain/typing'
 import type { Tool } from '../state/appReducer'
 import {
   type CursorKind,
@@ -10,42 +11,31 @@ import {
   createDrawingController,
   isLineVisible,
 } from './drawingController'
+import { DRAFT_ID, type ShapeView, draftDrawing, viewOf } from './drawingViews'
+import { type DrawingsPrimitive, createDrawingsPrimitive } from './drawingsPrimitive'
 import { createPaneGeometry } from './paneGeometry'
 import { type PaneBox, createPointerSession } from './pointerSession'
-import { type LineView, type TrendLinesPrimitive, createTrendLinesPrimitive } from './trendLinesPrimitive'
 import type { ChartHandles } from './useChart'
 
 type UseDrawingArgs = {
   handles: ChartHandles | null
   symbol: string
-  lines: TrendLine[]
+  lines: Drawing[]
   timeframe: Timeframe
   rsiVisible: boolean
   tool: Tool
   onToolDone: () => void
-  onLinesChange: (lines: TrendLine[]) => void
+  onLinesChange: (lines: Drawing[]) => void
   onVerticalDrag: (pane: PaneId) => void
   defaultColor: string
   handleFill: string
   priceBasis: string
 }
 
-type LineStyle = Omit<LineView, 'a' | 'b'>
-
 const PANES: PaneId[] = ['price', 'rsi']
 const DEFAULT_WIDTH = 2
-const TEXT_FIELDS = ['INPUT', 'TEXTAREA', 'SELECT']
 
 const notNull = <T>(value: T | null): value is T => value !== null
-
-const toView = (geometry: PaneGeometry, p1: LinePoint, p2: LinePoint, style: LineStyle): LineView | null => {
-  const a = geometry.toXY(p1)
-  const b = geometry.toXY(p2)
-  return a && b ? { a, b, ...style } : null
-}
-
-const isTyping = (target: EventTarget | null): boolean =>
-  target instanceof HTMLElement && (TEXT_FIELDS.includes(target.tagName) || target.isContentEditable)
 
 export const useDrawing = (args: UseDrawingArgs) => {
   const { handles, symbol, lines, timeframe, rsiVisible, tool, onLinesChange, handleFill } = args
@@ -53,7 +43,7 @@ export const useDrawing = (args: UseDrawingArgs) => {
   const latest = useRef(args)
   const draftRef = useRef<Draft | null>(null)
   const selectedRef = useRef<string | null>(null)
-  const primitivesRef = useRef<TrendLinesPrimitive[]>([])
+  const primitivesRef = useRef<DrawingsPrimitive[]>([])
   const container = handles?.container ?? null
   const main = handles?.main ?? null
   const rsi = handles?.rsi ?? null
@@ -77,31 +67,19 @@ export const useDrawing = (args: UseDrawingArgs) => {
       })
     }
 
-    const viewsFor = (pane: PaneId): LineView[] => {
+    const viewsFor = (pane: PaneId): ShapeView[] => {
       const geometry = geometryFor(pane)
       if (!geometry) return []
       const current = latest.current
       const draft = draftRef.current
-      const saved = current.lines
-        .filter((line) => line.pane === pane && isLineVisible(line, current.timeframe, current.rsiVisible))
-        .map((line) =>
-          toView(geometry, line.p1, line.p2, {
-            color: line.color,
-            width: line.width,
-            extendRight: line.extendRight,
-            selected: line.id === selectedRef.current,
-          }),
-        )
-      const drafted =
-        draft && draft.pane === pane
-          ? toView(geometry, draft.p1, draft.p2, {
-              color: current.defaultColor,
-              width: DEFAULT_WIDTH,
-              extendRight: false,
-              selected: true,
-            })
-          : null
-      return [...saved, drafted].filter(notNull)
+      const saved = current.lines.filter(
+        (line) => line.pane === pane && isLineVisible(line, current.timeframe, current.rsiVisible),
+      )
+      const style = { timeframe: current.timeframe, color: current.defaultColor, width: DEFAULT_WIDTH, pricedAt: current.priceBasis }
+      const drafted = draft && draft.pane === pane ? [draftDrawing(draft, style)] : []
+      return [...saved, ...drafted]
+        .map((drawing) => viewOf(drawing, geometry, drawing.id === selectedRef.current || drawing.id === DRAFT_ID))
+        .filter(notNull)
     }
 
     const measure = (pane: PaneId): PaneBox | null => {
@@ -157,8 +135,8 @@ export const useDrawing = (args: UseDrawingArgs) => {
     if (!main) return undefined
     const fill = () => latest.current.handleFill
     const attachments = [
-      { series: main, primitive: createTrendLinesPrimitive(() => tools.viewsFor('price'), fill) },
-      ...(rsi ? [{ series: rsi, primitive: createTrendLinesPrimitive(() => tools.viewsFor('rsi'), fill) }] : []),
+      { series: main, primitive: createDrawingsPrimitive(() => tools.viewsFor('price'), fill) },
+      ...(rsi ? [{ series: rsi, primitive: createDrawingsPrimitive(() => tools.viewsFor('rsi'), fill) }] : []),
     ]
     attachments.forEach(({ series, primitive }) => series.attachPrimitive(primitive))
     primitivesRef.current = attachments.map(({ primitive }) => primitive)
@@ -224,7 +202,7 @@ export const useDrawing = (args: UseDrawingArgs) => {
     lines.find((line) => line.id === selectedId && isLineVisible(line, timeframe, rsiVisible)) ?? null
 
   const updateLine = useCallback(
-    (updated: TrendLine) => onLinesChange(lines.map((line) => (line.id === updated.id ? updated : line))),
+    (updated: Drawing) => onLinesChange(lines.map((line) => (line.id === updated.id ? updated : line))),
     [lines, onLinesChange],
   )
 

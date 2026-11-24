@@ -77,8 +77,8 @@ test('Should not fail with fewer bars than the RSI length', () => {
 test('Should read the values under the cursor', () => {
   const daily = Array.from({ length: 30 }, (_, i) => bar(addWeekdays('2026-10-01', i), 10 + i, 11 + i, 9 + i, 10 + i, 7))
   const out = buildSeriesData(daily, 'D', 14, colors)
-  expect(hoverAt(out, 28)).toEqual({ bar: daily[28], previousClose: 37, rsi: 100, rsiMa: 100, smas: [] })
-  expect(hoverAt(out, 0)).toEqual({ bar: daily[0], previousClose: null, rsi: null, rsiMa: null, smas: [] })
+  expect(hoverAt(out, 28)).toEqual({ bar: daily[28], previousClose: 37, volumeMa: null, rsi: 100, rsiMa: 100, smas: [], bands: null, macd: null })
+  expect(hoverAt(out, 0)).toEqual({ bar: daily[0], previousClose: null, volumeMa: null, rsi: null, rsiMa: null, smas: [], bands: null, macd: null })
 })
 
 test('Should read nothing outside the bars', () => {
@@ -90,7 +90,7 @@ test('Should read nothing outside the bars', () => {
 
 test('Should build one moving average per requested length', () => {
   const daily = [10, 20, 30, 40].map((close, i) => bar(addWeekdays('2026-11-09', i), close, close, close, close, 1))
-  const out = buildSeriesData(daily, 'D', 14, colors, [2, 3])
+  const out = buildSeriesData(daily, 'D', 14, colors, [{ length: 2 }, { length: 3 }])
   expect(out.smas).toHaveLength(2)
   expect(out.smas[0].map((item) => item.value)).toEqual([undefined, 15, 25, 35])
   expect(out.smas[1].map((item) => item.value)).toEqual([undefined, undefined, 20, 30])
@@ -99,7 +99,7 @@ test('Should build one moving average per requested length', () => {
 
 test('Should average weekly closes on the weekly timeframe', () => {
   const daily = Array.from({ length: 15 }, (_, i) => bar(addWeekdays('2026-11-09', i), i, i, i, i, 1))
-  const out = buildSeriesData(daily, 'W', 14, colors, [2])
+  const out = buildSeriesData(daily, 'W', 14, colors, [{ length: 2 }])
   expect(out.smas[0].map((item) => item.value)).toEqual([undefined, 6.5, 11.5])
 })
 
@@ -109,7 +109,7 @@ test('Should build no moving averages unless asked', () => {
 
 test('Should read the moving averages under the cursor', () => {
   const daily = [10, 20, 30, 40].map((close, i) => bar(addWeekdays('2026-11-09', i), close, close, close, close, 1))
-  const out = buildSeriesData(daily, 'D', 14, colors, [2, 3])
+  const out = buildSeriesData(daily, 'D', 14, colors, [{ length: 2 }, { length: 3 }])
   expect(hoverAt(out, 1)?.smas).toEqual([15, null])
   expect(hoverAt(out, 3)?.smas).toEqual([35, 30])
 })
@@ -117,4 +117,77 @@ test('Should read the moving averages under the cursor', () => {
 test('Should return empty series for no bars', () => {
   const out = buildSeriesData([], 'D', 14, colors)
   expect([out.bars, out.candles, out.volume, out.rsi, out.rsiMa]).toEqual([[], [], [], [], []])
+})
+
+test('Should build monthly series from daily bars', () => {
+  const bars = ['2026-10-29', '2026-10-30', '2026-11-02', '2026-11-03'].map((time, index) => ({
+    time,
+    open: 10 + index,
+    high: 20 + index,
+    low: 5 + index,
+    close: 11 + index,
+    volume: 100,
+  }))
+  const out = buildSeriesData(bars, 'M', 14, { volumeUp: 'u', volumeDown: 'd' })
+  expect(out.bars.map((month) => month.time)).toEqual(['2026-10-29', '2026-11-02'])
+  expect(out.bars[0]).toMatchObject({ open: 10, high: 21, low: 5, close: 12, volume: 200 })
+})
+
+const rising = [10, 20, 30, 40, 50, 60].map((close, i) => bar(addWeekdays('2026-11-09', i), close, close, close, close, 100 * (i + 1)))
+
+test('Should build an exponential average when one is asked for', () => {
+  const out = buildSeriesData([10, 10, 10, 22].map((close, i) => bar(addWeekdays('2026-11-09', i), close, close, close, close, 1)), 'D', 14, colors, [
+    { length: 3, kind: 'ema' },
+    { length: 3 },
+  ])
+  expect(out.smas[0].map((item) => item.value)).toEqual([undefined, undefined, 10, 16])
+  expect(out.smas[1].map((item) => item.value)).toEqual([undefined, undefined, 10, 14])
+})
+
+test('Should average the volume over the asked length', () => {
+  const out = buildSeriesData(rising, 'D', 14, colors, [], { volumeMa: 2 })
+  expect(out.volumeMa.map((item) => item.value)).toEqual([undefined, 150, 250, 350, 450, 550])
+})
+
+test('Should build the three bands around the closes', () => {
+  const out = buildSeriesData(rising, 'D', 14, colors, [], { bollinger: { length: 2, multiplier: 2 } })
+  expect(out.bands?.basis.map((item) => item.value)).toEqual([undefined, 15, 25, 35, 45, 55])
+  expect(out.bands?.upper.map((item) => item.value)).toEqual([undefined, 25, 35, 45, 55, 65])
+  expect(out.bands?.lower.map((item) => item.value)).toEqual([undefined, 5, 15, 25, 35, 45])
+})
+
+test('Should build the MACD line, its signal and a histogram coloured by its sign', () => {
+  const closes = [10, 10, 10, 10, 10, 14, 20, 28, 20, 8]
+  const bars = closes.map((close, i) => bar(addWeekdays('2026-11-09', i), close, close, close, close, 1))
+  const out = buildSeriesData(bars, 'D', 14, { ...colors, up: 'green', down: 'red' }, [], { macd: { fast: 2, slow: 4, signal: 2 } })
+  expect(out.macd?.line).toHaveLength(bars.length)
+  expect(out.macd?.line[2].value).toBeUndefined()
+  expect(out.macd?.line[3].value).toBe(0)
+  expect(out.macd?.signal[3].value).toBeUndefined()
+  const histogram = out.macd?.histogram ?? []
+  expect(histogram[7]).toMatchObject({ color: 'green' })
+  expect(histogram[9]).toMatchObject({ color: 'red' })
+  expect(histogram[3]).toEqual({ time: bars[3].time })
+})
+
+test('Should leave out the studies that are not asked for', () => {
+  const out = buildSeriesData(rising, 'D', 14, colors)
+  expect(out.volumeMa).toEqual([])
+  expect(out.bands).toBeNull()
+  expect(out.macd).toBeNull()
+})
+
+test('Should read the studies under the cursor', () => {
+  const out = buildSeriesData(rising, 'D', 14, colors, [], {
+    volumeMa: 2,
+    bollinger: { length: 2, multiplier: 2 },
+    macd: { fast: 2, slow: 4, signal: 2 },
+  })
+  const hover = hoverAt(out, 5)
+  expect(hover?.volumeMa).toBe(550)
+  expect(hover?.bands).toEqual({ basis: 55, upper: 65, lower: 45 })
+  expect(hover?.macd?.line).toBeCloseTo(10, 9)
+  expect(hoverAt(out, 0)?.volumeMa).toBeNull()
+  expect(hoverAt(out, 0)?.bands).toEqual({ basis: null, upper: null, lower: null })
+  expect(hoverAt(buildSeriesData(rising, 'D', 14, colors), 5)).toMatchObject({ volumeMa: null, bands: null, macd: null })
 })

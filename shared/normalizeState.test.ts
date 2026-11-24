@@ -83,7 +83,11 @@ test('Should keep at most twenty lists', () => {
 
 test('Should fill in missing indicator settings one by one', () => {
   const out = normalizeState({ indicators: { rsi: { length: 21, visible: 'yes' }, volume: { visible: false } } })
-  expect(out.indicators).toEqual({ volume: { visible: false }, rsi: { visible: true, length: 21, showMa: true }, sma: [] })
+  expect(out.indicators).toEqual({
+    ...DEFAULT_STATE.indicators,
+    volume: { visible: false },
+    rsi: { visible: true, length: 21, showMa: true },
+  })
 })
 
 test('Should reject an RSI length outside 2 to 100', () => {
@@ -193,4 +197,151 @@ test('Should keep a usable list width and repair the rest', () => {
   expect(normalizeState({ listWidth: 5000 }).listWidth).toBe(640)
   expect(normalizeState({ listWidth: 'ancha' }).listWidth).toBe(DEFAULT_STATE.listWidth)
   expect(normalizeState({}).listWidth).toBe(400)
+})
+
+test('Should accept the monthly timeframe for the chart and for lines', () => {
+  const out = normalizeState({ timeframe: 'M', lines: { KO: [{ ...validLine, timeframe: 'M' }] } })
+  expect(out.timeframe).toBe('M')
+  expect(out.lines.KO[0].timeframe).toBe('M')
+  expect(normalizeState({ timeframe: 'Y' }).timeframe).toBe(DEFAULT_STATE.timeframe)
+})
+
+const hline = {
+  kind: 'hline',
+  id: 'h',
+  pane: 'price',
+  timeframe: 'D',
+  value: 210.5,
+  color: '#F23645',
+  width: 3,
+  pricedAt: '2026-11-21',
+}
+
+const channel = {
+  kind: 'channel',
+  id: 'c',
+  pane: 'price',
+  timeframe: 'W',
+  p1: { date: '2026-11-02', value: 200 },
+  p2: { date: '2026-11-20', value: 230 },
+  offset: -12.5,
+  color: '#F23645',
+  width: 3,
+  pricedAt: '2026-11-21',
+}
+
+const rect = {
+  kind: 'rect',
+  id: 'r',
+  pane: 'rsi',
+  timeframe: 'D',
+  p1: { date: '2026-11-02', value: 30 },
+  p2: { date: '2026-11-20', value: 45 },
+  color: '#F23645',
+  width: 3,
+  pricedAt: '2026-11-21',
+}
+
+test('Should keep horizontal lines, channels and rectangles next to trend lines', () => {
+  const out = normalizeState({ lines: { KO: [validLine, hline, channel, rect] } })
+  expect(out.lines.KO).toEqual([validLine, hline, channel, rect])
+})
+
+test('Should drop the new drawings that lack what they need', () => {
+  const broken = [
+    { ...hline, value: 'alto' },
+    { ...hline, id: '' },
+    { ...channel, offset: undefined },
+    { ...channel, p2: { date: 'ayer', value: 1 } },
+    { ...rect, p1: undefined },
+    { ...rect, pane: 'volumen' },
+    { ...validLine, kind: 'circle' },
+  ]
+  expect(normalizeState({ lines: { KO: [...broken, hline] } }).lines.KO).toEqual([hline])
+})
+
+test('Should complete the style of the new drawings like it does for lines', () => {
+  const bare = { kind: 'hline', id: 'h', pane: 'price', value: 10 }
+  expect(normalizeState({ lines: { KO: [bare] } }).lines.KO).toEqual([
+    { kind: 'hline', id: 'h', pane: 'price', timeframe: 'D', value: 10, color: '#2962FF', width: 2, pricedAt: '9999-12-31' },
+  ])
+})
+
+test('Should keep a trend line that says it is one, without the mark', () => {
+  expect(normalizeState({ lines: { KO: [{ ...validLine, kind: 'trend' }] } }).lines.KO).toEqual([validLine])
+})
+
+test('Should keep the sections of a list between its symbols', () => {
+  const items = [
+    { kind: 'section', id: 's1', title: 'En cartera' },
+    { symbol: 'KO', name: 'Coca-Cola', exchange: 'NYSE' },
+    { kind: 'section', id: 's2', title: 'Vigilando' },
+  ]
+  const out = normalizeState({ watchlists: [{ id: 'a', name: 'Mía', items }] })
+  expect(out.watchlists[0].items).toEqual(items)
+})
+
+test('Should drop sections without id or title and trim the title', () => {
+  const items = [
+    { kind: 'section', id: '', title: 'Sin id' },
+    { kind: 'section', id: 's1', title: '   ' },
+    { kind: 'section', id: 's2', title: `  ${'x'.repeat(60)}  ` },
+  ]
+  const out = normalizeState({ watchlists: [{ id: 'a', name: 'Mía', items }] })
+  expect(out.watchlists[0].items).toEqual([{ kind: 'section', id: 's2', title: 'x'.repeat(40) }])
+})
+
+test('Should keep the notes of each symbol and drop what is not a note', () => {
+  const out = normalizeState({ notes: { KO: 'Comprar por debajo de 60', PEP: '', MSFT: 7, NVDA: 'x'.repeat(6000) } })
+  expect(out.notes).toEqual({ KO: 'Comprar por debajo de 60', NVDA: 'x'.repeat(5000) })
+  expect(normalizeState({}).notes).toEqual({})
+  expect(normalizeState({ notes: ['KO'] }).notes).toEqual({})
+})
+
+test('Should give an older state the new indicators switched off with their usual settings', () => {
+  const out = normalizeState({ indicators: { volume: { visible: true } } })
+  expect(out.indicators.volumeMa).toEqual({ visible: false, length: 20 })
+  expect(out.indicators.bollinger).toEqual({ visible: false, length: 20, multiplier: 2 })
+  expect(out.indicators.macd).toEqual({ visible: false, fast: 12, slow: 26, signal: 9 })
+})
+
+test('Should keep the settings of the new indicators and repair them one by one', () => {
+  const out = normalizeState({
+    indicators: {
+      volumeMa: { visible: true, length: 50 },
+      bollinger: { visible: true, length: 0, multiplier: 2.5 },
+      macd: { visible: true, fast: 'rápido', slow: 30, signal: 9000 },
+    },
+  })
+  expect(out.indicators.volumeMa).toEqual({ visible: true, length: 50 })
+  expect(out.indicators.bollinger).toEqual({ visible: true, length: 20, multiplier: 2.5 })
+  expect(out.indicators.macd).toEqual({ visible: true, fast: 12, slow: 30, signal: 9 })
+  expect(normalizeState({ indicators: { bollinger: { multiplier: 40 } } }).indicators.bollinger.multiplier).toBe(2)
+})
+
+test('Should tell an exponential moving average from a simple one', () => {
+  const sma = [
+    { id: 'a', length: 20, color: '#FF9800', width: 1, kind: 'ema' },
+    { id: 'b', length: 50, color: '#2962FF', width: 1 },
+    { id: 'c', length: 100, color: '#2962FF', width: 1, kind: 'wma' },
+  ]
+  const out = normalizeState({ indicators: { sma } }).indicators.sma
+  expect(out).toEqual([sma[0], sma[1], { id: 'c', length: 100, color: '#2962FF', width: 1 }])
+})
+
+test('Should keep the alert of the lines that carry one and nothing else as an alert', () => {
+  const armedLine = { ...validLine, alert: true }
+  const armedLevel = { ...hline, alert: true }
+  const out = normalizeState({
+    lines: { KO: [armedLine, armedLevel, { ...validLine, id: 'b', alert: false }, { ...hline, id: 'h2', alert: 'sí' }, { ...rect, alert: true }] },
+  })
+  expect(out.lines.KO).toEqual([armedLine, armedLevel, { ...validLine, id: 'b' }, { ...hline, id: 'h2' }, rect])
+})
+
+test('Should keep the timeframe of a second chart and have none by default', () => {
+  expect(normalizeState({}).secondChart).toBeNull()
+  expect(normalizeState({ secondChart: 'W' }).secondChart).toBe('W')
+  expect(normalizeState({ secondChart: 'M' }).secondChart).toBe('M')
+  expect(normalizeState({ secondChart: 'Y' }).secondChart).toBeNull()
+  expect(normalizeState({ secondChart: true }).secondChart).toBeNull()
 })

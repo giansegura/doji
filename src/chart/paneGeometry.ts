@@ -17,6 +17,7 @@ export const createPaneGeometry = (source: PaneSource): PaneGeometry | null => {
 
   return {
     width: source.width,
+    toY: (value) => source.valueToCoordinate(value),
     toXY: (point) => {
       const x = source.logicalToCoordinate(source.timeIndex.dateToIndex(point.date))
       const y = source.valueToCoordinate(point.value)

@@ -7,6 +7,7 @@ const REFRESH_MS = 15_000
 export const useQuotes = (
   symbols: string[],
   fetchQuotes: (symbols: string[]) => Promise<Quote[]> = getQuotes,
+  background = false,
 ): Record<string, Quote> => {
   const [quotes, setQuotes] = useState<Record<string, Quote>>({})
   const fetchRef = useRef(fetchQuotes)
@@ -30,13 +31,13 @@ export const useQuotes = (
         .catch(() => undefined)
     load()
     const timer = setInterval(() => {
-      if (document.visibilityState === 'visible') load()
+      if (background || document.visibilityState === 'visible') load()
     }, REFRESH_MS)
     return () => {
       active = false
       clearInterval(timer)
     }
-  }, [key])
+  }, [key, background])
 
   return quotes
 }

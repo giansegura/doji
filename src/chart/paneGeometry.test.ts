@@ -51,3 +51,9 @@ test('Should give no geometry while the time scale has no positions', () => {
   expect(createPaneGeometry(source({ logicalToCoordinate: () => null }))).toBe(null)
   expect(createPaneGeometry(source({ logicalToCoordinate: () => 100 }))).toBe(null)
 })
+
+test('Should place a value on the vertical axis without needing a date', () => {
+  const geometry = createPaneGeometry(source())
+  expect(geometry?.toY(50)).toBe(400)
+  expect(createPaneGeometry(source({ valueToCoordinate: () => null }))?.toY(50)).toBeNull()
+})

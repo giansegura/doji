@@ -74,3 +74,15 @@ test('Should list a new list width as a change', () => {
   expect(changesSince(saved, current)).toEqual({ listWidth: 410 })
   expect(applyChanges(saved, { listWidth: 410 }).listWidth).toBe(410)
 })
+
+test('Should list the notes as a change when one is written', () => {
+  const saved: AppState = { ...DEFAULT_STATE, notes: {} }
+  const current: AppState = { ...saved, notes: { KO: 'tesis' } }
+  expect(changesSince(saved, current)).toEqual({ notes: { KO: 'tesis' } })
+})
+
+test('Should list the second chart as a change when it is opened or closed', () => {
+  const saved: AppState = { ...DEFAULT_STATE, secondChart: null }
+  expect(changesSince(saved, { ...saved, secondChart: 'W' })).toEqual({ secondChart: 'W' })
+  expect(changesSince({ ...saved, secondChart: 'W' }, saved)).toEqual({ secondChart: null })
+})

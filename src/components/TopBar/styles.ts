@@ -282,3 +282,19 @@ export const TextButton = styled.button<{ $danger?: boolean }>`
     background: ${(props) => props.theme.ui.hover};
   }
 `
+
+export const TypeButton = styled.button`
+  flex: 1;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid ${(props) => props.theme.ui.border};
+  border-radius: 4px;
+  color: ${(props) => props.theme.ui.textMuted};
+  font-size: 11px;
+  text-align: center;
+
+  &:hover {
+    background: ${(props) => props.theme.ui.hover};
+    color: ${(props) => props.theme.ui.text};
+  }
+`

@@ -51,13 +51,22 @@ type Main = {
   update: (data: SeriesData, theme: Theme) => void
 }
 
+type BandSeries = { basis: ISeriesApi<'Line'>; upper: ISeriesApi<'Line'>; lower: ISeriesApi<'Line'> }
+
+type MacdSeries = { histogram: ISeriesApi<'Histogram'>; line: ISeriesApi<'Line'>; signal: ISeriesApi<'Line'> }
+
 type SeriesSet = {
   main: Main
   volume: ISeriesApi<'Histogram'> | null
+  volumeMa: ISeriesApi<'Line'> | null
   rsi: ISeriesApi<'Line'> | null
   rsiMa: ISeriesApi<'Line'> | null
   smas: Map<string, ISeriesApi<'Line'>>
+  bands: BandSeries | null
+  macd: MacdSeries | null
 }
+
+type PaneTops = { rsi: number | null; macd: number | null }
 
 type View = { symbol: string; timeframe: Timeframe; count: number; timeIndex: TimeIndex | null }
 
@@ -74,6 +83,8 @@ const RSI_MIDDLE = 50
 const RSI_LOWER = 30
 const PRICE_PANE_STRETCH = 3
 const RSI_PANE_STRETCH = 1
+const VOLUME_SCALE = 'volume'
+const NO_PANES: PaneTops = { rsi: null, macd: null }
 const SEPARATOR_PX = 1
 const RIGHT_OFFSET_BARS = 10
 const MAIN_LINE_WIDTH = 2
@@ -221,7 +232,7 @@ const rsiAutoscale = (original: () => AutoscaleInfo | null): AutoscaleInfo | nul
 const addVolume = (chart: IChartApi): ISeriesApi<'Histogram'> => {
   const volume = chart.addSeries(
     HistogramSeries,
-    { priceFormat: { type: 'volume' }, priceScaleId: '', priceLineVisible: false, lastValueVisible: false },
+    { priceFormat: { type: 'volume' }, priceScaleId: VOLUME_SCALE, priceLineVisible: false, lastValueVisible: false },
     0,
   )
   volume.priceScale().applyOptions({ scaleMargins: { top: 0.78, bottom: 0 } })
@@ -229,7 +240,41 @@ const addVolume = (chart: IChartApi): ISeriesApi<'Histogram'> => {
   return volume
 }
 
-const addRsi = (chart: IChartApi, theme: Theme): ISeriesApi<'Line'> => {
+const quietLine = (color: string) => ({
+  color,
+  lineWidth: 1 as LineWidth,
+  priceLineVisible: false,
+  lastValueVisible: false,
+  crosshairMarkerVisible: false,
+})
+
+const addVolumeMa = (chart: IChartApi, theme: Theme): ISeriesApi<'Line'> =>
+  chart.addSeries(
+    LineSeries,
+    { ...quietLine(theme.chart.volumeMa), priceFormat: { type: 'volume' }, priceScaleId: VOLUME_SCALE },
+    0,
+  )
+
+const addBands = (chart: IChartApi, theme: Theme): BandSeries => ({
+  basis: chart.addSeries(LineSeries, quietLine(theme.chart.bandBasis), 0),
+  upper: chart.addSeries(LineSeries, quietLine(theme.chart.band), 0),
+  lower: chart.addSeries(LineSeries, quietLine(theme.chart.band), 0),
+})
+
+const addMacd = (chart: IChartApi, theme: Theme, paneIndex: number): MacdSeries => ({
+  histogram: chart.addSeries(HistogramSeries, { priceLineVisible: false, lastValueVisible: false }, paneIndex),
+  line: chart.addSeries(LineSeries, quietLine(theme.chart.macd), paneIndex),
+  signal: chart.addSeries(LineSeries, quietLine(theme.chart.macdSignal), paneIndex),
+})
+
+const paneTops = (chart: IChartApi, series: SeriesSet | null): PaneTops => {
+  if (!series) return NO_PANES
+  const heights = chart.panes().map((_, index) => chart.paneSize(index).height + SEPARATOR_PX)
+  const below = (count: number): number => heights.slice(0, count).reduce((sum, height) => sum + height, 0)
+  return { rsi: series.rsi ? below(1) : null, macd: series.macd ? below(series.rsi ? 2 : 1) : null }
+}
+
+const addRsi = (chart: IChartApi, theme: Theme, paneIndex: number): ISeriesApi<'Line'> => {
   const rsi = chart.addSeries(
     LineSeries,
     {
@@ -239,7 +284,7 @@ const addRsi = (chart: IChartApi, theme: Theme): ISeriesApi<'Line'> => {
       crosshairMarkerVisible: false,
       autoscaleInfoProvider: rsiAutoscale,
     },
-    1,
+    paneIndex,
   )
   ;[RSI_UPPER, RSI_MIDDLE, RSI_LOWER].forEach((price) =>
     rsi.createPriceLine({
@@ -251,13 +296,10 @@ const addRsi = (chart: IChartApi, theme: Theme): ISeriesApi<'Line'> => {
     }),
   )
   rsi.attachPrimitive(createBandPrimitive(RSI_UPPER, RSI_LOWER, theme.chart.rsiBand))
-  const [pricePane, rsiPane] = chart.panes()
-  pricePane?.setStretchFactor(PRICE_PANE_STRETCH)
-  rsiPane?.setStretchFactor(RSI_PANE_STRETCH)
   return rsi
 }
 
-const addRsiMa = (chart: IChartApi, theme: Theme): ISeriesApi<'Line'> =>
+const addRsiMa = (chart: IChartApi, theme: Theme, paneIndex: number): ISeriesApi<'Line'> =>
   chart.addSeries(
     LineSeries,
     {
@@ -267,7 +309,7 @@ const addRsiMa = (chart: IChartApi, theme: Theme): ISeriesApi<'Line'> =>
       lastValueVisible: false,
       crosshairMarkerVisible: false,
     },
-    1,
+    paneIndex,
   )
 
 const smaOptions = (config: SmaConfig) => ({
@@ -300,8 +342,28 @@ const syncIndicators = (chart: IChartApi, series: SeriesSet, indicators: Indicat
     chart.removeSeries(series.volume)
     series.volume = null
   }
-  if (indicators.rsi.visible && !series.rsi) series.rsi = addRsi(chart, theme)
-  if (series.rsi && indicators.rsi.showMa && !series.rsiMa) series.rsiMa = addRsiMa(chart, theme)
+  const wantsVolumeMa = indicators.volume.visible && indicators.volumeMa.visible
+  if (wantsVolumeMa && !series.volumeMa) series.volumeMa = addVolumeMa(chart, theme)
+  if (!wantsVolumeMa && series.volumeMa) {
+    chart.removeSeries(series.volumeMa)
+    series.volumeMa = null
+  }
+  if (indicators.bollinger.visible && !series.bands) series.bands = addBands(chart, theme)
+  if (!indicators.bollinger.visible && series.bands) {
+    Object.values(series.bands).forEach((line) => chart.removeSeries(line))
+    series.bands = null
+  }
+  if (!indicators.macd.visible && series.macd) {
+    Object.values(series.macd).forEach((item) => chart.removeSeries(item))
+    series.macd = null
+  }
+  if (indicators.rsi.visible && !series.rsi) {
+    series.rsi = addRsi(chart, theme, series.macd ? 2 : 1)
+    if (series.macd) series.rsi.getPane().moveTo(1)
+  }
+  if (series.rsi && indicators.rsi.showMa && !series.rsiMa) {
+    series.rsiMa = addRsiMa(chart, theme, series.rsi.getPane().paneIndex())
+  }
   if (series.rsiMa && (!indicators.rsi.showMa || !indicators.rsi.visible)) {
     chart.removeSeries(series.rsiMa)
     series.rsiMa = null
@@ -310,6 +372,8 @@ const syncIndicators = (chart: IChartApi, series: SeriesSet, indicators: Indicat
     chart.removeSeries(series.rsi)
     series.rsi = null
   }
+  if (indicators.macd.visible && !series.macd) series.macd = addMacd(chart, theme, series.rsi ? 2 : 1)
+  chart.panes().forEach((pane, index) => pane.setStretchFactor(index === 0 ? PRICE_PANE_STRETCH : RSI_PANE_STRETCH))
 }
 
 export const useChart = ({ history, timeframe, theme, indicators, settings }: UseChartArgs) => {
@@ -319,7 +383,7 @@ export const useChart = ({ history, timeframe, theme, indicators, settings }: Us
   const viewRef = useRef<View | null>(null)
   const scaleRef = useRef<ScaleMode>('normal')
   const [handles, setHandles] = useState<ChartHandles | null>(null)
-  const [rsiPaneTop, setRsiPaneTop] = useState<number | null>(null)
+  const [tops, setTops] = useState<PaneTops>(NO_PANES)
   const [hover] = useState<HoverStore>(createHoverStore)
   const symbol = history.info.symbol
   const volumeVisible = indicators.volume.visible
@@ -328,7 +392,16 @@ export const useChart = ({ history, timeframe, theme, indicators, settings }: Us
   const rsiLength = indicators.rsi.length
   const smaConfigs = indicators.sma
   const smaKey = smaConfigs.map((item) => `${item.id}:${item.length}:${item.color}:${item.width}`).join('|')
-  const smaLengthsKey = smaConfigs.map((item) => item.length).join(',')
+  const averagesKey = smaConfigs.map((item) => `${item.kind ?? 'sma'}:${item.length}`).join(',')
+  const volumeMaVisible = volumeVisible && indicators.volumeMa.visible
+  const volumeMaLength = indicators.volumeMa.length
+  const bandsVisible = indicators.bollinger.visible
+  const bandsLength = indicators.bollinger.length
+  const bandsMultiplier = indicators.bollinger.multiplier
+  const macdVisible = indicators.macd.visible
+  const macdFast = indicators.macd.fast
+  const macdSlow = indicators.macd.slow
+  const macdSignal = indicators.macd.signal
   const chartType = settings.type
   const scaleMode = settings.scale
   const invertScale = settings.invert
@@ -340,17 +413,46 @@ export const useChart = ({ history, timeframe, theme, indicators, settings }: Us
         history.bars,
         timeframe,
         rsiLength,
-        { volumeUp: theme.chart.volumeUp, volumeDown: theme.chart.volumeDown },
-        smaLengthsKey ? smaLengthsKey.split(',').map(Number) : [],
+        { volumeUp: theme.chart.volumeUp, volumeDown: theme.chart.volumeDown, up: theme.chart.up, down: theme.chart.down },
+        averagesKey
+          ? averagesKey.split(',').map((entry) => {
+              const [kind, length] = entry.split(':')
+              return kind === 'ema' ? { length: Number(length), kind: 'ema' as const } : { length: Number(length) }
+            })
+          : [],
+        {
+          volumeMa: volumeMaVisible ? volumeMaLength : undefined,
+          bollinger: bandsVisible ? { length: bandsLength, multiplier: bandsMultiplier } : undefined,
+          macd: macdVisible ? { fast: macdFast, slow: macdSlow, signal: macdSignal } : undefined,
+        },
       ),
-    [history.bars, timeframe, rsiLength, theme, smaLengthsKey],
+    [
+      history.bars,
+      timeframe,
+      rsiLength,
+      theme,
+      averagesKey,
+      volumeMaVisible,
+      volumeMaLength,
+      bandsVisible,
+      bandsLength,
+      bandsMultiplier,
+      macdVisible,
+      macdFast,
+      macdSlow,
+      macdSignal,
+    ],
   )
 
   useEffect(() => {
     const container = containerRef.current
     if (!container) return undefined
     const chart = createChart(container, { autoSize: true, timeScale: { rightOffset: RIGHT_OFFSET_BARS } })
-    const measure = () => setRsiPaneTop(seriesRef.current?.rsi ? chart.paneSize(0).height + SEPARATOR_PX : null)
+    const measure = () =>
+      setTops((current) => {
+        const next = paneTops(chart, seriesRef.current)
+        return next.rsi === current.rsi && next.macd === current.macd ? current : next
+      })
     const handleMove = (param: MouseEventParams<Time>) => {
       measure()
       hover.set(param.point && param.logical !== undefined ? Math.round(param.logical) : null)
@@ -359,7 +461,16 @@ export const useChart = ({ history, timeframe, theme, indicators, settings }: Us
     observer.observe(container)
     chart.subscribeCrosshairMove(handleMove)
     chartRef.current = chart
-    seriesRef.current = { main: MAIN_FACTORIES.candles(chart), volume: null, rsi: null, rsiMa: null, smas: new Map() }
+    seriesRef.current = {
+      main: MAIN_FACTORIES.candles(chart),
+      volume: null,
+      volumeMa: null,
+      rsi: null,
+      rsiMa: null,
+      smas: new Map(),
+      bands: null,
+      macd: null,
+    }
     return () => {
       observer.disconnect()
       chart.unsubscribeCrosshairMove(handleMove)
@@ -395,8 +506,11 @@ export const useChart = ({ history, timeframe, theme, indicators, settings }: Us
       series,
       {
         volume: { visible: volumeVisible },
+        volumeMa: { visible: volumeMaVisible, length: volumeMaLength },
         rsi: { visible: rsiVisible, length: rsiLength, showMa: rsiMaVisible },
         sma: smaConfigs,
+        bollinger: { visible: bandsVisible, length: bandsLength, multiplier: bandsMultiplier },
+        macd: { visible: macdVisible, fast: macdFast, slow: macdSlow, signal: macdSignal },
       },
       theme,
     )
@@ -406,6 +520,13 @@ export const useChart = ({ history, timeframe, theme, indicators, settings }: Us
     series.volume?.setData(data.volume)
     series.rsi?.setData(data.rsi)
     series.rsiMa?.setData(data.rsiMa)
+    series.volumeMa?.setData(data.volumeMa)
+    series.bands?.basis.setData(data.bands?.basis ?? [])
+    series.bands?.upper.setData(data.bands?.upper ?? [])
+    series.bands?.lower.setData(data.bands?.lower ?? [])
+    series.macd?.histogram.setData(data.macd?.histogram ?? [])
+    series.macd?.line.setData(data.macd?.line ?? [])
+    series.macd?.signal.setData(data.macd?.signal ?? [])
     smaConfigs.forEach((config, index) => series.smas.get(config.id)?.setData(data.smas[index] ?? []))
     if (previous && (previous.symbol !== symbol || previous.timeframe !== timeframe)) hover.set(null)
 
@@ -436,9 +557,7 @@ export const useChart = ({ history, timeframe, theme, indicators, settings }: Us
         : null,
     )
 
-    const frame = requestAnimationFrame(() =>
-      setRsiPaneTop(series.rsi ? chart.paneSize(0).height + SEPARATOR_PX : null),
-    )
+    const frame = requestAnimationFrame(() => setTops(paneTops(chart, series)))
     return () => cancelAnimationFrame(frame)
   }, [
     hover,
@@ -451,11 +570,20 @@ export const useChart = ({ history, timeframe, theme, indicators, settings }: Us
     rsiMaVisible,
     rsiLength,
     smaKey,
+    volumeMaVisible,
+    volumeMaLength,
+    bandsVisible,
+    bandsLength,
+    bandsMultiplier,
+    macdVisible,
+    macdFast,
+    macdSlow,
+    macdSignal,
     chartType,
     scaleMode,
     invertScale,
     cursorMode,
   ])
 
-  return { containerRef, handles, data, rsiPaneTop, hover }
+  return { containerRef, handles, data, rsiPaneTop: tops.rsi, macdPaneTop: tops.macd, hover }
 }

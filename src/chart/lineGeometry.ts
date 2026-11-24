@@ -5,7 +5,7 @@ export type LineHit = 'p1' | 'p2' | 'body' | null
 export const HIT_TOLERANCE = 6
 export const HANDLE_RADIUS = 5
 
-const HANDLE_REACH = HANDLE_RADIUS + 3
+export const HANDLE_REACH = HANDLE_RADIUS + 3
 
 const distance = (p: XY, q: XY): number => Math.hypot(p.x - q.x, p.y - q.y)
 

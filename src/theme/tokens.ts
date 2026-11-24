@@ -35,6 +35,11 @@ export type Theme = {
     rsiBand: string
     rsiLevel: string
     line: string
+    volumeMa: string
+    bandBasis: string
+    band: string
+    macd: string
+    macdSignal: string
   }
 }
 
@@ -54,6 +59,11 @@ const shared = {
   rsiBand: 'rgba(126, 87, 194, 0.1)',
   rsiLevel: MUTED,
   line: ACCENT,
+  volumeMa: '#FF9800',
+  bandBasis: '#FF6D00',
+  band: '#2196F3',
+  macd: ACCENT,
+  macdSignal: '#FF6D00',
 }
 
 export const themes: Record<ThemeName, Theme> = {

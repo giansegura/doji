@@ -39,6 +39,18 @@ export const weekdaysBetween = (from: string, to: string): number => weekdaysUpT
 export const weeksBetween = (from: string, to: string): number =>
   Math.round((toMs(mondayOf(to)) - toMs(mondayOf(from))) / (7 * DAY_MS))
 
+const monthNumber = (date: string): number => Number(date.slice(0, 4)) * 12 + Number(date.slice(5, 7)) - 1
+
+export const monthStartOf = (date: string): string => `${date.slice(0, 7)}-01`
+
+export const monthsBetween = (from: string, to: string): number => monthNumber(to) - monthNumber(from)
+
+export const addMonths = (date: string, n: number): string => {
+  const month = monthNumber(date) + n
+  const year = String(Math.floor(month / 12)).padStart(4, '0')
+  return `${year}-${String((month % 12) + 1).padStart(2, '0')}-01`
+}
+
 export const todayIso = (): string => {
   const now = new Date()
   return toIso(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))

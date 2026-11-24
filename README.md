@@ -18,9 +18,10 @@ Para otro puerto: `PORT=4790 npm start`.
 ## Uso
 
 - **Símbolo:** el botón de arriba a la izquierda abre el buscador (ticker o nombre de empresa). `Enter` elige el primer resultado, aunque lo pulses antes de que termine la búsqueda.
-- **Periodo:** `D` diario, `W` semanal.
-- **Indicadores:** volumen y RSI se activan o quitan desde el menú "Indicators"; el periodo del RSI y su media se ajustan ahí.
-- **Medias móviles (SMA):** en el mismo menú, "Add moving average" (hasta seis). Se calculan sobre el cierre. Cada una tiene su periodo; el círculo de color abre la paleta (16 colores, o cualquier otro con el selector) y el grosor; la `×` la quita.
+- **Periodo:** `D` diario, `W` semanal, `M` mensual.
+- **Dos gráficos:** el botón que hay junto a los periodos abre un segundo gráfico de la misma acción al lado del primero, con su propio periodo (selector `D`/`W`/`M` en su esquina). Comparten dibujos, indicadores y herramienta: una línea trazada en uno aparece en el otro.
+- **Indicadores:** volumen, RSI, Bandas de Bollinger y MACD se activan o quitan desde el menú "Indicators", cada uno con sus ajustes. El volumen puede llevar su media móvil. El MACD va en un panel propio, debajo del RSI.
+- **Medias móviles:** en el mismo menú, "Add moving average" (hasta seis). Se calculan sobre el cierre y cada una puede ser simple o exponencial con el botón `SMA`/`EMA`. Cada una tiene su periodo; el círculo de color abre la paleta (16 colores, o cualquier otro con el selector) y el grosor; la `×` la quita.
 - **Gráfico:** el menú "Chart" cambia el tipo (velas, barras, línea, área, línea base), la escala de precios (normal, logarítmica, porcentaje, indexada a 100, invertida) y el cursor (libre o imán). El icono de la cámara guarda una imagen del gráfico.
 - **Configuración:** el menú "Settings" exporta todo (listas, líneas, indicadores, tema y ajustes del gráfico) a un archivo `doji-config-AAAA-MM-DD.json` y lo vuelve a importar. Importar reemplaza la configuración actual entera, por eso pide confirmación.
 - **Mover el gráfico:** arrastra para desplazarlo en el tiempo; el precio se encaja solo a la pantalla. Si empiezas el arrastre hacia arriba o hacia abajo, el gráfico se mueve también en vertical y deja de encajarse: desde ese momento se arrastra libre en cualquier dirección. El botón "Auto" de la esquina inferior derecha, o un doble clic en el eje de precios, lo vuelve a encajar; al cambiar de acción se encaja solo.
@@ -29,8 +30,21 @@ Para otro puerto: `PORT=4790 npm start`.
   - Con la línea seleccionada aparece una barra para cambiar color, grosor, extenderla a la derecha o borrarla.
   - `Supr` borra la línea seleccionada; `Esc` cancela una línea a medias o suelta la herramienta.
   - Una línea puede acabar más allá de la última vela. Ese tramo se cuenta en días de bolsa: sin fines de semana y, en acciones de EE. UU., sin los festivos de su bolsa.
+- **Otras herramientas de dibujo**, en la misma barra izquierda. Se seleccionan, mueven, colorean y borran igual que una línea de tendencia.
+  - "Horizontal line": un clic pone un nivel que cruza todo el gráfico, con su precio en el eje. Se arrastra arriba y abajo desde cualquier punto.
+  - "Parallel channel": tres clics. Los dos primeros trazan la línea base y el tercero da el ancho. El punto central de la segunda línea cambia el ancho; cualquiera de las dos líneas mueve el canal entero.
+  - "Rectangle": dos clics en esquinas opuestas. Cada esquina lo redimensiona y los lados lo mueven.
+  - Canales y rectángulos solo se agarran por sus bordes: un clic dentro mueve el gráfico, no el dibujo.
+- **Alertas:** con una línea de tendencia o una línea horizontal seleccionada, la campana de su barra arma una alerta; la línea queda marcada con un círculo. Cuando el precio la cruza, doji muestra un aviso en pantalla y una notificación del Mac (la primera vez el navegador pide permiso), y la alerta se desarma.
+  - Solo funcionan con doji abierto en una pestaña. Con la pestaña en segundo plano el navegador las comprueba más despacio, más o menos una vez por minuto.
+  - Cuentan también los precios de pre y post mercado.
+  - Una línea de tendencia que no se extiende a la derecha deja de avisar pasada su última fecha.
+- **Deshacer:** `Cmd+Z` (o `Ctrl+Z`) deshace el último cambio en los dibujos de la acción que estás viendo; con `Shift`, lo rehace. Un arrastre entero cuenta como un solo cambio.
+- **Atajos:** las flechas arriba y abajo recorren la lista. `Alt+T` arma la línea de tendencia, `Alt+H` la horizontal, `Alt+C` el canal y `Alt+R` el rectángulo; `Esc` vuelve al cursor.
 - **Listas:** el nombre de la lista (arriba a la derecha) abre el desplegable para cambiar de lista, crear una nueva, renombrarla, duplicarla o borrarla (pide confirmación). Siempre queda al menos una.
 - **Símbolos de la lista:** `+` añade un símbolo a la lista activa; pasa el ratón por una fila para quitarla; arrastra las filas para reordenar.
+- **Secciones:** el botón que hay junto a `+` añade un separador con título dentro de la lista. Se arrastra como cualquier fila y, al pasar el ratón, se puede renombrar o quitar.
+- **Notas:** el panel "Notes", debajo de la lista, guarda un texto por acción (tesis, precio de entrada, plan). Un punto azul avisa de que la acción tiene nota aunque el panel esté plegado.
 - **Ancho de la lista:** arrastra el borde izquierdo de la lista para ensancharla o estrecharla; el gráfico ocupa el resto. Va de 220 a 640 px (400 por defecto) y se guarda con el resto de la configuración. Las columnas se adaptan para que los tickers se lean enteros: por debajo de 381 px se oculta "Ext" y por debajo de 300 px también "Last".
 - **Horas extendidas:** la columna "Ext" muestra, en porcentaje, cuánto se separa del cierre el último precio fuera del horario normal, en verde o rojo; al pasar el ratón se ve el precio. Un punto junto al ticker indica la sesión: naranja en el pre-mercado y azul en el post-mercado. Durante la sesión normal, y en lo que no cotiza fuera de horario (índices, cripto, bolsas europeas), muestra un guion. Con el mercado cerrado se queda el último dato del post-mercado hasta que abre el siguiente pre-mercado.
 

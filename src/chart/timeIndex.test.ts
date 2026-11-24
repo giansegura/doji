@@ -96,3 +96,22 @@ test('Should keep weekly bars ahead one week apart across holidays', () => {
   expect(index.indexToDate(3)).toBe('2026-11-30')
   expect(index.dateToIndex('2026-11-27')).toBe(2)
 })
+
+const monthly = createTimeIndex(['2026-09-01', '2026-10-01', '2026-11-02'], 'M')
+
+test('Should map any day to the monthly bar of its month', () => {
+  expect(monthly.dateToIndex('2026-10-01')).toBe(1)
+  expect(monthly.dateToIndex('2026-10-27')).toBe(1)
+  expect(monthly.dateToIndex('2026-11-30')).toBe(2)
+})
+
+test('Should extrapolate monthly dates after the last bar and before the first', () => {
+  expect(monthly.dateToIndex('2027-01-15')).toBe(4)
+  expect(monthly.indexToDate(4)).toBe('2027-01-01')
+  expect(monthly.dateToIndex('2026-07-10')).toBe(-2)
+  expect(monthly.indexToDate(-2)).toBe('2026-07-01')
+})
+
+test('Should round-trip every monthly index in range', () => {
+  ;[0, 1, 2].forEach((index) => expect(monthly.dateToIndex(monthly.indexToDate(index))).toBe(index))
+})

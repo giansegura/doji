@@ -10,14 +10,25 @@ const info = { symbol: 'AAPL', name: 'Apple Inc.', exchange: 'NASDAQ' }
 const values: HoverValues = {
   bar: { time: '2026-11-23', open: 347.78, high: 352.6, low: 345.44, close: 350.29, volume: 28_767_814 },
   previousClose: 342.56,
+  volumeMa: null,
   rsi: 56.318,
   rsiMa: 48.1,
   smas: [],
+  bands: null,
+  macd: null,
 }
 
 const text = (): string => document.body.textContent ?? ''
 
-const setup = (over: { values?: HoverValues | null; indicators?: Indicators; rsiPaneTop?: number | null; timeframe?: 'D' | 'W' } = {}) =>
+type Options = {
+  values?: HoverValues | null
+  indicators?: Indicators
+  rsiPaneTop?: number | null
+  macdPaneTop?: number | null
+  timeframe?: 'D' | 'W'
+}
+
+const setup = (over: Options = {}) =>
   renderWithTheme(
     <Legend
       info={info}
@@ -25,6 +36,7 @@ const setup = (over: { values?: HoverValues | null; indicators?: Indicators; rsi
       values={over.values === undefined ? values : over.values}
       indicators={over.indicators ?? DEFAULT_STATE.indicators}
       rsiPaneTop={over.rsiPaneTop === undefined ? 500 : over.rsiPaneTop}
+      macdPaneTop={over.macdPaneTop ?? null}
     />,
   )
 
@@ -108,4 +120,51 @@ test('Should show only the title when there are no values', () => {
   setup({ values: null })
   expect(screen.getByText('Apple Inc. · 1D · NASDAQ')).toBeTruthy()
   expect(text()).not.toContain('Vol')
+})
+
+test('Should name an exponential moving average as such', () => {
+  const indicators = { ...DEFAULT_STATE.indicators, sma: [{ id: 'a', length: 21, color: '#FF9800', width: 1, kind: 'ema' as const }] }
+  setup({ indicators, values: { ...values, smas: [348.2] } })
+  expect(text()).toContain('EMA 21 close')
+  expect(text()).not.toContain('SMA 21')
+})
+
+test('Should show the average of the volume next to the volume while it is on', () => {
+  const indicators = { ...DEFAULT_STATE.indicators, volumeMa: { visible: true, length: 20 } }
+  setup({ indicators, values: { ...values, volumeMa: 31_500_000 } })
+  expect(text()).toContain('31.5M')
+})
+
+test('Should not show the average of the volume while it is off', () => {
+  setup({ values: { ...values, volumeMa: 31_500_000 } })
+  expect(text()).not.toContain('31.5M')
+})
+
+test('Should show the three values of the Bollinger Bands with their settings', () => {
+  const indicators = { ...DEFAULT_STATE.indicators, bollinger: { visible: true, length: 20, multiplier: 2 } }
+  setup({ indicators, values: { ...values, bands: { basis: 340.5, upper: 355.25, lower: 325.75 } } })
+  expect(text()).toContain('BB 20 2')
+  expect(text()).toContain('340.50')
+  expect(text()).toContain('355.25')
+  expect(text()).toContain('325.75')
+})
+
+test('Should not mention the Bollinger Bands while they are off', () => {
+  setup({ values: { ...values, bands: { basis: 340.5, upper: 355.25, lower: 325.75 } } })
+  expect(text()).not.toContain('BB 20')
+})
+
+test('Should show the MACD, its signal and its histogram over the MACD pane', () => {
+  const indicators = { ...DEFAULT_STATE.indicators, macd: { visible: true, fast: 12, slow: 26, signal: 9 } }
+  setup({ indicators, macdPaneTop: 600, values: { ...values, macd: { line: 1.234, signal: 0.9, histogram: 0.334 } } })
+  expect(text()).toContain('MACD 12 26 9')
+  expect(text()).toContain('1.23')
+  expect(text()).toContain('0.90')
+  expect(text()).toContain('0.33')
+})
+
+test('Should hide the MACD legend without a MACD pane', () => {
+  const indicators = { ...DEFAULT_STATE.indicators, macd: { visible: true, fast: 12, slow: 26, signal: 9 } }
+  setup({ indicators, macdPaneTop: null, values: { ...values, macd: { line: 1.234, signal: 0.9, histogram: 0.334 } } })
+  expect(text()).not.toContain('MACD')
 })

@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import { type AppState, DEFAULT_STATE, type SymbolInfo, type TrendLine } from '../../shared/types'
+import { symbolsOf } from '../../shared/listItems'
 import { activeWatchlist, appReducer } from './appReducer'
 
 const info = (symbol: string): SymbolInfo => ({ symbol, name: `${symbol} Inc.`, exchange: 'NYSE' })
@@ -26,7 +27,7 @@ const base: AppState = {
   lines: { MSFT: [line('m')] },
 }
 
-const symbols = (state: AppState): string[] => activeWatchlist(state).items.map((item) => item.symbol)
+const symbols = (state: AppState): string[] => symbolsOf(activeWatchlist(state).items).map((item) => item.symbol)
 
 const names = (state: AppState): string[] => state.watchlists.map((list) => list.name)
 
@@ -101,7 +102,7 @@ test('Should keep the copy independent from the original', () => {
   const copied = appReducer(base, { type: 'duplicateWatchlist', id: 'main', newId: 'copy' })
   const out = appReducer(copied, { type: 'removeFromWatchlist', symbol: 'A' })
   expect(symbols(out)).toEqual(['B', 'C', 'D'])
-  expect(out.watchlists[0].items.map((item) => item.symbol)).toEqual(['A', 'B', 'C', 'D'])
+  expect(symbolsOf(out.watchlists[0].items).map((item) => item.symbol)).toEqual(['A', 'B', 'C', 'D'])
 })
 
 test('Should number the copy when the name is already taken', () => {
@@ -188,7 +189,12 @@ test('Should ignore an empty or unchanged symbol', () => {
 })
 
 test('Should change theme, timeframe and indicators', () => {
-  const indicators = { volume: { visible: false }, rsi: { visible: true, length: 21, showMa: false }, sma: [{ id: 'a', length: 20, color: '#FF9800', width: 2 }] }
+  const indicators = {
+    ...DEFAULT_STATE.indicators,
+    volume: { visible: false },
+    rsi: { visible: true, length: 21, showMa: false },
+    sma: [{ id: 'a', length: 20, color: '#FF9800', width: 2 }],
+  }
   const out = [
     { type: 'setTheme', theme: 'light' } as const,
     { type: 'setTimeframe', timeframe: 'W' } as const,
@@ -233,4 +239,74 @@ test('Should keep the same state when the width of the list does not change', ()
   const sized = appReducer(base, { type: 'setListWidth', width: 400 })
   expect(appReducer(sized, { type: 'setListWidth', width: 400 })).toBe(sized)
   expect(appReducer(sized, { type: 'setListWidth', width: 400.3 })).toBe(sized)
+})
+
+const sectioned: AppState = {
+  ...base,
+  watchlists: [
+    {
+      id: 'main',
+      name: 'Principal',
+      items: [info('A'), { kind: 'section', id: 's1', title: 'Vigilando' }, info('B')],
+    },
+  ],
+  activeWatchlistId: 'main',
+}
+
+test('Should add a section at the end of the active list', () => {
+  const out = appReducer(base, { type: 'addSection', id: 's9', title: '  En cartera  ' })
+  expect(activeWatchlist(out).items.at(-1)).toEqual({ kind: 'section', id: 's9', title: 'En cartera' })
+  expect(activeWatchlist(out).items).toHaveLength(activeWatchlist(base).items.length + 1)
+})
+
+test('Should not add a section without title or with an id already in the list', () => {
+  expect(appReducer(base, { type: 'addSection', id: 's9', title: '   ' })).toBe(base)
+  expect(appReducer(sectioned, { type: 'addSection', id: 's1', title: 'Otra' })).toBe(sectioned)
+})
+
+test('Should rename and remove a section and leave the symbols where they are', () => {
+  const renamed = appReducer(sectioned, { type: 'renameSection', id: 's1', title: 'En cartera' })
+  expect(activeWatchlist(renamed).items[1]).toEqual({ kind: 'section', id: 's1', title: 'En cartera' })
+  expect(appReducer(sectioned, { type: 'renameSection', id: 's1', title: '  ' })).toBe(sectioned)
+  expect(appReducer(sectioned, { type: 'renameSection', id: 'zz', title: 'Nada' })).toBe(sectioned)
+  const removed = appReducer(sectioned, { type: 'removeSection', id: 's1' })
+  expect(activeWatchlist(removed).items).toEqual([info('A'), info('B')])
+  expect(appReducer(sectioned, { type: 'removeSection', id: 'zz' })).toBe(sectioned)
+})
+
+test('Should move symbols and sections alike when a row is dragged', () => {
+  const out = appReducer(sectioned, { type: 'moveInWatchlist', from: 1, to: 0 })
+  expect(activeWatchlist(out).items).toEqual([{ kind: 'section', id: 's1', title: 'Vigilando' }, info('A'), info('B')])
+})
+
+test('Should tell a symbol already in the list from a section when adding or removing', () => {
+  expect(appReducer(sectioned, { type: 'addToWatchlist', info: info('B') })).toBe(sectioned)
+  const removed = appReducer(sectioned, { type: 'removeFromWatchlist', symbol: 'A' })
+  expect(activeWatchlist(removed).items).toEqual([{ kind: 'section', id: 's1', title: 'Vigilando' }, info('B')])
+})
+
+test('Should write, replace and clear the note of a symbol', () => {
+  const written = appReducer(base, { type: 'setNote', symbol: 'KO', text: 'Comprar por debajo de 60' })
+  expect(written.notes).toEqual({ KO: 'Comprar por debajo de 60' })
+  const replaced = appReducer(written, { type: 'setNote', symbol: 'KO', text: 'Vendida' })
+  expect(replaced.notes).toEqual({ KO: 'Vendida' })
+  expect(appReducer(replaced, { type: 'setNote', symbol: 'KO', text: '' }).notes).toEqual({})
+  expect(appReducer(replaced, { type: 'setNote', symbol: 'KO', text: 'Vendida' })).toBe(replaced)
+  expect(appReducer(base, { type: 'setNote', symbol: 'KO', text: '' })).toBe(base)
+})
+
+test('Should open a second chart on the other usual timeframe and close it again', () => {
+  const daily = appReducer({ ...base, timeframe: 'D', secondChart: null }, { type: 'toggleSecondChart' })
+  expect(daily.secondChart).toBe('W')
+  expect(appReducer(daily, { type: 'toggleSecondChart' }).secondChart).toBeNull()
+  expect(appReducer({ ...base, timeframe: 'W', secondChart: null }, { type: 'toggleSecondChart' }).secondChart).toBe('D')
+  expect(appReducer({ ...base, timeframe: 'M', secondChart: null }, { type: 'toggleSecondChart' }).secondChart).toBe('D')
+})
+
+test('Should change the timeframe of the second chart only while it is open', () => {
+  const open = { ...base, secondChart: 'W' as const }
+  expect(appReducer(open, { type: 'setSecondChart', timeframe: 'M' }).secondChart).toBe('M')
+  expect(appReducer(open, { type: 'setSecondChart', timeframe: 'W' })).toBe(open)
+  const closed = { ...base, secondChart: null }
+  expect(appReducer(closed, { type: 'setSecondChart', timeframe: 'M' })).toBe(closed)
 })
