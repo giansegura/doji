@@ -3,12 +3,16 @@ import { type IncomingMessage, type ServerResponse, createServer } from 'node:ht
 import { join, resolve } from 'node:path'
 import sirv from 'sirv'
 import { createHistoryCache } from './historyCache'
+import { createLiveHub } from './liveHub'
 import { withTimeout } from './net'
+import { LOGO_SOURCES_VERSION, fallbackLogoUrl, finnhubLogoUrl, isUsableLogo } from './logoSources'
 import { type ImageFetchLike, createImageFetcher, createLogoStore } from './logoStore'
 import { type FetchLike, createYahooProvider } from './provider/yahoo'
+import { type SocketLike, createYahooStream } from './provider/yahooStream'
 import { createQuoteCache } from './quoteCache'
 import { createApi, expectsBody, isLocalHost, isOwnRequest, parseRequestUrl } from './routes'
 import { createStateStore } from './stateStore'
+import { createStreamRoute } from './streamRoute'
 
 const HOST = '127.0.0.1'
 const PORT = Number(process.env.PORT ?? 4780)
@@ -29,8 +33,7 @@ const offlineImageFetch: ImageFetchLike = async () => {
 
 const networkImageFetch: ImageFetchLike = withTimeout((url, init) => fetch(url, init), REQUEST_TIMEOUT_MS)
 
-const fallbackLogoUrl = async (symbol: string): Promise<string> =>
-  `https://financialmodelingprep.com/image-stock/${encodeURIComponent(symbol)}.png`
+const fetchLogo = createImageFetcher(process.env.DOJI_OFFLINE ? offlineImageFetch : networkImageFetch)
 
 const provider = createYahooProvider({
   fetch: process.env.DOJI_OFFLINE ? offlineFetch : networkFetch,
@@ -45,12 +48,37 @@ const api = createApi({
   provider: { ...provider, quotes: quotes.get },
   state: createStateStore(join(dataDir, 'state.json')),
   logos: createLogoStore({
-    sources: [provider.logoUrl, fallbackLogoUrl],
-    fetchImage: createImageFetcher(process.env.DOJI_OFFLINE ? offlineImageFetch : networkImageFetch),
+    sources: [finnhubLogoUrl, provider.logoUrl, fallbackLogoUrl],
+    fetchImage: async (url) => {
+      const logo = await fetchLogo(url)
+      return logo && isUsableLogo(url, logo) ? logo : null
+    },
     dir: join(dataDir, 'cache', 'logos'),
     now: () => new Date(),
+    version: LOGO_SOURCES_VERSION,
   }),
 })
+
+const openSocket = (url: string): SocketLike => {
+  const socket = new WebSocket(url)
+  return {
+    send: (data) => socket.send(data),
+    close: () => socket.close(),
+    addEventListener: (type, listener) =>
+      socket.addEventListener(type, (event) => listener({ data: 'data' in event ? event.data : undefined })),
+  }
+}
+
+const timers = {
+  setTimer: (run: () => void, ms: number): unknown => setTimeout(run, ms),
+  clearTimer: (timer: unknown): void => clearTimeout(timer as ReturnType<typeof setTimeout>),
+}
+
+const liveHub = createLiveHub({ now: () => Date.now(), watch: (symbols) => liveStream?.setSymbols(symbols), ...timers })
+
+const liveStream = process.env.DOJI_OFFLINE ? null : createYahooStream({ connect: openSocket, onTick: liveHub.push, ...timers })
+
+const streamRoute = createStreamRoute({ hub: liveHub })
 
 const serveStatic = sirv(distDir, { single: true, dev: true })
 
@@ -119,6 +147,10 @@ const handleRequest = (req: IncomingMessage, res: ServerResponse): void => {
   }
   if (url.pathname.startsWith('/api/') && !isOwnRequest(req.headers['sec-fetch-site'])) {
     sendJson(res, 403, { error: 'forbidden' })
+    return
+  }
+  if (url.pathname === '/api/stream' && req.method === 'GET') {
+    streamRoute(req, res, url.searchParams)
     return
   }
   if (url.pathname.startsWith('/api/')) {

@@ -1,6 +1,7 @@
 import { type RefObject, useEffect } from 'react'
 import { useTheme } from 'styled-components'
 import type { ChartSettings, History, Indicators, Timeframe, Drawing } from '../../shared/types'
+import type { LivePrice } from '../domain/liveBar'
 import { splitBasis } from '../domain/splits'
 import type { Tool } from '../state/appReducer'
 import { LineToolbar } from './LineToolbar'
@@ -17,6 +18,7 @@ type ChartViewProps = {
   timeframe: Timeframe
   indicators: Indicators
   settings: ChartSettings
+  live?: LivePrice | null
   screenshotRef?: RefObject<(() => void) | null>
   lines: Drawing[]
   tool: Tool
@@ -32,6 +34,7 @@ export const ChartView = ({
   timeframe,
   indicators,
   settings,
+  live = null,
   screenshotRef,
   lines,
   tool,
@@ -39,7 +42,7 @@ export const ChartView = ({
   onToolDone,
 }: ChartViewProps) => {
   const theme = useTheme()
-  const { containerRef, handles, data, rsiPaneTop, macdPaneTop, hover } = useChart({ history, timeframe, theme, indicators, settings })
+  const { containerRef, handles, data, rsiPaneTop, macdPaneTop, hover } = useChart({ history, timeframe, theme, indicators, settings, live })
   const { manual, release, fit } = useAutoFit(handles, history.info.symbol)
   const { selectedLine, updateLine, deleteSelected } = useDrawing({
     handles,

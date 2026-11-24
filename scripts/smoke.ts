@@ -3,8 +3,9 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { mkdir, readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { chromium } from 'playwright-core'
+import { dayInZone, mondayOf } from '../shared/dates'
 import { symbolsOf } from '../shared/listItems'
-import type { AppState, Drawing, TrendLine } from '../shared/types'
+import type { AppState, Drawing, History, LiveTick, Quote, TrendLine } from '../shared/types'
 
 type Box = { x: number; y: number; width: number; height: number }
 
@@ -19,6 +20,11 @@ await mkdir(outDir, { recursive: true })
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true })
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+const QUIET_STREAM = 'retry: 600000\n\n'
+let streamBody = QUIET_STREAM
+await context.route('**/api/stream*', (route) =>
+  route.fulfill({ status: 200, contentType: 'text/event-stream; charset=utf-8', body: streamBody }),
+)
 const page = await context.newPage()
 const pageErrors: string[] = []
 let stepNumber = 0
@@ -224,6 +230,86 @@ await step('la leyenda sigue al cursor y vuelve a la última vela', async () => 
   await page.mouse.move(700, 10)
   await page.waitForTimeout(300)
   check((await legend()) === resting, 'la leyenda no volvió a la última vela')
+})
+
+await step('los precios en vivo mueven la lista, la pestaña y la última vela, y marcan en verde o rojo lo que cambia', async () => {
+  const [quote] = (await (await fetch(`${url}/api/quotes?symbols=AAPL`)).json()) as Quote[]
+  const history = (await (await fetch(`${url}/api/history?symbol=AAPL`)).json()) as History
+  const lastBar = history.bars.at(-1)
+  check(quote?.time !== undefined && quote.timezone !== undefined, 'la cotización no trae su hora ni su zona horaria')
+  check(history.tradedAt !== undefined && lastBar !== undefined, 'el histórico no dice cuándo fue su última operación')
+  const time = Math.max(quote.time ?? 0, history.tradedAt ?? 0) + 120_000
+  check(dayInZone(quote.timezone ?? 'UTC', time) === lastBar?.time, 'la última vela no es del día de la cotización')
+  const price = Number((Math.max(lastBar?.high ?? 0, quote.price) * 1.05).toFixed(2))
+  const shown = price.toFixed(2)
+  const tick: LiveTick = { symbol: 'AAPL', price, change: 0, changePercent: 0, time, session: 'regular', volume: null }
+  const legend = async (period: string) =>
+    (await page.getByText(`Apple Inc. · ${period} · NASDAQ`).locator('..').innerText()).replace(/\s+/g, '')
+  await page.getByRole('img', { name: 'Prices refresh every 15 seconds' }).waitFor({ timeout: 5000 })
+  streamBody = `retry: 1000\n\ndata: ${JSON.stringify([tick])}\n\n`
+  await page.reload()
+  await waitForChart()
+  await page.getByRole('img', { name: 'Live prices' }).waitFor({ timeout: 10_000 })
+  await row('AAPL').getByText(shown, { exact: true }).waitFor({ timeout: 10_000 })
+  await page.waitForFunction((text) => document.title.startsWith(`AAPL ${text} ▲`), shown, { timeout: 5000 })
+  await page.mouse.move(700, 10)
+  await page.waitForTimeout(400)
+  const daily = await legend('1D')
+  check(daily.includes(`H${shown}`) && daily.includes(`C${shown}`), `la última vela diaria no cerró en ${shown}: ${daily}`)
+  const drawn = (): Promise<string> =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('.tv-lightweight-charts canvas')]
+        .map((canvas) => (canvas as HTMLCanvasElement).toDataURL())
+        .join('|'),
+    )
+  const before = await drawn()
+  const higher = Number((price * 1.03).toFixed(2))
+  const next: LiveTick = { ...tick, price: higher, time: time + 1000 }
+  streamBody = `retry: 1000\n\ndata: ${JSON.stringify([next])}\n\n`
+  const flashColor = (direction: 'up' | 'down'): Promise<string> =>
+    row('AAPL')
+      .locator(`[data-flash="${direction}"] > span`)
+      .last()
+      .evaluate((part) => getComputedStyle(part).color)
+  await row('AAPL').getByText(higher.toFixed(2), { exact: true }).waitFor({ timeout: 10_000 })
+  check((await flashColor('up')) === 'rgb(34, 171, 148)', `la subida no se marcó en verde: ${await flashColor('up')}`)
+  await page.waitForTimeout(500)
+  const moved = await legend('1D')
+  check(moved.includes(`H${higher.toFixed(2)}`) && moved.includes(`C${higher.toFixed(2)}`), `la vela no siguió al precio: ${moved}`)
+  check((await drawn()) !== before, 'el gráfico no se redibujó con el precio nuevo')
+  const lower = Number((price * 1.01).toFixed(2))
+  const last: LiveTick = { ...tick, price: lower, time: time + 2000 }
+  streamBody = `retry: 1000\n\ndata: ${JSON.stringify([last])}\n\n`
+  await row('AAPL').getByText(lower.toFixed(2), { exact: true }).waitFor({ timeout: 10_000 })
+  check((await flashColor('down')) === 'rgb(242, 54, 69)', `la bajada no se marcó en rojo: ${await flashColor('down')}`)
+  await page.waitForTimeout(3000)
+  const resting = await row('AAPL')
+    .locator('[data-flash="down"]')
+    .evaluate((flash) => getComputedStyle(flash.parentElement as Element).color)
+  check((await flashColor('down')) === resting, `la marca del precio no se apagó: ${await flashColor('down')}`)
+  const fallen = await legend('1D')
+  check(
+    fallen.includes(`H${higher.toFixed(2)}`) && fallen.includes(`C${lower.toFixed(2)}`),
+    `la vela no bajó su cierre conservando el máximo: ${fallen}`,
+  )
+  await button('W').click()
+  await page.getByText('Apple Inc. · 1W · NASDAQ').waitFor({ timeout: 5000 })
+  await page.waitForTimeout(400)
+  const weekly = await legend('1W')
+  const weekStart = mondayOf(lastBar?.time ?? '')
+  const weekHigh = Math.max(higher, ...history.bars.filter((bar) => bar.time >= weekStart).map((bar) => bar.high))
+  check(
+    weekly.includes(`H${weekHigh.toFixed(2)}`) && weekly.includes(`C${lower.toFixed(2)}`),
+    `la última vela semanal no cerró en ${lower.toFixed(2)} con máximo ${weekHigh.toFixed(2)}: ${weekly}`,
+  )
+  await button('D').click()
+  await page.getByText('Apple Inc. · 1D · NASDAQ').waitFor({ timeout: 5000 })
+  streamBody = QUIET_STREAM
+  await page.reload()
+  await waitForChart()
+  await page.getByRole('img', { name: 'Prices refresh every 15 seconds' }).waitFor({ timeout: 10_000 })
+  check(!((await row('AAPL').textContent()) ?? '').includes(lower.toFixed(2)), 'el precio de prueba sigue en la lista sin el canal en vivo')
+  check(!(await legend('1D')).includes(`C${lower.toFixed(2)}`), 'la vela sigue en el precio de prueba sin el canal en vivo')
 })
 
 await step('cambia a semanal', async () => {
@@ -555,7 +641,7 @@ await step('una alerta salta cuando el precio cruza la línea y se desarma sola'
     const quotes = (await response.json()) as { symbol: string }[]
     await route.fulfill({
       response,
-      json: quotes.map((quote) => (quote.symbol === 'AAPL' ? { ...quote, price: reported, extended: null } : quote)),
+      json: quotes.map((quote) => (quote.symbol === 'AAPL' ? { ...quote, price: reported, extended: null, time: Date.now() + 600_000 } : quote)),
     })
   })
   await page.waitForResponse(quotesRoute, { timeout: 25_000 })
@@ -569,6 +655,8 @@ await step('una alerta salta cuando el precio cruza la línea y se desarma sola'
   await page.mouse.click(price.x + price.width * 0.15, price.y + price.height * 0.3)
   await page.keyboard.press('Delete')
   check((await levels()).length === 0, 'la línea de la alerta no se borró')
+  await page.reload()
+  await waitForChart()
 })
 
 await step('dos gráficos a la vez con periodos distintos y los mismos dibujos', async () => {
@@ -765,10 +853,10 @@ await step('ordena la lista por cambio, lo invierte, lo recuerda y vuelve al ord
     )
   const ordered = (values: number[], direction: number): boolean => values.every((value, index) => index === 0 || (value - values[index - 1]) * direction <= 0)
   await page.waitForFunction(() => [...document.querySelectorAll('aside li button > div:nth-child(3)')].every((cell) => cell.textContent !== '—'), undefined, { timeout: 20_000 })
-  const changeHeader = button(/^Sort by Change %/)
+  const changeHeader = button(/^Sort by Chg%/)
   await changeHeader.click()
-  check((await changeHeader.textContent()) === 'Change % ▼', 'la cabecera no marca el orden descendente')
-  check((await changeHeader.getAttribute('aria-label')) === 'Sort by Change %, highest first', 'la cabecera no dice el sentido del orden')
+  check((await changeHeader.textContent()) === 'Chg% ▼', 'la cabecera no marca el orden descendente')
+  check((await changeHeader.getAttribute('aria-label')) === 'Sort by Chg%, highest first', 'la cabecera no dice el sentido del orden')
   check(ordered(await changes(), 1), `la lista no quedó de mayor a menor: ${await changes()}`)
   await changeHeader.click()
   check(ordered(await changes(), -1), `la lista no quedó de menor a mayor: ${await changes()}`)
@@ -815,10 +903,21 @@ await step('cambia el periodo de una media y quita la otra', async () => {
   check((await page.getByText('SMA 20 close', { exact: true }).count()) === 0, 'la media de 20 sigue en la leyenda')
 })
 
-await step('muestra logos de empresa y no la columna de cambio absoluto', async () => {
+await step('muestra logos a círculo completo o con margen según su forma, y no la columna de cambio absoluto', async () => {
   await page.locator('li img[data-loaded="true"]').first().waitFor({ timeout: 30_000 })
+  const logoOf = async (symbol: string) => {
+    const image = row(symbol).locator('img[data-loaded="true"]')
+    await image.waitFor({ timeout: 30_000 })
+    return image.evaluate((node) => {
+      const style = getComputedStyle(node)
+      return `${(node as HTMLElement).dataset.shape} ${style.objectFit} ${style.paddingTop}`
+    })
+  }
+  check((await logoOf('AAPL')) === 'tile cover 0px', `el logo de AAPL no llena el círculo: ${await logoOf('AAPL')}`)
+  const fund = await logoOf('SPY')
+  check(fund.startsWith('mark contain ') && !fund.endsWith(' 0px'), `el logo de SPY perdió su margen: ${fund}`)
   check((await page.getByText('Cambio', { exact: true }).count()) === 0, 'la columna Cambio sigue visible')
-  check((await page.getByText('Change %', { exact: true }).count()) === 1, 'falta la columna Cambio %')
+  check((await page.getByText('Chg%', { exact: true }).count()) === 1, 'falta la columna Cambio %')
 })
 
 await step('una media pasa a exponencial y vuelve a simple', async () => {
@@ -1212,6 +1311,21 @@ await step('la API rechaza las peticiones hechas desde otras webs', async () => 
   check(foreign.status() === 403, `se esperaba 403 y llegó ${foreign.status()}`)
   const own = await context.request.get(`${url}/api/state`, { headers: { 'sec-fetch-site': 'same-origin' } })
   check(own.status() === 200, `la app se quedó sin acceso: ${own.status()}`)
+})
+
+await step('el canal de precios en vivo responde y rechaza las peticiones de otras webs', async () => {
+  const abort = new AbortController()
+  const response = await fetch(`${url}/api/stream?symbols=AAPL`, { signal: abort.signal })
+  check(response.status === 200, `el canal respondió ${response.status}`)
+  check(response.headers.get('content-type') === 'text/event-stream; charset=utf-8', 'el canal no es un flujo de eventos')
+  const first = await response.body?.getReader().read()
+  check(new TextDecoder().decode(first?.value).startsWith('retry: 3000'), 'el canal no dice al navegador cuándo reconectar')
+  abort.abort()
+  const foreign = await fetch(`${url}/api/stream?symbols=AAPL`, { headers: { 'sec-fetch-site': 'cross-site' } })
+  check(foreign.status === 403, `se esperaba 403 para otra web y llegó ${foreign.status}`)
+  const empty = await fetch(`${url}/api/stream?symbols=`)
+  check(empty.status === 400, `se esperaba 400 sin símbolos y llegó ${empty.status}`)
+  check((await fetch(`${url}/api/state`)).ok, 'el servidor dejó de responder tras cerrar el canal')
 })
 
 await step('al cerrar con un estado grande se guarda el último cambio', async () => {

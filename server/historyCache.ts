@@ -63,12 +63,14 @@ export const mergeHistory = (cached: History, tail: History): History => {
   const from = fresh[0]?.time
   const kept = from === undefined ? cached.bars : cached.bars.filter((bar) => bar.time < from)
   const splits = new Map([...cached.splits, ...tail.splits].map((split) => [split.date, split]))
+  const tradedAt = fresh.length > 0 ? tail.tradedAt : cached.tradedAt
   return {
     info: tail.info,
     bars: [...kept, ...fresh],
     splits: [...splits.values()].sort(byDate((split) => split.date)),
     fetchedAt: tail.fetchedAt,
     stale: false,
+    ...(tradedAt === undefined ? {} : { tradedAt }),
   }
 }
 

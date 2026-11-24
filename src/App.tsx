@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ThemeProvider } from 'styled-components'
 import { todayIso } from '../shared/dates'
 import { symbolsOf } from '../shared/listItems'
@@ -16,12 +16,14 @@ import { Watchlist } from './components/Watchlist'
 import { configFileName, serializeConfig } from './domain/configFile'
 import { downloadText } from './domain/download'
 import { armedSymbols } from './domain/alerts'
+import { freshQuotes } from './domain/liveBar'
 import { newId } from './domain/newId'
 import { tabTitle } from './domain/tabTitle'
 import { nextSort, sortItems } from './domain/watchlistSort'
 import { adjustLinesForSplits } from './domain/splits'
 import { useAlerts } from './hooks/useAlerts'
 import { useHistory } from './hooks/useHistory'
+import { useLivePrice } from './hooks/useLivePrice'
 import { usePrefetchHistories } from './hooks/usePrefetchHistories'
 import { useQuotes } from './hooks/useQuotes'
 import { useShortcuts } from './hooks/useShortcuts'
@@ -45,7 +47,9 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   const list = activeWatchlist(state)
   const listSymbols = symbolsOf(list.items).map((item) => item.symbol)
   const alertSymbols = armedSymbols(state.lines)
-  const quotes = useQuotes([...new Set([...listSymbols, ...alertSymbols, state.symbol])], undefined, alertSymbols.length > 0)
+  const { quotes: tracked, live } = useQuotes([...new Set([...listSymbols, ...alertSymbols, state.symbol])], undefined, alertSymbols.length > 0)
+  const quotes = useMemo(() => freshQuotes(tracked, history), [tracked, history])
+  const livePrice = useLivePrice(history, quotes[state.symbol])
   const { fired, dismiss } = useAlerts({ lines: state.lines, quotes, dispatch })
   const shownItems = sortItems(list.items, quotes, state.watchlistSort)
   const shownSymbols = symbolsOf(shownItems).map((item) => item.symbol)
@@ -75,6 +79,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
     errorCode,
     indicators: state.indicators,
     settings: state.chart,
+    live: livePrice,
     lines: drawings,
     tool,
     onLinesChange: changeDrawings,
@@ -155,6 +160,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
             />
           }
           quotes={quotes}
+          live={live}
           activeSymbol={state.symbol}
           onSelect={(symbol) => dispatch({ type: 'setSymbol', symbol })}
           onRemove={(symbol) => dispatch({ type: 'removeFromWatchlist', symbol })}

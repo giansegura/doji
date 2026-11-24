@@ -18,8 +18,9 @@ import {
   type Time,
   createChart,
 } from 'lightweight-charts'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
+  Bar,
   ChartSettings,
   ChartType,
   CursorMode,
@@ -29,8 +30,9 @@ import type {
   SmaConfig,
   Timeframe,
 } from '../../shared/types'
-import { priceDigits } from '../../shared/symbols'
+import { type LivePrice, withLivePrice } from '../domain/liveBar'
 import type { Theme } from '../theme/tokens'
+import { formatWithPrecision, priceFormatOf } from './priceFormat'
 import { createBandPrimitive } from './bandPrimitive'
 import { type HoverStore, createHoverStore } from './hoverStore'
 import { type SeriesData, buildSeriesData } from './seriesData'
@@ -50,6 +52,7 @@ type Main = {
   type: ChartType
   series: ISeriesApi<SeriesType>
   update: (data: SeriesData, theme: Theme) => void
+  tick: (data: SeriesData) => void
 }
 
 type BandSeries = { basis: ISeriesApi<'Line'>; upper: ISeriesApi<'Line'>; lower: ISeriesApi<'Line'> }
@@ -77,6 +80,7 @@ type UseChartArgs = {
   theme: Theme
   indicators: Indicators
   settings: ChartSettings
+  live?: LivePrice | null
 }
 
 const RSI_UPPER = 70
@@ -137,6 +141,11 @@ const candleOptions = (theme: Theme) => ({
   wickDownColor: theme.chart.down,
 })
 
+const withLast = <T>(points: T[] | undefined, apply: (point: T) => void): void => {
+  const point = points?.at(-1)
+  if (point) apply(point)
+}
+
 const previousClose = (data: SeriesData): number => data.bars.at(-2)?.close ?? data.bars.at(-1)?.close ?? 0
 
 const MAIN_FACTORIES: Record<ChartType, (chart: IChartApi) => Main> = {
@@ -149,6 +158,7 @@ const MAIN_FACTORIES: Record<ChartType, (chart: IChartApi) => Main> = {
         series.applyOptions(candleOptions(theme))
         series.setData(data.candles)
       },
+      tick: (data) => withLast(data.candles, (candle) => series.update(candle)),
     }
   },
   bars: (chart) => {
@@ -160,6 +170,7 @@ const MAIN_FACTORIES: Record<ChartType, (chart: IChartApi) => Main> = {
         series.applyOptions({ upColor: theme.chart.up, downColor: theme.chart.down })
         series.setData(data.candles)
       },
+      tick: (data) => withLast(data.candles, (candle) => series.update(candle)),
     }
   },
   line: (chart) => {
@@ -171,6 +182,7 @@ const MAIN_FACTORIES: Record<ChartType, (chart: IChartApi) => Main> = {
         series.applyOptions({ color: theme.chart.line, lineWidth: MAIN_LINE_WIDTH })
         series.setData(data.closes)
       },
+      tick: (data) => withLast(data.closes, (close) => series.update(close)),
     }
   },
   area: (chart) => {
@@ -187,6 +199,7 @@ const MAIN_FACTORIES: Record<ChartType, (chart: IChartApi) => Main> = {
         })
         series.setData(data.closes)
       },
+      tick: (data) => withLast(data.closes, (close) => series.update(close)),
     }
   },
   baseline: (chart) => {
@@ -207,8 +220,24 @@ const MAIN_FACTORIES: Record<ChartType, (chart: IChartApi) => Main> = {
         })
         series.setData(data.closes)
       },
+      tick: (data) => withLast(data.closes, (close) => series.update(close)),
     }
   },
+}
+
+const tickSeries = (series: SeriesSet, data: SeriesData, smaConfigs: SmaConfig[]): void => {
+  series.main.tick(data)
+  withLast(data.volume, (point) => series.volume?.update(point))
+  withLast(data.volumeMa, (point) => series.volumeMa?.update(point))
+  withLast(data.rsi, (point) => series.rsi?.update(point))
+  withLast(data.rsiMa, (point) => series.rsiMa?.update(point))
+  withLast(data.bands?.basis, (point) => series.bands?.basis.update(point))
+  withLast(data.bands?.upper, (point) => series.bands?.upper.update(point))
+  withLast(data.bands?.lower, (point) => series.bands?.lower.update(point))
+  withLast(data.macd?.histogram, (point) => series.macd?.histogram.update(point))
+  withLast(data.macd?.line, (point) => series.macd?.line.update(point))
+  withLast(data.macd?.signal, (point) => series.macd?.signal.update(point))
+  smaConfigs.forEach((config, index) => withLast(data.smas[index], (point) => series.smas.get(config.id)?.update(point)))
 }
 
 const syncMain = (chart: IChartApi, series: SeriesSet, type: ChartType): void => {
@@ -379,7 +408,7 @@ const syncIndicators = (chart: IChartApi, series: SeriesSet, indicators: Indicat
   chart.panes().forEach((pane, index) => pane.setStretchFactor(index === 0 ? PRICE_PANE_STRETCH : RSI_PANE_STRETCH))
 }
 
-export const useChart = ({ history, timeframe, theme, indicators, settings }: UseChartArgs) => {
+export const useChart = ({ history, timeframe, theme, indicators, settings, live = null }: UseChartArgs) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<SeriesSet | null>(null)
@@ -410,10 +439,10 @@ export const useChart = ({ history, timeframe, theme, indicators, settings }: Us
   const invertScale = settings.invert
   const cursorMode = settings.cursor
 
-  const data = useMemo(
-    () =>
+  const build = useCallback(
+    (bars: Bar[]) =>
       buildSeriesData(
-        history.bars,
+        bars,
         timeframe,
         rsiLength,
         { volumeUp: theme.chart.volumeUp, volumeDown: theme.chart.volumeDown, up: theme.chart.up, down: theme.chart.down },
@@ -430,7 +459,6 @@ export const useChart = ({ history, timeframe, theme, indicators, settings }: Us
         },
       ),
     [
-      history.bars,
       timeframe,
       rsiLength,
       theme,
@@ -446,6 +474,16 @@ export const useChart = ({ history, timeframe, theme, indicators, settings }: Us
       macdSignal,
     ],
   )
+  const baseData = useMemo(() => build(history.bars), [build, history.bars])
+  const liveBars = useMemo(
+    () => withLivePrice(history, live),
+    [history, live?.symbol, live?.price, live?.time, live?.day, live?.volume, live?.high, live?.low],
+  )
+  const data = useMemo(
+    () => (liveBars === history.bars ? baseData : build(liveBars)),
+    [build, baseData, liveBars, history.bars],
+  )
+  const dataRef = useRef(data)
 
   useEffect(() => {
     const container = containerRef.current
@@ -487,11 +525,16 @@ export const useChart = ({ history, timeframe, theme, indicators, settings }: Us
   }, [hover])
 
   useEffect(() => {
+    dataRef.current = data
+  }, [data])
+
+  useEffect(() => {
     const chart = chartRef.current
     const series = seriesRef.current
     const container = containerRef.current
     if (!chart || !series || !container) return undefined
 
+    const data = dataRef.current
     const previous = viewRef.current
     const previousRange = chart.timeScale().getVisibleLogicalRange()
 
@@ -520,8 +563,7 @@ export const useChart = ({ history, timeframe, theme, indicators, settings }: Us
 
     syncMain(chart, series, chartType)
     series.main.update(data, theme)
-    const precision = priceDigits(symbol, data.bars.at(-1)?.close ?? 0)
-    series.main.series.applyOptions({ priceFormat: { type: 'price', precision, minMove: 1 / 10 ** precision } })
+    series.main.series.applyOptions({ priceFormat: priceFormatOf(symbol, data.bars.at(-1)?.close ?? 0) })
     series.volume?.setData(data.volume)
     series.rsi?.setData(data.rsi)
     series.rsiMa?.setData(data.rsiMa)
@@ -566,7 +608,7 @@ export const useChart = ({ history, timeframe, theme, indicators, settings }: Us
     return () => cancelAnimationFrame(frame)
   }, [
     hover,
-    data,
+    baseData,
     symbol,
     timeframe,
     theme,
@@ -589,6 +631,16 @@ export const useChart = ({ history, timeframe, theme, indicators, settings }: Us
     invertScale,
     cursorMode,
   ])
+
+  useEffect(() => {
+    if (seriesRef.current) tickSeries(seriesRef.current, data, smaConfigs)
+  }, [data])
+
+  const livePrecision = priceFormatOf(symbol, data.bars.at(-1)?.close ?? 0).precision
+
+  useEffect(() => {
+    seriesRef.current?.main.series.applyOptions({ priceFormat: formatWithPrecision(livePrecision) })
+  }, [livePrecision])
 
   return { containerRef, handles, data, rsiPaneTop: tops.rsi, macdPaneTop: tops.macd, hover }
 }

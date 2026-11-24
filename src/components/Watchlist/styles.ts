@@ -1,4 +1,4 @@
-import styled, { css } from 'styled-components'
+import styled, { css, keyframes } from 'styled-components'
 
 const COLUMNS = 'minmax(0, 1fr) 76px 72px 72px'
 const NO_EXTENDED_COLUMNS = 'minmax(0, 1fr) 76px 72px'
@@ -176,6 +176,21 @@ export const Number = styled.div<{ $color?: string; $wideOnly?: boolean; $widest
   ${(props) => props.$widestOnly && widestOnly}
 `
 
+const flashing = keyframes`
+  0%, 70% {
+    color: var(--flash);
+  }
+`
+
+export const FlashPart = styled.span<{ $up: boolean; $ms: number }>`
+  --flash: ${(props) => (props.$up ? props.theme.ui.up : props.theme.ui.down)};
+  animation: ${flashing} ${(props) => props.$ms}ms linear;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+`
+
 export const Empty = styled.div`
   padding: 24px 14px;
   color: ${(props) => props.theme.ui.textMuted};
@@ -195,6 +210,14 @@ export const HeaderActions = styled.div`
   display: flex;
   align-items: center;
   gap: 2px;
+`
+
+export const LiveMark = styled.span<{ $live: boolean }>`
+  width: 7px;
+  height: 7px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: ${(props) => (props.$live ? props.theme.ui.up : props.theme.ui.textMuted)};
 `
 
 export const SectionButton = styled.button`

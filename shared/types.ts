@@ -33,6 +33,7 @@ export type History = {
   splits: Split[]
   fetchedAt: string
   stale: boolean
+  tradedAt?: number
 }
 
 export type ExtendedSession = 'pre' | 'post'
@@ -45,6 +46,21 @@ export type Quote = {
   change: number
   changePercent: number
   extended?: ExtendedQuote | null
+  time?: number
+  timezone?: string
+  volume?: number
+}
+
+export type TickSession = ExtendedSession | 'regular'
+
+export type LiveTick = {
+  symbol: string
+  price: number
+  change: number
+  changePercent: number
+  time: number
+  session: TickSession
+  volume: number | null
 }
 
 export type PaneId = 'price' | 'rsi'

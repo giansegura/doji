@@ -1,4 +1,5 @@
 import styled from 'styled-components'
+import type { LogoShape } from './logoShape'
 
 export const Badge = styled.div<{ $size: number }>`
   position: relative;
@@ -17,15 +18,17 @@ export const Badge = styled.div<{ $size: number }>`
   line-height: 1;
 `
 
-export const Image = styled.img`
+const BACKDROPS: Record<LogoShape, string> = { tile: 'transparent', mark: '#ffffff', pale: '#1e222d' }
+
+export const Image = styled.img<{ $shape: LogoShape }>`
   position: absolute;
   inset: 0;
   box-sizing: border-box;
   width: 100%;
   height: 100%;
-  padding: 16%;
-  object-fit: contain;
-  background: #ffffff;
+  padding: ${(props) => (props.$shape === 'tile' ? '0' : '16%')};
+  object-fit: ${(props) => (props.$shape === 'tile' ? 'cover' : 'contain')};
+  background: ${(props) => BACKDROPS[props.$shape]};
   opacity: 0;
 
   &[data-loaded='true'] {

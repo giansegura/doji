@@ -433,3 +433,38 @@ test('Should name the market of a forex pair Forex', () => {
   })
   expect(parseHistory(json, 'x').info).toEqual({ symbol: 'EURUSD=X', name: 'EUR/USD', exchange: 'Forex' })
 })
+
+test('Should give the time of the last regular trade and the time zone of the exchange with each quote', () => {
+  const [quote] = parseQuotes(
+    sparkOf({ regularMarketTime: 1_795_532_326, exchangeTimezoneName: 'America/New_York' }),
+    new Date((OPEN + 600) * 1000),
+  )
+  expect(quote).toEqual({
+    symbol: 'AAA',
+    price: 200,
+    change: 10,
+    changePercent: (10 / 190) * 100,
+    extended: null,
+    time: 1_795_532_326_000,
+    timezone: 'America/New_York',
+  })
+})
+
+test('Should leave out the time and the time zone of a quote when Yahoo does not send them', () => {
+  const [quote] = parseQuotes(sparkOf({ regularMarketTime: 'ayer', exchangeTimezoneName: 7 }), new Date((OPEN + 600) * 1000))
+  expect(Object.keys(quote).sort()).toEqual(['change', 'changePercent', 'extended', 'price', 'symbol'])
+})
+
+test('Should read the trade time and the time zone of real batch quotes', () => {
+  const microsoft = parseQuotes(spark, new Date(0)).find((quote) => quote.symbol === 'MSFT')
+  expect(microsoft).toMatchObject({ time: 1_795_462_088_000, timezone: 'America/New_York' })
+})
+
+test('Should say when the last trade of a history happened', () => {
+  const json = chartJson({
+    meta: { symbol: 'TEST', longName: 'Test Corp', exchangeTimezoneName: 'America/New_York', regularMarketTime: 1_795_480_200 },
+  })
+  expect(parseHistory(json, 'x').tradedAt).toBe(1_795_480_200_000)
+  expect(parseHistory(chartJson(), 'x').tradedAt).toBeUndefined()
+  expect(parseHistory(aaplSplit, 'x').tradedAt).toBe(1_795_462_086_000)
+})
