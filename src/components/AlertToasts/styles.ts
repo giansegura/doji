@@ -19,7 +19,7 @@ export const Toast = styled.div`
   padding: 8px 8px 8px 12px;
   border: 1px solid ${(props) => props.theme.ui.accent};
   border-radius: 6px;
-  background: ${(props) => props.theme.ui.panel};
+  background: ${(props) => props.theme.ui.popup};
   box-shadow: 0 2px 8px ${(props) => props.theme.ui.shadow};
 `
 

@@ -20,7 +20,9 @@ import {
   type LinePoint,
   type SmaConfig,
   type ListItem,
+  type SortColumn,
   type SymbolInfo,
+  type WatchlistSort,
   type SymbolList,
   type Timeframe,
   type Drawing,
@@ -244,6 +246,15 @@ const toChart = (raw: unknown): ChartSettings => {
   }
 }
 
+const SORT_COLUMNS: SortColumn[] = ['symbol', 'last', 'change', 'ext']
+
+const toSort = (raw: unknown): WatchlistSort | null => {
+  const sort = asRecord(raw)
+  const column = SORT_COLUMNS.find((option) => option === sort.column)
+  if (!column || (sort.direction !== 'asc' && sort.direction !== 'desc')) return null
+  return { column, direction: sort.direction }
+}
+
 export const normalizeState = (raw: unknown): AppState => {
   const source = asRecord(raw)
   const watchlists = toLists(source)
@@ -263,5 +274,6 @@ export const normalizeState = (raw: unknown): AppState => {
     lines: toLines(source.lines),
     notes: toNotes(source.notes),
     secondChart: asTimeframe(source.secondChart),
+    watchlistSort: toSort(source.watchlistSort),
   }
 }

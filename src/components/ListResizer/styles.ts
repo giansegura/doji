@@ -4,7 +4,7 @@ export const Handle = styled.div<{ $active: boolean }>`
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -4px;
+  left: ${(props) => -4 - props.theme.ui.gap / 2}px;
   z-index: 5;
   width: 8px;
   cursor: col-resize;

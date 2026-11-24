@@ -23,6 +23,10 @@ export type ListItem = SymbolInfo | ListSection
 
 export type SymbolList = { id: string; name: string; items: ListItem[] }
 
+export type SortColumn = 'symbol' | 'last' | 'change' | 'ext'
+
+export type WatchlistSort = { column: SortColumn; direction: 'asc' | 'desc' }
+
 export type History = {
   info: SymbolInfo
   bars: Bar[]
@@ -105,6 +109,7 @@ export type AppState = {
   lines: Record<string, Drawing[]>
   notes: Record<string, string>
   secondChart: Timeframe | null
+  watchlistSort: WatchlistSort | null
 }
 
 export const DEFAULT_STATE: AppState = {
@@ -143,4 +148,5 @@ export const DEFAULT_STATE: AppState = {
   lines: {},
   notes: {},
   secondChart: null,
+  watchlistSort: null,
 }

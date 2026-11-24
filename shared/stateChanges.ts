@@ -11,6 +11,7 @@ const PARTS = [
   'listWidth',
   'notes',
   'secondChart',
+  'watchlistSort',
 ] as const
 
 type Part = (typeof PARTS)[number]

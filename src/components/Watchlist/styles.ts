@@ -3,8 +3,8 @@ import styled, { css } from 'styled-components'
 const COLUMNS = 'minmax(0, 1fr) 76px 72px 72px'
 const NO_EXTENDED_COLUMNS = 'minmax(0, 1fr) 76px 72px'
 const COMPACT_COLUMNS = 'minmax(0, 1fr) 72px'
-const NO_EXTENDED = '@container (max-width: 379px)'
-const COMPACT = '@container (max-width: 299px)'
+const NO_EXTENDED = '@container (max-width: 380px)'
+const COMPACT = '@container (max-width: 300px)'
 
 const columns = css`
   grid-template-columns: ${COLUMNS};
@@ -71,14 +71,21 @@ export const Columns = styled.div`
   ${columns}
   gap: 4px;
   padding: 6px 30px 6px 14px;
-  border-top: 1px solid ${(props) => props.theme.ui.border};
-  border-bottom: 1px solid ${(props) => props.theme.ui.border};
+  border-bottom: 1px solid ${(props) => props.theme.ui.separator};
   color: ${(props) => props.theme.ui.textMuted};
   font-size: 11px;
 `
 
-export const ColumnLabel = styled.div<{ $right?: boolean; $wideOnly?: boolean; $widestOnly?: boolean }>`
+export const ColumnLabel = styled.button<{ $right?: boolean; $wideOnly?: boolean; $widestOnly?: boolean; $sorted: boolean }>`
+  color: ${(props) => (props.$sorted ? props.theme.ui.text : 'inherit')};
+  font: inherit;
   text-align: ${(props) => (props.$right ? 'right' : 'left')};
+  white-space: nowrap;
+
+  &:hover {
+    color: ${(props) => props.theme.ui.text};
+  }
+
   ${(props) => props.$wideOnly && wideOnly}
   ${(props) => props.$widestOnly && widestOnly}
 `
@@ -119,6 +126,7 @@ export const RemoveButton = styled.button`
 
 export const Row = styled.li<{ $dragging: boolean }>`
   position: relative;
+  border-bottom: 1px solid ${(props) => props.theme.ui.separator};
   opacity: ${(props) => (props.$dragging ? 0.4 : 1)};
 
   &:hover ${RemoveButton} {
@@ -132,7 +140,7 @@ export const RowButton = styled.button`
   gap: 4px;
   align-items: center;
   width: 100%;
-  height: 36px;
+  height: 29px;
   padding: 0 30px 0 14px;
   text-align: left;
 
@@ -216,9 +224,8 @@ export const Section = styled.div`
   display: flex;
   align-items: center;
   gap: 2px;
-  height: 28px;
+  height: 29px;
   padding: 0 6px 0 14px;
-  border-top: 1px solid ${(props) => props.theme.ui.border};
   color: ${(props) => props.theme.ui.textMuted};
   font-size: 11px;
   letter-spacing: 0.04em;

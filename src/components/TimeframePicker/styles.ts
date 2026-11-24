@@ -10,7 +10,7 @@ export const Group = styled.div`
   padding: 2px;
   border: 1px solid ${(props) => props.theme.ui.border};
   border-radius: 6px;
-  background: ${(props) => props.theme.ui.panel};
+  background: ${(props) => props.theme.ui.popup};
 `
 
 export const Option = styled.button<{ $active: boolean }>`

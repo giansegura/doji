@@ -7,7 +7,9 @@ export const Layout = styled.div<{ $listWidth: number }>`
   grid-template-areas:
     'top top top'
     'tools chart list';
+  gap: ${(props) => props.theme.ui.gap}px;
   height: 100%;
+  background: ${(props) => props.theme.ui.separator};
 `
 
 export const Top = styled.div`
@@ -37,7 +39,7 @@ export const Pane = styled.div<{ $second?: boolean }>`
   position: relative;
   flex: 1;
   min-width: 0;
-  border-left: ${(props) => (props.$second ? `1px solid ${props.theme.ui.border}` : 'none')};
+  border-left: ${(props) => (props.$second ? `${props.theme.ui.gap}px solid ${props.theme.ui.separator}` : 'none')};
 `
 
 export const List = styled.aside`
@@ -47,7 +49,6 @@ export const List = styled.aside`
   flex-direction: column;
   min-height: 0;
   background: ${(props) => props.theme.ui.panel};
-  border-left: 1px solid ${(props) => props.theme.ui.border};
 `
 
 export const Message = styled.div`

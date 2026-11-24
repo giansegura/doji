@@ -7,7 +7,6 @@ export const Bar = styled.header`
   height: 100%;
   padding: 0 8px;
   background: ${(props) => props.theme.ui.panel};
-  border-bottom: 1px solid ${(props) => props.theme.ui.border};
 `
 
 export const Button = styled.button<{ $active?: boolean }>`
@@ -64,7 +63,7 @@ export const Menu = styled.div`
   max-height: calc(100vh - 56px);
   overflow-y: auto;
   padding: 6px;
-  background: ${(props) => props.theme.ui.panel};
+  background: ${(props) => props.theme.ui.popup};
   border: 1px solid ${(props) => props.theme.ui.border};
   border-radius: 6px;
   box-shadow: 0 2px 8px ${(props) => props.theme.ui.shadow};

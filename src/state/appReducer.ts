@@ -11,6 +11,7 @@ import type {
   ThemeName,
   Timeframe,
   Drawing,
+  WatchlistSort,
 } from '../../shared/types'
 
 export type Tool = 'cursor' | 'trendline' | 'hline' | 'channel' | 'rect'
@@ -38,6 +39,7 @@ export type Action =
   | { type: 'setNote'; symbol: string; text: string }
   | { type: 'toggleSecondChart' }
   | { type: 'setSecondChart'; timeframe: Timeframe }
+  | { type: 'setWatchlistSort'; sort: WatchlistSort | null }
 
 const COPY_SUFFIXES = [' (copy)', ...Array.from({ length: MAX_LISTS }, (_, index) => ` (copy ${index + 2})`)]
 
@@ -210,5 +212,6 @@ export const appReducer = (state: AppState, action: Action): AppState => {
   if (action.type === 'setNote') return setNote(state, action.symbol, action.text)
   if (action.type === 'toggleSecondChart') return toggleSecondChart(state)
   if (action.type === 'setSecondChart') return setSecondChart(state, action.timeframe)
+  if (action.type === 'setWatchlistSort') return { ...state, watchlistSort: action.sort }
   return setLines(state, action.symbol, action.lines)
 }
