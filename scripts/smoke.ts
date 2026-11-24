@@ -753,6 +753,34 @@ await step('reordena la lista arrastrando una fila', async () => {
   check([...after].sort().join(',') === [...before].sort().join(','), 'la lista perdió o ganó símbolos al reordenar')
 })
 
+await step('ordena la lista por cambio, lo invierte, lo recuerda y vuelve al orden propio', async () => {
+  const manual = activeItems(await savedState()).map((item) => item.symbol)
+  const changes = async (): Promise<number[]> =>
+    (await page.locator('aside li button > div:nth-child(3)').allTextContents()).map((text) =>
+      Number(text.replace('−', '-').replace('%', '')),
+    )
+  const shownSymbols = async (): Promise<string[]> =>
+    (await page.getByRole('button', { name: /^Remove / }).evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label') ?? ''))).map(
+      (label) => label.replace('Remove ', ''),
+    )
+  const ordered = (values: number[], direction: number): boolean => values.every((value, index) => index === 0 || (value - values[index - 1]) * direction <= 0)
+  await page.waitForFunction(() => [...document.querySelectorAll('aside li button > div:nth-child(3)')].every((cell) => cell.textContent !== '—'), undefined, { timeout: 20_000 })
+  await button('Sort by Change %').click()
+  check((await button('Sort by Change %').textContent()) === 'Change % ▼', 'la cabecera no marca el orden descendente')
+  check(ordered(await changes(), 1), `la lista no quedó de mayor a menor: ${await changes()}`)
+  await button('Sort by Change %').click()
+  check(ordered(await changes(), -1), `la lista no quedó de menor a mayor: ${await changes()}`)
+  check(JSON.stringify((await savedState()).watchlistSort) === JSON.stringify({ column: 'change', direction: 'asc' }), 'el orden no se guardó')
+  await page.reload()
+  await waitForChart()
+  await page.waitForFunction(() => [...document.querySelectorAll('aside li button > div:nth-child(3)')].every((cell) => cell.textContent !== '—'), undefined, { timeout: 20_000 })
+  check(ordered(await changes(), -1), 'el orden no se mantuvo al recargar')
+  check(activeItems(await savedState()).map((item) => item.symbol).join() === manual.join(), 'ordenar cambió el orden guardado de la lista')
+  await button('Sort by Change %').click()
+  check((await savedState()).watchlistSort === null, 'el tercer clic no quitó el orden')
+  check((await shownSymbols()).join() === manual.join(), `no volvió al orden propio: ${await shownSymbols()}`)
+})
+
 await step('oculta y muestra el RSI', async () => {
   await button('Indicators').click()
   await page.getByRole('checkbox', { name: 'RSI', exact: true }).click()

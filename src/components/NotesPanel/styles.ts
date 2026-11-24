@@ -4,7 +4,7 @@ export const Panel = styled.div`
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  border-top: 1px solid ${(props) => props.theme.ui.border};
+  border-top: ${(props) => props.theme.ui.gap}px solid ${(props) => props.theme.ui.separator};
 `
 
 export const Toggle = styled.button`

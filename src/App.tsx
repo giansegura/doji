@@ -18,6 +18,7 @@ import { downloadText } from './domain/download'
 import { armedSymbols } from './domain/alerts'
 import { newId } from './domain/newId'
 import { tabTitle } from './domain/tabTitle'
+import { nextSort, sortItems } from './domain/watchlistSort'
 import { adjustLinesForSplits } from './domain/splits'
 import { useAlerts } from './hooks/useAlerts'
 import { useHistory } from './hooks/useHistory'
@@ -46,9 +47,11 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   const alertSymbols = armedSymbols(state.lines)
   const quotes = useQuotes([...new Set([...listSymbols, ...alertSymbols, state.symbol])], undefined, alertSymbols.length > 0)
   const { fired, dismiss } = useAlerts({ lines: state.lines, quotes, dispatch })
+  const shownItems = sortItems(list.items, quotes, state.watchlistSort)
+  const shownSymbols = symbolsOf(shownItems).map((item) => item.symbol)
   usePrefetchHistories(listSymbols)
   const drawings = state.lines[state.symbol] ?? NO_DRAWINGS
-  const { changeDrawings, forgetDrawings } = useShortcuts({ symbol: state.symbol, drawings, symbols: listSymbols, dispatch, onTool: setTool })
+  const { changeDrawings, forgetDrawings } = useShortcuts({ symbol: state.symbol, drawings, symbols: shownSymbols, dispatch, onTool: setTool })
 
   useEffect(() => {
     forgetDrawings()
@@ -137,7 +140,9 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
       <Styles.List>
         <ListResizer width={state.listWidth} onResize={(width) => dispatch({ type: 'setListWidth', width })} />
         <Watchlist
-          items={list.items}
+          items={shownItems}
+          sort={state.watchlistSort}
+          onSort={(column) => dispatch({ type: 'setWatchlistSort', sort: nextSort(state.watchlistSort, column) })}
           header={
             <ListPicker
               lists={state.watchlists}

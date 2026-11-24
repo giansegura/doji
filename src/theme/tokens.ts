@@ -5,7 +5,10 @@ export type Theme = {
   ui: {
     bg: string
     panel: string
+    popup: string
     border: string
+    separator: string
+    gap: number
     text: string
     textMuted: string
     hover: string
@@ -71,15 +74,18 @@ export const themes: Record<ThemeName, Theme> = {
     name: 'dark',
     ui: {
       bg: '#131722',
-      panel: '#1E222D',
+      panel: '#000000',
+      popup: '#1E222D',
       border: '#2A2E39',
+      separator: '#222222',
+      gap: 4,
       text: '#D1D4DC',
       textMuted: MUTED,
       hover: '#2A2E39',
       active: '#142E61',
       accent: ACCENT,
       onAccent: '#FFFFFF',
-      up: UP,
+      up: '#22AB94',
       down: DOWN,
       preMarket: PRE_MARKET,
       postMarket: POST_MARKET,
@@ -103,7 +109,10 @@ export const themes: Record<ThemeName, Theme> = {
     ui: {
       bg: '#FFFFFF',
       panel: '#FFFFFF',
+      popup: '#FFFFFF',
       border: '#E0E3EB',
+      separator: '#E0E3EB',
+      gap: 1,
       text: '#131722',
       textMuted: MUTED,
       hover: '#F0F3FA',

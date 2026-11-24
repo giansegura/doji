@@ -86,3 +86,10 @@ test('Should list the second chart as a change when it is opened or closed', () 
   expect(changesSince(saved, { ...saved, secondChart: 'W' })).toEqual({ secondChart: 'W' })
   expect(changesSince({ ...saved, secondChart: 'W' }, saved)).toEqual({ secondChart: null })
 })
+
+test('Should list a new way of sorting the watchlist as a change', () => {
+  const saved: AppState = { ...DEFAULT_STATE, watchlistSort: null }
+  expect(changesSince(saved, { ...saved, watchlistSort: { column: 'ext', direction: 'asc' } })).toEqual({
+    watchlistSort: { column: 'ext', direction: 'asc' },
+  })
+})

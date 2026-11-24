@@ -310,3 +310,10 @@ test('Should change the timeframe of the second chart only while it is open', ()
   const closed = { ...base, secondChart: null }
   expect(appReducer(closed, { type: 'setSecondChart', timeframe: 'M' })).toBe(closed)
 })
+
+test('Should sort the watchlist and stop sorting it', () => {
+  const sortedBy = appReducer(base, { type: 'setWatchlistSort', sort: { column: 'change', direction: 'desc' } })
+  expect(sortedBy.watchlistSort).toEqual({ column: 'change', direction: 'desc' })
+  expect(appReducer(sortedBy, { type: 'setWatchlistSort', sort: null }).watchlistSort).toBeNull()
+  expect(activeWatchlist(sortedBy).items).toEqual(activeWatchlist(base).items)
+})

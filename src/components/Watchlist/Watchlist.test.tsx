@@ -1,7 +1,7 @@
 import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
-import type { ListItem, Quote, SymbolInfo } from '../../../shared/types'
+import type { ListItem, Quote, SymbolInfo, WatchlistSort } from '../../../shared/types'
 import { renderWithTheme } from '../../test/render'
 import { Watchlist } from '.'
 
@@ -16,7 +16,7 @@ const quotes: Record<string, Quote> = {
   MSFT: { symbol: 'MSFT', price: 431.2, change: -1.72, changePercent: -0.4 },
 }
 
-const setup = (over: { items?: ListItem[]; quotes?: Record<string, Quote> } = {}) => {
+const setup = (over: { items?: ListItem[]; quotes?: Record<string, Quote>; sort?: WatchlistSort | null } = {}) => {
   const handlers = {
     onSelect: vi.fn(),
     onRemove: vi.fn(),
@@ -25,9 +25,10 @@ const setup = (over: { items?: ListItem[]; quotes?: Record<string, Quote> } = {}
     onAddSection: vi.fn(),
     onRenameSection: vi.fn(),
     onRemoveSection: vi.fn(),
+    onSort: vi.fn(),
   }
   renderWithTheme(
-    <Watchlist items={over.items ?? items} quotes={over.quotes ?? quotes} activeSymbol="AAPL" {...handlers} />,
+    <Watchlist items={over.items ?? items} quotes={over.quotes ?? quotes} activeSymbol="AAPL" sort={over.sort ?? null} {...handlers} />,
   )
   return { handlers, user: userEvent.setup() }
 }
@@ -273,4 +274,50 @@ test('Should show a forex pair like TradingView with the decimals of forex', () 
   expect(within(pair).getByText('EURUSD')).toBeTruthy()
   expect(within(pair).getByText('1.0967')).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Remove EURUSD' })).toBeTruthy()
+})
+
+test('Should ask to sort by the column whose header is clicked', async () => {
+  const { handlers, user } = setup()
+  await user.click(screen.getByRole('button', { name: 'Sort by Change %' }))
+  await user.click(screen.getByRole('button', { name: 'Sort by Symbol' }))
+  await user.click(screen.getByRole('button', { name: 'Sort by Last' }))
+  await user.click(screen.getByRole('button', { name: 'Sort by Ext' }))
+  expect(handlers.onSort.mock.calls.map(([column]) => column)).toEqual(['change', 'symbol', 'last', 'ext'])
+})
+
+test('Should mark the sorted column with an arrow that shows the direction', () => {
+  setup({ sort: { column: 'change', direction: 'desc' } })
+  expect(screen.getByRole('button', { name: 'Sort by Change %' }).textContent).toBe('Change % ▼')
+  expect(screen.getByRole('button', { name: 'Sort by Symbol' }).textContent).toBe('Symbol')
+})
+
+test('Should point the arrow up when the order is ascending', () => {
+  setup({ sort: { column: 'symbol', direction: 'asc' } })
+  expect(screen.getByRole('button', { name: 'Sort by Symbol' }).textContent).toBe('Symbol ▲')
+})
+
+test('Should not let the rows be dragged while the list is sorted', () => {
+  setup({ sort: { column: 'change', direction: 'desc' } })
+  expect(screen.getAllByRole('listitem').every((row) => row.getAttribute('draggable') === 'false')).toBe(true)
+})
+
+test('Should let the rows be dragged in the order of the user', () => {
+  setup()
+  expect(screen.getAllByRole('listitem').every((row) => row.getAttribute('draggable') === 'true')).toBe(true)
+})
+
+test('Should space the symbols every thirty pixels with a divider between them, like TradingView', () => {
+  setup()
+  const [first] = screen.getAllByRole('listitem')
+  const button = within(first).getAllByRole('button')[0]
+  const item = getComputedStyle(first)
+  expect(parseFloat(getComputedStyle(button).height) + parseFloat(item.borderBottomWidth)).toBe(30)
+  expect(item.borderBottomStyle).toBe('solid')
+  expect(item.borderBottomColor).toBe('rgb(34, 34, 34)')
+})
+
+test('Should paint rises and falls with the green and red of TradingView', () => {
+  setup()
+  expect(getComputedStyle(screen.getByText('+1.19%')).color).toBe('rgb(34, 171, 148)')
+  expect(getComputedStyle(screen.getByText('−0.40%')).color).toBe('rgb(242, 54, 69)')
 })

@@ -69,7 +69,7 @@ export const Notice = styled.div`
   z-index: 3;
   padding: 4px 10px;
   border-radius: 4px;
-  background: ${(props) => props.theme.ui.panel};
+  background: ${(props) => props.theme.ui.popup};
   border: 1px solid ${(props) => props.theme.ui.border};
   color: ${(props) => props.theme.ui.textMuted};
 `
@@ -82,7 +82,7 @@ export const AutoFit = styled.button`
   height: 20px;
   padding: 0 6px;
   border-radius: 4px;
-  background: ${(props) => props.theme.ui.panel};
+  background: ${(props) => props.theme.ui.popup};
   border: 1px solid ${(props) => props.theme.ui.accent};
   color: ${(props) => props.theme.ui.accent};
   font-size: 11px;
@@ -104,7 +104,7 @@ export const Toolbar = styled.div`
   height: 38px;
   padding: 0 8px;
   transform: translateX(-50%);
-  background: ${(props) => props.theme.ui.panel};
+  background: ${(props) => props.theme.ui.popup};
   border: 1px solid ${(props) => props.theme.ui.border};
   border-radius: 6px;
   box-shadow: 0 2px 8px ${(props) => props.theme.ui.shadow};
@@ -122,7 +122,7 @@ export const Swatch = styled.button<{ $color: string }>`
   height: 18px;
   border-radius: 50%;
   background: ${(props) => props.$color};
-  border: 2px solid ${(props) => props.theme.ui.panel};
+  border: 2px solid ${(props) => props.theme.ui.popup};
 
   &[aria-pressed='true'] {
     box-shadow: 0 0 0 2px ${(props) => props.theme.ui.text};

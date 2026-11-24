@@ -8,7 +8,6 @@ export const Bar = styled.nav`
   height: 100%;
   padding: 8px 0;
   background: ${(props) => props.theme.ui.panel};
-  border-right: 1px solid ${(props) => props.theme.ui.border};
 `
 
 export const ToolButton = styled.button<{ $active: boolean }>`

@@ -1,6 +1,6 @@
 import { type DragEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { isSection } from '../../../shared/listItems'
-import type { ListItem, Quote } from '../../../shared/types'
+import type { ListItem, Quote, SortColumn, WatchlistSort } from '../../../shared/types'
 import { SectionField } from './SectionField'
 import { SectionRow } from './SectionRow'
 import { SymbolRow } from './SymbolRow'
@@ -17,6 +17,8 @@ type WatchlistProps = {
   onAddSection: (title: string) => void
   onRenameSection: (id: string, title: string) => void
   onRemoveSection: (id: string) => void
+  sort: WatchlistSort | null
+  onSort: (column: SortColumn) => void
   header?: ReactNode
 }
 
@@ -24,6 +26,17 @@ type Editing = { kind: 'new' } | { kind: 'rename'; id: string } | null
 
 const DRAG_FORMAT = 'application/x-doji-symbol'
 const NEW_SECTION: Editing = { kind: 'new' }
+
+type ColumnSpec = { column: SortColumn; label: string; right?: boolean; wideOnly?: boolean; widestOnly?: boolean }
+
+const COLUMNS: ColumnSpec[] = [
+  { column: 'symbol', label: 'Symbol' },
+  { column: 'last', label: 'Last', right: true, wideOnly: true },
+  { column: 'change', label: 'Change %', right: true },
+  { column: 'ext', label: 'Ext', right: true, widestOnly: true },
+]
+
+const ARROWS = { asc: ' ▲', desc: ' ▼' }
 
 const keyOf = (item: ListItem): string => (isSection(item) ? `section:${item.id}` : item.symbol)
 
@@ -44,6 +57,8 @@ export const Watchlist = ({
   onAddSection,
   onRenameSection,
   onRemoveSection,
+  sort,
+  onSort,
   header,
 }: WatchlistProps) => {
   const [dragIndex, setDragIndex] = useState<number | null>(null)
@@ -90,14 +105,22 @@ export const Watchlist = ({
         </Styles.HeaderActions>
       </Styles.Header>
       <Styles.Columns>
-        <Styles.ColumnLabel>Symbol</Styles.ColumnLabel>
-        <Styles.ColumnLabel $right $wideOnly>
-          Last
-        </Styles.ColumnLabel>
-        <Styles.ColumnLabel $right>Change %</Styles.ColumnLabel>
-        <Styles.ColumnLabel $right $widestOnly>
-          Ext
-        </Styles.ColumnLabel>
+        {COLUMNS.map(({ column, label, right, wideOnly, widestOnly }) => (
+          <Styles.ColumnLabel
+            key={column}
+            type="button"
+            aria-label={`Sort by ${label}`}
+            title={`Sort by ${label}`}
+            $right={right}
+            $wideOnly={wideOnly}
+            $widestOnly={widestOnly}
+            $sorted={sort?.column === column}
+            onClick={() => onSort(column)}
+          >
+            {label}
+            {sort?.column === column && ARROWS[sort.direction]}
+          </Styles.ColumnLabel>
+        ))}
       </Styles.Columns>
       {items.length === 0 && <Styles.Empty>This watchlist is empty</Styles.Empty>}
       <Styles.Rows>
@@ -105,7 +128,7 @@ export const Watchlist = ({
           <Styles.Row
             key={keyOf(item)}
             ref={!isSection(item) && item.symbol === activeSymbol ? activeRef : undefined}
-            draggable={editing === null}
+            draggable={editing === null && sort === null}
             $dragging={dragIndex === index}
             onDragStart={(event) => handleDragStart(event, index)}
             onDragOver={(event) => event.preventDefault()}

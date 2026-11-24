@@ -17,7 +17,7 @@ export const Dialog = styled.div`
   width: 560px;
   max-width: calc(100vw - 32px);
   max-height: 70vh;
-  background: ${(props) => props.theme.ui.panel};
+  background: ${(props) => props.theme.ui.popup};
   border: 1px solid ${(props) => props.theme.ui.border};
   border-radius: 8px;
   box-shadow: 0 8px 28px ${(props) => props.theme.ui.shadow};

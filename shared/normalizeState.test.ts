@@ -356,3 +356,10 @@ test('Should keep only the first of several sections that share an id within a l
   expect(out.watchlists[0].items).toEqual([items[0], items[1]])
   expect(out.watchlists[1].items).toEqual([items[2]])
 })
+
+test('Should keep how the watchlist is sorted and drop a sort it does not know', () => {
+  expect(normalizeState({}).watchlistSort).toBeNull()
+  expect(normalizeState({ watchlistSort: { column: 'change', direction: 'desc' } }).watchlistSort).toEqual({ column: 'change', direction: 'desc' })
+  expect(normalizeState({ watchlistSort: { column: 'volume', direction: 'desc' } }).watchlistSort).toBeNull()
+  expect(normalizeState({ watchlistSort: { column: 'last', direction: 'up' } }).watchlistSort).toBeNull()
+})

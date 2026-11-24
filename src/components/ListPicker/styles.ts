@@ -42,7 +42,7 @@ export const Menu = styled.div`
   max-height: 60vh;
   padding: 6px;
   overflow-y: auto;
-  background: ${(props) => props.theme.ui.panel};
+  background: ${(props) => props.theme.ui.popup};
   border: 1px solid ${(props) => props.theme.ui.border};
   border-radius: 6px;
   box-shadow: 0 2px 8px ${(props) => props.theme.ui.shadow};
