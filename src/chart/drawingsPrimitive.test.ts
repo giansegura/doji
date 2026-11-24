@@ -164,6 +164,11 @@ test('Should write the reading of a measure above it when there is no room below
   expect(calls.find((call) => call.startsWith('fillRect') && call.includes('#F25C69 1'))).toMatch(/fillRect \d+,152 /)
 })
 
+test('Should keep the reading of a measure inside the pane when it fits neither below nor above', () => {
+  const { calls } = draw([], { from: { x: 100, y: 10 }, to: { x: 200, y: 290 }, color: '#3CC68A', lines: ['+50.00 (+20.00%)', '30 bars, 42d'] })
+  expect(calls.find((call) => call.startsWith('fillRect') && call.includes('#3CC68A 1'))).toMatch(/fillRect \d+,242 /)
+})
+
 test('Should draw above the series', () => {
   expect(draw([view()]).zOrder).toBe('top')
 })

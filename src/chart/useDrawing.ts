@@ -155,6 +155,7 @@ export const useDrawing = (args: UseDrawingArgs) => {
   useEffect(() => {
     tools.controller.setTool(latest.current.tool)
     tools.controller.select(null)
+    tools.controller.clearMeasure()
   }, [tools, symbol])
 
   useEffect(() => {

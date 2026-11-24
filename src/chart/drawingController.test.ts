@@ -761,3 +761,28 @@ test('Should measure only on the price pane', () => {
   expect(controller.pointerDown('rsi', { x: 10, y: 50 })).toBe(false)
   expect(record.measure).toBeNull()
 })
+
+test('Should keep measuring on the price pane while the pointer wanders over the RSI pane', () => {
+  const { record, controller } = harness()
+  controller.setTool('measure')
+  controller.pointerDown('price', { x: 10, y: 100 })
+  controller.pointerMove('price', { x: 40, y: 130 })
+  expect(controller.pointerMove('rsi', { x: 90, y: 20 })).toBe('crosshair')
+  expect(record.measure?.p2).toEqual({ date: 'd40', value: 130 })
+  expect(controller.pointerDown('rsi', { x: 90, y: 20 })).toBe(true)
+  controller.pointerUp('rsi', { x: 300, y: 20 })
+  expect(record.measure?.p2).toEqual({ date: 'd40', value: 130 })
+  expect(record.toolDone).toBe(0)
+  controller.pointerDown('price', { x: 60, y: 150 })
+  expect(record.measure?.p2).toEqual({ date: 'd60', value: 150 })
+  expect(record.toolDone).toBe(1)
+})
+
+test('Should clear a measure on demand, as when the chart changes symbol', () => {
+  const { record, controller } = harness()
+  controller.setTool('measure')
+  controller.pointerDown('price', { x: 10, y: 100 })
+  controller.pointerDown('price', { x: 60, y: 150 })
+  controller.clearMeasure()
+  expect(record.measure).toBeNull()
+})

@@ -83,6 +83,14 @@ const arrow = (context: CanvasRenderingContext2D, from: XY, to: XY): void => {
   })
 }
 
+const labelTop = (top: number, bottom: number, height: number): number => {
+  const below = bottom + LABEL_GAP
+  const above = top - LABEL_GAP - LABEL_HEIGHT
+  if (below + LABEL_HEIGHT <= height) return below
+  if (above >= 0) return above
+  return Math.min(Math.max(bottom - LABEL_GAP - LABEL_HEIGHT, 0), Math.max(height - LABEL_HEIGHT, 0))
+}
+
 const drawMeasure = (context: CanvasRenderingContext2D, measure: MeasureView, size: Size): void => {
   const { from, to, color, lines } = measure
   const left = Math.min(from.x, to.x)
@@ -101,8 +109,7 @@ const drawMeasure = (context: CanvasRenderingContext2D, measure: MeasureView, si
   context.stroke()
   context.font = TEXT_FONT
   const width = Math.max(...lines.map((line) => context.measureText(line).width)) + LABEL_PADDING * 2
-  const below = bottom + LABEL_GAP
-  const y = below + LABEL_HEIGHT <= size.height ? below : top - LABEL_GAP - LABEL_HEIGHT
+  const y = labelTop(top, bottom, size.height)
   context.fillStyle = color
   context.fillRect(middle.x - width / 2, y, width, LABEL_HEIGHT)
   context.fillStyle = textOn(color)

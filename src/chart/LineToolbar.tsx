@@ -51,8 +51,11 @@ const LineTextField = ({ line, onChange }: { line: Drawing; onChange: (line: Dra
   const fieldRef = useRef<HTMLInputElement>(null)
   const saveRef = useRef<() => void>(() => undefined)
   const sentRef = useRef(saved)
+  const editedRef = useRef(false)
 
   const save = () => {
+    if (!editedRef.current) return
+    editedRef.current = false
     const text = draft.trim()
     if (text === sentRef.current) return
     sentRef.current = text
@@ -65,6 +68,7 @@ const LineTextField = ({ line, onChange }: { line: Drawing; onChange: (line: Dra
 
   useEffect(() => {
     sentRef.current = saved
+    if (!editedRef.current) setDraft(saved)
   }, [saved])
 
   useEffect(() => {
@@ -76,8 +80,10 @@ const LineTextField = ({ line, onChange }: { line: Drawing; onChange: (line: Dra
   }, [])
 
   const handleKey = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter') event.currentTarget.blur()
-    if (event.key === 'Escape') setDraft(saved)
+    if (event.key === 'Enter' && !event.nativeEvent.isComposing) event.currentTarget.blur()
+    if (event.key !== 'Escape') return
+    editedRef.current = false
+    setDraft(saved)
   }
 
   return (
@@ -89,7 +95,10 @@ const LineTextField = ({ line, onChange }: { line: Drawing; onChange: (line: Dra
       placeholder="Text"
       maxLength={LINE_TEXT_MAX_LENGTH}
       value={draft}
-      onChange={(event) => setDraft(event.target.value)}
+      onChange={(event) => {
+        editedRef.current = true
+        setDraft(event.target.value)
+      }}
       onBlur={save}
       onKeyDown={handleKey}
     />

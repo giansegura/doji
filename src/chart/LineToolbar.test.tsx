@@ -1,4 +1,6 @@
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { ThemeProvider } from 'styled-components'
+import { themes } from '../theme/tokens'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import type { Drawing, TrendLine } from '../../shared/types'
@@ -255,5 +257,28 @@ test('Should leave the drawings alone when the bar goes away with a text half ty
   const { unmount } = renderWithTheme(<LineToolbar line={line} onChange={onChange} onDelete={vi.fn()} />)
   await userEvent.setup().type(screen.getByRole('textbox', { name: 'Text on the line' }), 'Techo')
   unmount()
+  expect(onChange).not.toHaveBeenCalled()
+})
+
+test('Should not leave the text field on Enter while a character is still being composed', async () => {
+  const { handlers, user } = setup()
+  const field = screen.getByRole('textbox', { name: 'Text on the line' })
+  await user.type(field, 'R1')
+  fireEvent.keyDown(field, { key: 'Enter', isComposing: true })
+  expect(document.activeElement).toBe(field)
+  expect(handlers.onChange).not.toHaveBeenCalled()
+})
+
+test('Should follow a text changed elsewhere while the field is untouched, and never send it back', () => {
+  const onChange = vi.fn()
+  const ui = (text: string) => (
+    <ThemeProvider theme={themes.midnight}>
+      <LineToolbar line={{ ...line, text }} onChange={onChange} onDelete={vi.fn()} />
+    </ThemeProvider>
+  )
+  const view = render(ui('R1'))
+  view.rerender(ui('R2'))
+  expect((screen.getByRole('textbox', { name: 'Text on the line' }) as HTMLInputElement).value).toBe('R2')
+  fireEvent.pointerDown(document.body)
   expect(onChange).not.toHaveBeenCalled()
 })

@@ -34,6 +34,7 @@ export type DrawingController = {
   key: (key: 'Escape' | 'Delete') => void
   cancel: () => void
   select: (id: string | null) => void
+  clearMeasure: () => void
   syncVisibility: () => void
   getSelectedId: () => string | null
 }
@@ -242,7 +243,7 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
 
   const pointerDown = (pane: PaneId, xy: XY): boolean => {
     if (mode.kind === 'measuring') {
-      finishMeasuring(mode, xy)
+      if (pane === MEASURE_PANE) finishMeasuring(mode, xy)
       return true
     }
     if (mode.kind === 'placing') {
@@ -265,7 +266,7 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
 
   const pointerMove = (pane: PaneId, xy: XY): CursorKind => {
     if (mode.kind === 'measuring') {
-      showMeasure(mode.p1, xy)
+      if (pane === MEASURE_PANE) showMeasure(mode.p1, xy)
       return 'crosshair'
     }
     if (mode.kind === 'dragging') {
@@ -286,7 +287,7 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
       return
     }
     if (mode.kind === 'measuring') {
-      if (Math.hypot(xy.x - mode.start.x, xy.y - mode.start.y) > RELEASE_DISTANCE) finishMeasuring(mode, xy)
+      if (pane === MEASURE_PANE && Math.hypot(xy.x - mode.start.x, xy.y - mode.start.y) > RELEASE_DISTANCE) finishMeasuring(mode, xy)
       return
     }
     if (mode.kind !== 'placing' || mode.pane !== pane) return
@@ -331,6 +332,7 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
     key,
     cancel,
     select,
+    clearMeasure,
     syncVisibility,
     getSelectedId: () => selectedId,
   }
