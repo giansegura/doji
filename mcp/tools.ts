@@ -31,7 +31,7 @@ const INSTRUCTIONS = [
   'Indicator values are computed by doji: quote them instead of estimating numbers.',
   'Prices come from Yahoo Finance and may be delayed.',
   'You can also create watchlists, add or remove their symbols, add sections and rename them, but not delete a watchlist or a drawing.',
-  'Whatever you change shows up in doji within a few seconds. Alerts only fire while doji is open in a browser tab.',
+  'Whatever you change shows up in doji within a few seconds. Alerts fire while the doji server is running, even with no browser tab open, and also arrive by Telegram when the user linked a bot.',
 ].join(' ')
 
 const DEFAULT_COLOR = '#2962FF'

@@ -30,6 +30,25 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   return body as T
 }
 
+export type TelegramStatus = { connected: boolean; bot: string | null; linked: boolean }
+
+export type TelegramApi = {
+  status: () => Promise<TelegramStatus>
+  connect: (token: string) => Promise<TelegramStatus>
+  link: () => Promise<TelegramStatus>
+  test: () => Promise<unknown>
+  disconnect: () => Promise<TelegramStatus>
+}
+
+export const telegramApi: TelegramApi = {
+  status: () => request('/api/telegram'),
+  connect: (token) =>
+    request('/api/telegram', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) }),
+  link: () => request('/api/telegram/link', { method: 'POST' }),
+  test: () => request('/api/telegram/test', { method: 'POST' }),
+  disconnect: () => request('/api/telegram', { method: 'DELETE' }),
+}
+
 export const getHistory = (symbol: string): Promise<History> =>
   request(`/api/history?symbol=${encodeURIComponent(symbol)}`)
 

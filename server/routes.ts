@@ -5,6 +5,7 @@ import { SYMBOL_PATTERN } from '../shared/symbols'
 import type { HistoryCache } from './historyCache'
 import type { Logo, LogoStore } from './logoStore'
 import type { EarningsSource } from './provider/earnings'
+import { type Telegram, type TelegramErrorKind, isTelegramError } from './telegram'
 import { type DataProvider, isProviderError } from './provider/yahoo'
 import type { StateStore } from './stateStore'
 
@@ -12,7 +13,15 @@ export type ApiRequest = { method: string; path: string; query: URLSearchParams;
 
 export type ApiResult = { status: number; body: unknown } | { status: 200; image: Logo }
 
-type ApiDeps = { history: HistoryCache; provider: DataProvider; state: StateStore; logos: LogoStore; earnings: EarningsSource }
+type ApiDeps = {
+  history: HistoryCache
+  provider: DataProvider
+  state: StateStore
+  logos: LogoStore
+  earnings: EarningsSource
+  telegram: Telegram
+  testPrices?: (prices: Record<string, number>) => Promise<unknown>
+}
 
 type Route = (request: ApiRequest) => Promise<ApiResult>
 
@@ -24,7 +33,16 @@ const ok = (body: unknown): ApiResult => ({ status: 200, body })
 
 const fail = (status: number, error: string): ApiResult => ({ status, body: { error } })
 
+const TELEGRAM_STATUS: Record<TelegramErrorKind, number> = {
+  invalid_token: 400,
+  not_connected: 409,
+  no_message: 409,
+  not_linked: 409,
+  unavailable: 502,
+}
+
 const failureFor = (error: unknown): ApiResult => {
+  if (isTelegramError(error)) return fail(TELEGRAM_STATUS[error.kind], error.kind)
   if (!isProviderError(error)) return fail(500, 'internal')
   if (error.kind === 'not_found') return fail(404, 'not_found')
   return fail(502, 'unavailable')
@@ -116,6 +134,27 @@ export const createApi = (deps: ApiDeps): Route => {
         }),
       )
       return ok({ earnings, pending: deps.earnings.pending() })
+    },
+    'GET /api/telegram': async () => ok(await deps.telegram.status()),
+    'PUT /api/telegram': async ({ body }) => {
+      const token = (body as { token?: unknown } | null)?.token
+      if (typeof token !== 'string') return fail(400, 'invalid_token')
+      return ok(await deps.telegram.connect(token))
+    },
+    'POST /api/telegram/link': async () => ok(await deps.telegram.link()),
+    'POST /api/telegram/test': async () => {
+      await deps.telegram.test()
+      return ok({ ok: true })
+    },
+    'DELETE /api/telegram': async () => ok(await deps.telegram.disconnect()),
+    'PUT /api/test/prices': async ({ body }) => {
+      if (!deps.testPrices) return fail(404, 'not_found')
+      const prices = Object.fromEntries(
+        Object.entries(isRecord(body) ? body : {}).filter(
+          (entry): entry is [string, number] => SYMBOL_PATTERN.test(entry[0]) && typeof entry[1] === 'number' && Number.isFinite(entry[1]),
+        ),
+      )
+      return ok({ fired: await deps.testPrices(prices) })
     },
     'GET /api/state': async () => ok(await deps.state.read()),
     'PUT /api/state': async ({ body }) => {

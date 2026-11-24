@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import type { Drawing, HorizontalLine, Position, TrendLine } from '../../shared/types'
+import type { Drawing, HorizontalLine, Position, TrendLine } from './types'
 import { alertLevel, armedSymbols, createAlertWatcher, latestPrice, sideChange } from './alerts'
 
 const base = { id: 'a', pane: 'price' as const, timeframe: 'D' as const, color: '#2962FF', width: 2, pricedAt: '2020-01-01' }

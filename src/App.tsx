@@ -16,7 +16,6 @@ import { TopBar } from './components/TopBar'
 import { Watchlist } from './components/Watchlist'
 import { configFileName, serializeConfig } from './domain/configFile'
 import { downloadText } from './domain/download'
-import { armedSymbols } from './domain/alerts'
 import { calendarItems, earningsSoon } from './domain/earningsCalendar'
 import { freshQuotes } from './domain/liveBar'
 import { newId } from './domain/newId'
@@ -50,11 +49,10 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   const { status, history, errorCode, retry } = useHistory(state.symbol)
   const list = activeWatchlist(state)
   const listSymbols = symbolsOf(list.items).map((item) => item.symbol)
-  const alertSymbols = armedSymbols(state.lines)
-  const { quotes: tracked, live } = useQuotes([...new Set([...listSymbols, ...alertSymbols, state.symbol])], undefined, alertSymbols.length > 0)
+  const { quotes: tracked, live } = useQuotes([...new Set([...listSymbols, state.symbol])])
   const quotes = useMemo(() => freshQuotes(tracked, history), [tracked, history])
   const livePrice = useLivePrice(history, quotes[state.symbol])
-  const { fired, dismiss } = useAlerts({ lines: state.lines, quotes, dispatch })
+  const { fired, dismiss } = useAlerts()
   const shownItems = sortItems(list.items, quotes, state.watchlistSort)
   const shownSymbols = symbolsOf(shownItems).map((item) => item.symbol)
   usePrefetchHistories(listSymbols)

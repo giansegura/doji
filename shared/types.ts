@@ -111,6 +111,16 @@ export type Position = DrawingBase & {
 
 export type Drawing = TrendLine | HorizontalLine | Channel | Rectangle | Position
 
+export type AlertEvent = {
+  id: string
+  symbol: string
+  level: number
+  price: number
+  direction: 'up' | 'down'
+  at: string
+  text: string | null
+}
+
 export type EarningsTiming = 'pre' | 'post'
 
 export type Earnings = { past: string[]; next: string | null; nextIsEstimate: boolean; timing?: Record<string, EarningsTiming> }
