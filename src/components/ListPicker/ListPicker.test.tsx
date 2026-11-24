@@ -213,3 +213,29 @@ test('Should close the palette with Escape from any of its buttons, give the foc
   expect(screen.getByRole('menu')).toBeTruthy()
   expect(handlers.onIcon).not.toHaveBeenCalled()
 })
+
+test('Should show the palette in named groups', async () => {
+  const { user } = setup({ lists: withIcons })
+  await openMenu(user)
+  await user.click(screen.getByRole('button', { name: 'Icon for Bancos' }))
+  const palette = screen.getByRole('group', { name: 'Icons for Bancos' })
+  expect([...palette.querySelectorAll('[role="heading"]')].map((heading) => heading.textContent)).toEqual([
+    'Markets',
+    'Sectors',
+    'Countries',
+    'Colours and signs',
+    'Animals',
+  ])
+  expect(screen.getByRole('button', { name: '🇯🇵' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: '🐂' })).toBeTruthy()
+})
+
+test('Should tell how to open every emoji of the computer', async () => {
+  const { user } = setup({ lists: withIcons })
+  await openMenu(user)
+  await user.click(screen.getByRole('button', { name: 'Icon for Bancos' }))
+  expect(screen.getByRole('textbox', { name: 'Any emoji for Bancos' }).getAttribute('placeholder')).toBe('Any emoji (⌃⌘Space)')
+  expect(screen.getByRole('textbox', { name: 'Any emoji for Bancos' }).getAttribute('title')).toBe(
+    'Type any emoji and press Enter. On a Mac, Control + Command + Space opens every emoji.',
+  )
+})

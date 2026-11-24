@@ -177,6 +177,20 @@ export const Palette = styled.div`
   border-bottom: 1px solid ${(props) => props.theme.ui.border};
 `
 
+export const PaletteScroll = styled.div`
+  max-height: 248px;
+  overflow-y: auto;
+  padding-right: 2px;
+`
+
+export const PaletteHeading = styled.div`
+  padding: 6px 4px 4px;
+  color: ${(props) => props.theme.ui.textMuted};
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+`
+
 export const PaletteGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(8, 1fr);
