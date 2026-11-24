@@ -204,3 +204,10 @@ test('Should give forex prices with four decimals, or three for pairs above twen
   const yen = summarizeChart(input({ history: historyOf(Array.from({ length: 30 }, () => 159.12938), { info: { symbol: 'JPY=X', name: 'USD/JPY', exchange: 'Forex' } }) }))
   expect(yen.price.close).toBe(159.129)
 })
+
+test('Should describe the drawings at the prices after the latest split', () => {
+  const split = { date: addWeekdays(START, 100), numerator: 2, denominator: 1 }
+  const level: Drawing = { id: 'h', kind: 'hline', pane: 'price', timeframe: 'D', value: 100, color: '#2962FF', width: 2, pricedAt: '2020-01-01' }
+  const summary = summarizeChart(input({ history: historyOf(rising, { splits: [split] }), drawings: [level] }))
+  expect(summary.drawings).toEqual([{ id: 'h', kind: 'horizontal', pane: 'price', level: 50, alert: false }])
+})

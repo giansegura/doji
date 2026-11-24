@@ -17,11 +17,13 @@ const byDigits = new Map([2, 3, 4].map((digits) => [digits, fixed(digits)]))
 export const formatPrice = (value: number, symbol = ''): string =>
   (byDigits.get(priceDigits(symbol, value)) ?? twoDecimals).format(value)
 
-export const formatSigned = (value: number): string => {
-  const rounded = Math.round(value * 100) / 100
-  if (rounded > 0) return `+${twoDecimals.format(rounded)}`
-  if (rounded < 0) return `${MINUS}${twoDecimals.format(-rounded)}`
-  return twoDecimals.format(0)
+export const formatSigned = (value: number, digits = 2): string => {
+  const scale = 10 ** digits
+  const rounded = Math.round(value * scale) / scale
+  const format = byDigits.get(digits) ?? twoDecimals
+  if (rounded > 0) return `+${format.format(rounded)}`
+  if (rounded < 0) return `${MINUS}${format.format(-rounded)}`
+  return format.format(0)
 }
 
 export const formatPercent = (value: number): string => `${formatSigned(value)}%`

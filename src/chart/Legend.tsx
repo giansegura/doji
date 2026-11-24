@@ -1,4 +1,5 @@
 import { useTheme } from 'styled-components'
+import { priceDigits } from '../../shared/symbols'
 import type { Indicators, SymbolInfo, Timeframe } from '../../shared/types'
 import { SymbolLogo } from '../components/SymbolLogo'
 import { formatPercent, formatPrice, formatSigned, formatVolume } from './format'
@@ -31,6 +32,7 @@ export const Legend = ({ info, timeframe, values, indicators, rsiPaneTop, macdPa
   const change = bar ? bar.close - reference : 0
   const changePercent = reference !== 0 ? (change / reference) * 100 : 0
   const barColor = change >= 0 ? theme.chart.up : theme.chart.down
+  const digits = priceDigits(info.symbol, bar?.close ?? reference)
   const title = [info.name, `1${timeframe}`, info.exchange].filter(Boolean).join(' · ')
   const showRsi = indicators.rsi.visible && rsiPaneTop !== null
   const volumeMa = indicators.volumeMa.visible ? (values?.volumeMa ?? null) : null
@@ -54,7 +56,7 @@ export const Legend = ({ info, timeframe, values, indicators, rsiPaneTop, macdPa
             ))}
           {bar && (
             <Styles.LegendValue $color={barColor}>
-              {`${formatSigned(change)} (${formatPercent(changePercent)})`}
+              {`${formatSigned(change, digits)} (${formatPercent(changePercent)})`}
             </Styles.LegendValue>
           )}
         </Styles.LegendRow>
@@ -104,9 +106,9 @@ export const Legend = ({ info, timeframe, values, indicators, rsiPaneTop, macdPa
         <Styles.Legend $top={macdPaneTop + LEGEND_PADDING}>
           <Styles.LegendRow>
             <Styles.LegendLabel>{`MACD ${indicators.macd.fast} ${indicators.macd.slow} ${indicators.macd.signal}`}</Styles.LegendLabel>
-            {macd?.histogram != null && <Styles.LegendValue $color={histogramColor}>{macd.histogram.toFixed(2)}</Styles.LegendValue>}
-            {macd?.line != null && <Styles.LegendValue $color={theme.chart.macd}>{macd.line.toFixed(2)}</Styles.LegendValue>}
-            {macd?.signal != null && <Styles.LegendValue $color={theme.chart.macdSignal}>{macd.signal.toFixed(2)}</Styles.LegendValue>}
+            {macd?.histogram != null && <Styles.LegendValue $color={histogramColor}>{macd.histogram.toFixed(digits)}</Styles.LegendValue>}
+            {macd?.line != null && <Styles.LegendValue $color={theme.chart.macd}>{macd.line.toFixed(digits)}</Styles.LegendValue>}
+            {macd?.signal != null && <Styles.LegendValue $color={theme.chart.macdSignal}>{macd.signal.toFixed(digits)}</Styles.LegendValue>}
           </Styles.LegendRow>
         </Styles.Legend>
       )}

@@ -65,7 +65,7 @@ Herramientas que ofrece:
 | `set_alert` | Arma o desarma la alerta de una línea existente. |
 | `write_note` | Escribe en la nota de una acción. |
 
-La IA no puede borrar nada ni cambiar tus listas. Lo que añade aparece en doji en unos segundos, sin recargar; las alertas solo saltan con doji abierto en una pestaña.
+La IA no puede borrar dibujos ni cambiar tus listas, pero `write_note` en modo `replace` sustituye la nota entera y borra lo que tuviera. Lo que añade aparece en doji en unos segundos, sin recargar; las alertas solo saltan con doji abierto en una pestaña.
 
 Para usarlo, doji tiene que estar en marcha (`npm start`). Después se registra en tu aplicación de IA el comando `<doji>/node_modules/.bin/tsx <doji>/mcp/index.ts`, cambiando `<doji>` por la ruta completa de la carpeta:
 

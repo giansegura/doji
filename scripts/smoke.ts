@@ -1132,6 +1132,13 @@ await step('una IA conectada por MCP añade una línea con alerta y una nota que
   const chart = await call('get_chart', { symbol, bars: 5 })
   check(typeof chart.price.close === 'number' && chart.recentBars.rows.length === 5, 'get_chart no devolvió el precio y las velas')
   const level = Number((chart.price.close * 0.97).toFixed(2))
+  const { price: seedArea } = await panes()
+  const existing = (await drawingsOf(symbol)).map((drawing) => drawing.id)
+  await button('Horizontal line').click()
+  await page.mouse.click(seedArea.x + seedArea.width * 0.4, seedArea.y + seedArea.height * 0.2)
+  await page.waitForTimeout(600)
+  const seeded = (await drawingsOf(symbol)).find((drawing) => !existing.includes(drawing.id))
+  check(seeded?.kind === 'hline', 'la línea propia no se guardó antes de que escribiera la IA')
   const added = await call('add_horizontal_line', { symbol, price: level, alert: true, color: '#FF00FF' })
   await call('write_note', { symbol, text: 'Nota escrita por la IA' })
   await noteMark.waitFor({ timeout: 8000 })
@@ -1141,8 +1148,10 @@ await step('una IA conectada por MCP añade una línea con alerta y una nota que
   check(await hasColor(price, [255, 0, 255]), 'la línea de la IA no se ve en el gráfico')
   await page.keyboard.press('Control+z')
   await page.waitForTimeout(400)
-  const kept = (await drawingsOf(symbol)).find((drawing) => drawing.id === added.id)
+  const afterUndo = await drawingsOf(symbol)
+  const kept = afterUndo.find((drawing) => drawing.id === added.id)
   check(kept?.kind === 'hline' && kept.alert === true && kept.value === level, 'deshacer quitó o cambió la línea de la IA')
+  check(afterUndo.some((drawing) => drawing.id === seeded?.id), 'deshacer quitó la línea propia: el historial no se olvidó al llegar lo de la IA')
   const themeBefore = (await savedState()).theme
   await button(/Switch to .* theme/).click()
   const afterToggle = await savedState()
@@ -1156,7 +1165,10 @@ await step('una IA conectada por MCP añade una línea con alerta y una nota que
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       ...latest,
-      lines: { ...latest.lines, [symbol]: (latest.lines[symbol] ?? []).filter((drawing) => drawing.id !== added.id) },
+      lines: {
+        ...latest.lines,
+        [symbol]: (latest.lines[symbol] ?? []).filter((drawing) => drawing.id !== added.id && drawing.id !== seeded?.id),
+      },
       notes: Object.fromEntries(Object.entries(latest.notes).filter(([key]) => key !== symbol)),
     }),
   })

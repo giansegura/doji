@@ -4,6 +4,7 @@ import type { Bar, Drawing, History, LinePoint, Quote, SmaConfig, Timeframe } fr
 import { alertLevel } from '../src/domain/alerts'
 import { toMonthly } from '../src/domain/monthly'
 import { rsi, sma } from '../src/domain/rsi'
+import { adjustLinesForSplits } from '../src/domain/splits'
 import { bollinger, ema, macd } from '../src/domain/studies'
 import { toWeekly } from '../src/domain/weekly'
 
@@ -182,7 +183,7 @@ export const summarizeChart = ({ history, timeframe, bars: count, averages, draw
         bar.volume,
       ]),
     },
-    drawings: drawings.map((drawing) => describeDrawing(drawing, last.time, digits)),
+    drawings: adjustLinesForSplits(drawings, history.splits).lines.map((drawing) => describeDrawing(drawing, last.time, digits)),
     note,
   }
 }

@@ -185,3 +185,27 @@ test('Should count every time the state is replaced by the one on the server', a
   act(() => result.current.dispatch({ type: 'setTheme', theme: 'light' }))
   expect(result.current.replaced).toBe(2)
 })
+
+test('Should ignore a check that answers with an older revision than the one just saved', async () => {
+  const { result, api, box } = await mount()
+  const before = box.server
+  let answer: (state: AppState) => void = () => undefined
+  api.getState.mockImplementationOnce(
+    () =>
+      new Promise<AppState>((resolve) => {
+        answer = resolve
+      }),
+  )
+  await wait(5_000)
+  act(() => result.current.dispatch({ type: 'setTheme', theme: 'light' }))
+  await wait(300)
+  await act(async () => {
+    answer(before)
+    await vi.advanceTimersByTimeAsync(0)
+  })
+  expect(result.current.state?.theme).toBe('light')
+  act(() => result.current.dispatch({ type: 'setSymbol', symbol: 'MSFT' }))
+  await wait(300)
+  expect(box.server.symbol).toBe('MSFT')
+  expect(result.current.notice).toBe(null)
+})

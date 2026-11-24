@@ -23,7 +23,6 @@ const DEFAULT_COLOR = '#2962FF'
 const DEFAULT_BARS = 60
 const MAX_BARS = 300
 const MAX_ATTEMPTS = 3
-const SCAN_LIMIT = 40
 const SCAN_BATCH = 4
 const ADDED = 'Added. It shows in doji within a few seconds.'
 
@@ -92,7 +91,7 @@ export const createDojiServer = ({ api, newId, version }: ServerDeps): McpServer
   const scan = async (wanted: string | undefined, timeframe: Timeframe) => {
     const state = await api.getState()
     const list = findList(state, wanted)
-    const items = list.items.slice(0, SCAN_LIMIT)
+    const { items } = list
     const symbols = items.flatMap((item) => (isSection(item) ? [] : [item.symbol]))
     const quotes = await quotesFor(api, symbols)
     const rowFor = async (symbol: string) => {

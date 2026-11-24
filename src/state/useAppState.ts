@@ -60,7 +60,7 @@ export const useAppState = (api: StateApi = DEFAULT_API) => {
       apiRef.current
         .getState()
         .then((fresh) => {
-          if (fresh.rev !== sync.rev() && !sync.hasUnsaved()) apply(fresh, null)
+          if (fresh.rev > sync.rev() && !sync.hasUnsaved()) apply(fresh, null)
         })
         .catch(() => undefined)
     }

@@ -56,8 +56,8 @@ const initial: AppState = {
   notes: { KO: 'Tesis' },
 }
 
-const fakeApi = (over: { conflicts?: number; down?: boolean } = {}) => {
-  const box = { state: initial, saves: 0, conflicts: over.conflicts ?? 0 }
+const fakeApi = (over: { conflicts?: number; down?: boolean; state?: AppState } = {}) => {
+  const box = { state: over.state ?? initial, saves: 0, conflicts: over.conflicts ?? 0 }
   const fail = () => {
     if (over.down) throw new Error('doji is not running at http://127.0.0.1:4780. Start it with "npm start" in the doji folder.')
   }
@@ -265,4 +265,22 @@ test('Should say how to start doji when it is not running', async () => {
     text: 'doji is not running at http://127.0.0.1:4780. Start it with "npm start" in the doji folder.',
     data: null,
   })
+})
+
+test('Should scan every symbol of a long watchlist', async () => {
+  const symbols = Array.from({ length: 45 }, (_, index) => `S${index}`)
+  const long: AppState = {
+    ...initial,
+    watchlists: [
+      {
+        id: 'main',
+        name: 'Principal',
+        items: [{ kind: 'section', id: 's', title: 'Todo' }, ...symbols.map((symbol) => ({ symbol, name: symbol, exchange: 'NYSE' }))],
+      },
+    ],
+  }
+  const { call } = await connect(fakeApi({ state: long }).api)
+  const { data } = await call('scan_watchlist')
+  expect(data.rows).toHaveLength(46)
+  expect(data.rows.at(-1)).toMatchObject({ symbol: 'S44' })
 })
