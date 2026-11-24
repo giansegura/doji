@@ -10,6 +10,7 @@ type SymbolRowProps = {
   item: SymbolInfo
   quote: Quote | undefined
   active: boolean
+  earningsIn?: number
   onSelect: () => void
   onRemove: () => void
 }
@@ -20,7 +21,9 @@ const SESSION_LABELS: Record<ExtendedSession, string> = { pre: 'Pre-market', pos
 const describeExtended = (extended: ExtendedQuote, symbol: string): string =>
   `${SESSION_LABELS[extended.session]}: ${formatPrice(extended.price, symbol)} (${formatPercent(extended.changePercent)})`
 
-export const SymbolRow = ({ item, quote, active, onSelect, onRemove }: SymbolRowProps) => {
+const earningsLabel = (days: number): string => (days === 0 ? 'Earnings today' : `Earnings in ${days} ${days === 1 ? 'day' : 'days'}`)
+
+export const SymbolRow = ({ item, quote, active, earningsIn, onSelect, onRemove }: SymbolRowProps) => {
   const theme = useTheme()
   const extended = quote?.extended ?? null
   const changeColor = quote ? (quote.change < 0 ? theme.ui.down : theme.ui.up) : undefined
@@ -31,6 +34,11 @@ export const SymbolRow = ({ item, quote, active, onSelect, onRemove }: SymbolRow
         <Styles.Symbol>
           <SymbolLogo symbol={item.symbol} />
           <Styles.Ticker>{displaySymbol(item.symbol)}</Styles.Ticker>
+          {earningsIn !== undefined && (
+            <Styles.EarningsSoon role="img" aria-label={earningsLabel(earningsIn)} title={earningsLabel(earningsIn)}>
+              {earningsIn === 0 ? 'E' : `E ${earningsIn}d`}
+            </Styles.EarningsSoon>
+          )}
           {extended && (
             <Styles.SessionDot
               $session={extended.session}

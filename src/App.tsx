@@ -4,6 +4,7 @@ import { todayIso } from '../shared/dates'
 import { symbolsOf } from '../shared/listItems'
 import type { AppState, Drawing, DrawingKind, LineLook, SymbolInfo } from '../shared/types'
 import { ChartArea } from './components/ChartArea'
+import { EarningsCalendar } from './components/EarningsCalendar'
 import { LeftToolbar } from './components/LeftToolbar'
 import { ListPicker } from './components/ListPicker'
 import { AlertToasts } from './components/AlertToasts'
@@ -16,12 +17,14 @@ import { Watchlist } from './components/Watchlist'
 import { configFileName, serializeConfig } from './domain/configFile'
 import { downloadText } from './domain/download'
 import { armedSymbols } from './domain/alerts'
+import { calendarItems, earningsSoon } from './domain/earningsCalendar'
 import { freshQuotes } from './domain/liveBar'
 import { newId } from './domain/newId'
 import { tabTitle } from './domain/tabTitle'
 import { nextSort, sortItems } from './domain/watchlistSort'
 import { adjustLinesForSplits } from './domain/splits'
 import { useAlerts } from './hooks/useAlerts'
+import { useEarningsCalendar } from './hooks/useEarningsCalendar'
 import { useHistory } from './hooks/useHistory'
 import { useLivePrice } from './hooks/useLivePrice'
 import { usePrefetchHistories } from './hooks/usePrefetchHistories'
@@ -42,6 +45,7 @@ const NO_DRAWINGS: Drawing[] = []
 const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   const [tool, setTool] = useState<Tool>('cursor')
   const [searchMode, setSearchMode] = useState<SearchMode>(null)
+  const [calendarOpen, setCalendarOpen] = useState(false)
   const screenshotRef = useRef<(() => void) | null>(null)
   const { status, history, errorCode, retry } = useHistory(state.symbol)
   const list = activeWatchlist(state)
@@ -54,6 +58,11 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   const shownItems = sortItems(list.items, quotes, state.watchlistSort)
   const shownSymbols = symbolsOf(shownItems).map((item) => item.symbol)
   usePrefetchHistories(listSymbols)
+  const today = todayIso()
+  const allSymbols = useMemo(() => calendarItems(state.watchlists).map((item) => item.symbol), [state.watchlists])
+  const calendar = useEarningsCalendar(allSymbols, calendarOpen)
+  const listEarnings = useEarningsCalendar(listSymbols, state.earningsBadge)
+  const soon = useMemo(() => earningsSoon(listEarnings.earnings, today), [listEarnings.earnings, today])
   const drawings = state.lines[state.symbol] ?? NO_DRAWINGS
   const { changeDrawings, forgetDrawings } = useShortcuts({ symbol: state.symbol, drawings, symbols: shownSymbols, dispatch, onTool: setTool })
 
@@ -114,6 +123,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
           chart={state.chart}
           onChart={(chart) => dispatch({ type: 'setChart', chart })}
           onScreenshot={() => screenshotRef.current?.()}
+          onOpenCalendar={() => setCalendarOpen(true)}
           onExportConfig={() => downloadText(serializeConfig(state), configFileName(todayIso()))}
           onImportConfig={(config) => {
             forgetDrawings()
@@ -172,6 +182,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
           onAddSection={(title) => dispatch({ type: 'addSection', id: newId(), title })}
           onRenameSection={(id, title) => dispatch({ type: 'renameSection', id, title })}
           onRemoveSection={(id) => dispatch({ type: 'removeSection', id })}
+          earningsSoon={state.earningsBadge ? soon : undefined}
         />
         <NotesPanel
           symbol={state.symbol}
@@ -181,6 +192,18 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
       </Styles.List>
       {searchMode && (
         <SymbolSearch onPick={handlePick} onClose={() => setSearchMode(null)} stayOpen={searchMode === 'watchlist'} />
+      )}
+      {calendarOpen && (
+        <EarningsCalendar
+          lists={state.watchlists}
+          earnings={calendar.earnings}
+          pending={calendar.pending}
+          today={today}
+          badge={state.earningsBadge}
+          onBadge={(on) => dispatch({ type: 'setEarningsBadge', on })}
+          onPick={(symbol) => dispatch({ type: 'setSymbol', symbol })}
+          onClose={() => setCalendarOpen(false)}
+        />
       )}
     </Styles.Layout>
   )

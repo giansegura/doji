@@ -18,7 +18,9 @@ const quotes: Record<string, Quote> = {
   MSFT: { symbol: 'MSFT', price: 431.2, change: -1.72, changePercent: -0.4 },
 }
 
-const setup = (over: { items?: ListItem[]; quotes?: Record<string, Quote>; sort?: WatchlistSort | null } = {}) => {
+const setup = (
+  over: { items?: ListItem[]; quotes?: Record<string, Quote>; sort?: WatchlistSort | null; earningsSoon?: Record<string, number> } = {},
+) => {
   const handlers = {
     onSelect: vi.fn(),
     onRemove: vi.fn(),
@@ -30,7 +32,14 @@ const setup = (over: { items?: ListItem[]; quotes?: Record<string, Quote>; sort?
     onSort: vi.fn(),
   }
   renderWithTheme(
-    <Watchlist items={over.items ?? items} quotes={over.quotes ?? quotes} activeSymbol="AAPL" sort={over.sort ?? null} {...handlers} />,
+    <Watchlist
+      items={over.items ?? items}
+      quotes={over.quotes ?? quotes}
+      activeSymbol="AAPL"
+      sort={over.sort ?? null}
+      earningsSoon={over.earningsSoon}
+      {...handlers}
+    />,
   )
   return { handlers, user: userEvent.setup() }
 }
@@ -450,4 +459,11 @@ test('Should leave the mark as it is when the list is drawn again with the same 
   const first = flashOf('AAPL')
   rerender(listWith(229.61))
   expect(flashOf('AAPL')).toBe(first)
+})
+
+test('Should warn on the row of a symbol that reports earnings within a week', () => {
+  setup({ earningsSoon: { AAPL: 3, MSFT: 0 } })
+  expect(screen.getByRole('img', { name: 'Earnings in 3 days' }).textContent).toBe('E 3d')
+  expect(screen.getByRole('img', { name: 'Earnings today' }).textContent).toBe('E')
+  expect(screen.getAllByRole('img', { name: /^Earnings/ })).toHaveLength(2)
 })

@@ -57,9 +57,9 @@ const initial: AppState = {
 }
 
 const fakeApi = (
-  over: { conflicts?: number; down?: boolean; state?: AppState; meanwhile?: (state: AppState) => AppState } = {},
+  over: { conflicts?: number; down?: boolean; state?: AppState; meanwhile?: (state: AppState) => AppState; pendingEarnings?: number } = {},
 ) => {
-  const box = { state: over.state ?? initial, saves: 0, conflicts: over.conflicts ?? 0 }
+  const box = { state: over.state ?? initial, saves: 0, conflicts: over.conflicts ?? 0, calendarAsked: [] as string[][] }
   const fail = () => {
     if (over.down) throw new Error('doji is not running at http://127.0.0.1:4780. Start it with "npm start" in the doji folder.')
   }
@@ -86,6 +86,17 @@ const fakeApi = (
     },
     getQuotes: async (symbols) =>
       symbols.map((symbol): Quote => ({ symbol, price: 100, change: 1, changePercent: 1, extended: null })),
+    getEarningsCalendar: async (symbols) => {
+      box.calendarAsked.push(symbols)
+      return {
+        earnings: {
+          KO: { past: ['2026-10-21'], next: '2026-11-26', nextIsEstimate: false, timing: { '2026-11-26': 'post' } },
+          PEP: { past: ['2026-11-20'], next: null, nextIsEstimate: false },
+          NVDA: { past: [], next: '2026-12-20', nextIsEstimate: true },
+        },
+        pending: over.pendingEarnings ?? 0,
+      }
+    },
   }
   return { api, box }
 }
@@ -99,6 +110,7 @@ const connect = async (api: DojiApi) => {
       return `ai-${counter}`
     },
     version: 'test',
+    today: () => '2026-11-24',
   })
   const client = new Client({ name: 'test', version: 'test' })
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair()
@@ -118,6 +130,7 @@ test('Should offer its tools and tell the reading ones from the writing ones and
     ['get_watchlists', true, false],
     ['scan_watchlist', true, false],
     ['get_chart', true, false],
+    ['get_earnings_calendar', true, false],
     ['add_horizontal_line', false, false],
     ['set_alert', false, false],
     ['write_note', false, true],
@@ -426,4 +439,35 @@ test('Should refuse to change a watchlist deleted meanwhile instead of changing 
     text: 'Principal was deleted while saving. Nothing was changed.',
   })
   expect(itemsIn(box.state, 'Tech')).toEqual(['NVDA'])
+})
+
+test('Should list who reports earnings in the coming week across every watchlist', async () => {
+  const { api, box } = fakeApi()
+  const { call } = await connect(api)
+  expect((await call('get_earnings_calendar')).data).toEqual({
+    from: '2026-11-24',
+    to: '2026-12-01',
+    entries: [
+      { date: '2026-11-26', symbol: 'KO', name: 'Coca-Cola', watchlists: ['Principal'], kind: 'next', estimatedDate: false, timing: 'after the close' },
+    ],
+    stillLoading: 0,
+  })
+  expect(box.calendarAsked).toEqual([['KO', 'PEP', 'NVDA']])
+})
+
+test('Should list the earnings of one watchlist between two dates, past ones included', async () => {
+  const { call } = await connect(fakeApi().api)
+  const { data } = await call('get_earnings_calendar', { watchlist: 'Principal', from: '2026-10-01', to: '2026-12-31' })
+  expect(data.entries.map((entry: { date: string; symbol: string; kind: string }) => [entry.date, entry.symbol, entry.kind])).toEqual([
+    ['2026-10-21', 'KO', 'past'],
+    ['2026-11-20', 'PEP', 'past'],
+    ['2026-11-26', 'KO', 'next'],
+  ])
+})
+
+test('Should say how many dates doji is still fetching', async () => {
+  const { call } = await connect(fakeApi({ pendingEarnings: 40 }).api)
+  const { data } = await call('get_earnings_calendar')
+  expect(data.stillLoading).toBe(40)
+  expect(data.message).toBe('doji is still fetching 40 earnings dates. Ask again in a minute for the full list.')
 })

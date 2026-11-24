@@ -34,6 +34,7 @@ type TopBarProps = {
   chart: ChartSettings
   onChart: (chart: ChartSettings) => void
   onScreenshot: () => void
+  onOpenCalendar?: () => void
   onExportConfig: () => void
   onImportConfig: (config: AppState) => void
   split: boolean
@@ -84,6 +85,13 @@ const CameraIcon = () => (
   </svg>
 )
 
+const CalendarIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+    <path d="M3 4.5h12v10.5H3zM3 7.5h12M6 3v3M12 3v3" strokeLinejoin="round" strokeLinecap="round" />
+    <path d="M7.6 12.2h2.8M7.6 10.2h2.8M7.6 10.2v4" strokeLinecap="round" />
+  </svg>
+)
+
 const SplitIcon = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
     <path d="M2.5 3.5h13v11h-13zM9 3.5v11" strokeLinejoin="round" />
@@ -119,6 +127,7 @@ export const TopBar = ({
   chart,
   onChart,
   onScreenshot,
+  onOpenCalendar,
   onExportConfig,
   onImportConfig,
   split,
@@ -420,6 +429,11 @@ export const TopBar = ({
       </Styles.Menus>
       <Styles.Spacer />
       {notice && <Styles.Warning role="status">{notice}</Styles.Warning>}
+      {onOpenCalendar && (
+        <Styles.Button type="button" title="Earnings calendar" aria-label="Earnings calendar" onClick={onOpenCalendar}>
+          <CalendarIcon />
+        </Styles.Button>
+      )}
       <Styles.Button type="button" title="Save image" aria-label="Save image" onClick={onScreenshot}>
         <CameraIcon />
       </Styles.Button>

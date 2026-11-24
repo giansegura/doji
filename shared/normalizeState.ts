@@ -361,5 +361,6 @@ export const normalizeState = (raw: unknown): AppState => {
     secondChart: asTimeframe(source.secondChart),
     watchlistSort: toSort(source.watchlistSort),
     lineLooks: toLineLooks(source.lineLooks),
+    earningsBadge: source.earningsBadge === true,
   }
 }

@@ -97,7 +97,9 @@ export type Rectangle = DrawingBase & { kind: 'rect'; p1: LinePoint; p2: LinePoi
 
 export type Drawing = TrendLine | HorizontalLine | Channel | Rectangle
 
-export type Earnings = { past: string[]; next: string | null; nextIsEstimate: boolean }
+export type EarningsTiming = 'pre' | 'post'
+
+export type Earnings = { past: string[]; next: string | null; nextIsEstimate: boolean; timing?: Record<string, EarningsTiming> }
 
 export type DrawingKind = 'trend' | 'hline' | 'channel' | 'rect'
 
@@ -140,6 +142,7 @@ export type AppState = {
   secondChart: Timeframe | null
   watchlistSort: WatchlistSort | null
   lineLooks: Partial<Record<DrawingKind, LineLook>>
+  earningsBadge: boolean
 }
 
 export const DEFAULT_STATE: AppState = {
@@ -182,4 +185,5 @@ export const DEFAULT_STATE: AppState = {
   secondChart: null,
   watchlistSort: null,
   lineLooks: {},
+  earningsBadge: false,
 }

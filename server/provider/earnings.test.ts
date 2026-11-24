@@ -6,12 +6,34 @@ import { type EarningsFetch, NO_EARNINGS, createEarningsSource, parseEarnings } 
 const aapl: unknown = JSON.parse(readFileSync(join(__dirname, '__fixtures__', 'earnings-aapl.json'), 'utf8'))
 const NOW = new Date('2026-11-24T12:00:00Z')
 
+const TIMING = { '2026-01-29': 'post', '2026-04-30': 'post', '2026-07-30': 'post', '2026-11-02': 'post', '2027-01-28': 'post' }
+
 test('Should read the last reported dates and the next one from a Yahoo answer', () => {
   expect(parseEarnings(aapl, NOW)).toEqual({
     past: ['2026-01-29', '2026-04-30', '2026-07-30', '2026-11-02'],
     next: '2027-01-28',
     nextIsEstimate: false,
+    timing: TIMING,
   })
+})
+
+const answerAt = (stamps: number[]) => ({
+  quoteSummary: {
+    result: [
+      {
+        calendarEvents: { earnings: { earningsDate: [], isEarningsDateEstimate: false } },
+        earnings: { earningsChart: { quarterly: stamps.map((raw) => ({ reportedDate: { raw } })) } },
+      },
+    ],
+  },
+})
+
+test('Should tell a report before the opening from one after the close, and say nothing when only the day is known', () => {
+  const before = Date.parse('2026-07-29T11:30:00Z') / 1000
+  const after = Date.parse('2026-10-28T20:05:00Z') / 1000
+  const during = Date.parse('2026-04-29T15:00:00Z') / 1000
+  const dayOnly = Date.parse('2026-01-28T00:00:00Z') / 1000
+  expect(parseEarnings(answerAt([before, after, during, dayOnly]), NOW).timing).toEqual({ '2026-07-29': 'pre', '2026-10-28': 'post' })
 })
 
 test('Should drop a next date that has already gone by and read an answer without earnings as none', () => {
@@ -124,4 +146,37 @@ test('Should ask Yahoo once when the same symbol is asked for twice at the same 
   expect(summaries).toBe(1)
   expect(second).toEqual(first)
   expect((await source.get('AAPL')).next).toBe('2027-01-28')
+})
+
+const memoryStore = (initial: unknown = null) => {
+  const box = { data: initial, saves: 0 }
+  return { box, store: { load: async () => box.data, save: async (data: unknown) => {
+    box.data = data
+    box.saves += 1
+  } } }
+}
+
+test('Should start from the earnings kept on disk and keep there what it asks for', async () => {
+  const kept = { AAPL: { at: NOW.getTime() - 3_600_000, earnings: { past: ['2026-11-02'], next: '2027-01-28', nextIsEstimate: false } } }
+  const { box, store } = memoryStore(kept)
+  const { fetch, calls } = yahoo(['c1'])
+  const source = createEarningsSource({ fetch, now: () => NOW, store })
+  expect((await source.get('AAPL')).past).toEqual(['2026-11-02'])
+  expect(calls).toHaveLength(0)
+  await source.get('MSFT')
+  expect(Object.keys(box.data as object).sort()).toEqual(['AAPL', 'MSFT'])
+})
+
+test('Should give what it already has and fetch the rest in the background, a few at a time', async () => {
+  const { fetch, calls } = yahoo(['c1'])
+  const source = createEarningsSource({ fetch, now: () => NOW })
+  await source.get('AAPL')
+  expect(source.peek('AAPL')?.next).toBe('2027-01-28')
+  expect(source.peek('MSFT')).toBeNull()
+  const done = source.warm(['AAPL', 'MSFT', 'KO', 'PEP'])
+  expect(source.pending()).toBe(3)
+  await done
+  expect(source.pending()).toBe(0)
+  expect(source.peek('PEP')?.past).toHaveLength(4)
+  expect(calls.filter((call) => call.url.includes('quoteSummary'))).toHaveLength(4)
 })

@@ -18,6 +18,7 @@ type Route = (request: ApiRequest) => Promise<ApiResult>
 const LOCAL_HOSTNAMES = ['127.0.0.1', 'localhost', '[::1]']
 const OWN_FETCH_SITES = ['same-origin', 'none']
 const WRITING_METHODS = ['PUT', 'PATCH']
+const MAX_CALENDAR_SYMBOLS = 500
 
 const ok = (body: unknown): ApiResult => ({ status: 200, body })
 
@@ -97,6 +98,24 @@ export const createApi = (deps: ApiDeps): Route => {
       const symbol = query.get('symbol') ?? ''
       if (!SYMBOL_PATTERN.test(symbol)) return fail(400, 'invalid_symbol')
       return ok(await deps.earnings.get(symbol))
+    },
+    'GET /api/earnings/calendar': async ({ query }) => {
+      const symbols = [
+        ...new Set(
+          (query.get('symbols') ?? '')
+            .split(',')
+            .filter((symbol) => SYMBOL_PATTERN.test(symbol))
+            .map((symbol) => symbol.toUpperCase()),
+        ),
+      ].slice(0, MAX_CALENDAR_SYMBOLS)
+      if (symbols.length > 0) deps.earnings.warm(symbols).catch(() => undefined)
+      const earnings = Object.fromEntries(
+        symbols.flatMap((symbol) => {
+          const found = deps.earnings.peek(symbol)
+          return found ? [[symbol, found]] : []
+        }),
+      )
+      return ok({ earnings, pending: deps.earnings.pending() })
     },
     'GET /api/state': async () => ok(await deps.state.read()),
     'PUT /api/state': async ({ body }) => {

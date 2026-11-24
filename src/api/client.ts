@@ -40,6 +40,11 @@ export const searchSymbols = (query: string): Promise<SymbolInfo[]> =>
 
 export const getEarnings = (symbol: string): Promise<Earnings> => request(`/api/earnings?symbol=${encodeURIComponent(symbol)}`)
 
+export type EarningsCalendarAnswer = { earnings: Record<string, Earnings>; pending: number }
+
+export const getEarningsCalendar = (symbols: string[]): Promise<EarningsCalendarAnswer> =>
+  request(`/api/earnings/calendar?symbols=${symbols.map(encodeURIComponent).join(',')}`)
+
 export const getQuotes = (symbols: string[]): Promise<Quote[]> =>
   request(`/api/quotes?symbols=${symbols.map(encodeURIComponent).join(',')}`)
 

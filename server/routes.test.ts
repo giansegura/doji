@@ -19,8 +19,9 @@ type Overrides = {
 
 const makeApi = (over: Overrides = {}) => {
   const saved: AppState[] = []
-  const requested: { history: string[]; kept: string[]; search: string[]; quotes: string[][]; logos: string[]; earnings: string[] } = {
+  const requested: { history: string[]; kept: string[]; search: string[]; quotes: string[][]; logos: string[]; earnings: string[]; warmed: string[][] } = {
     earnings: [],
+    warmed: [],
     history: [],
     kept: [],
     search: [],
@@ -56,6 +57,11 @@ const makeApi = (over: Overrides = {}) => {
         requested.earnings.push(symbol)
         return { past: ['2026-11-02'], next: '2027-01-28', nextIsEstimate: false }
       },
+      peek: (symbol) => (symbol === 'AAPL' ? { past: ['2026-11-02'], next: '2027-01-28', nextIsEstimate: false } : null),
+      warm: async (symbols) => {
+        requested.warmed.push(symbols)
+      },
+      pending: () => 2,
     },
     logos: {
       get: async (symbol) => {
@@ -348,4 +354,14 @@ test('Should give the earnings dates of a valid symbol and refuse an invalid one
   })
   expect(await call('GET', '/api/earnings?symbol=../x')).toEqual({ status: 400, body: { error: 'invalid_symbol' } })
   expect(requested.earnings).toEqual(['AAPL'])
+})
+
+test('Should give the earnings it already has for many symbols, fetch the rest behind and say how many are left', async () => {
+  const { call, requested } = makeApi()
+  expect(await call('GET', '/api/earnings/calendar?symbols=AAPL,msft,../x')).toEqual({
+    status: 200,
+    body: { earnings: { AAPL: { past: ['2026-11-02'], next: '2027-01-28', nextIsEstimate: false } }, pending: 2 },
+  })
+  expect(requested.warmed).toEqual([['AAPL', 'MSFT']])
+  expect(await call('GET', '/api/earnings/calendar?symbols=')).toEqual({ status: 200, body: { earnings: {}, pending: 2 } })
 })
