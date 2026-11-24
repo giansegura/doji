@@ -149,9 +149,12 @@ const blueCentre = (box: Box): Promise<[number, number] | null> =>
     return [middleX, column[Math.floor(column.length / 2)]] as [number, number]
   }, box)
 
-const hasColor = (box: Box, [red, green, blue]: [number, number, number]): Promise<boolean> =>
+const COLOR_TOLERANCE = 40
+const EXACT_TOLERANCE = 16
+
+const hasColor = (box: Box, [red, green, blue]: [number, number, number], tolerance = COLOR_TOLERANCE): Promise<boolean> =>
   page.evaluate(
-    ({ area, wanted }) =>
+    ({ area, wanted, tolerance }) =>
       [...document.querySelectorAll('.tv-lightweight-charts canvas')].some((element) => {
         const canvas = element as HTMLCanvasElement
         const rect = canvas.getBoundingClientRect()
@@ -172,14 +175,14 @@ const hasColor = (box: Box, [red, green, blue]: [number, number, number]): Promi
         if (!pixels) return false
         for (let index = 0; index < pixels.length; index += 4) {
           const near =
-            Math.abs(pixels[index] - wanted[0]) < 40 &&
-            Math.abs(pixels[index + 1] - wanted[1]) < 40 &&
-            Math.abs(pixels[index + 2] - wanted[2]) < 40
+            Math.abs(pixels[index] - wanted[0]) < tolerance &&
+            Math.abs(pixels[index + 1] - wanted[1]) < tolerance &&
+            Math.abs(pixels[index + 2] - wanted[2]) < tolerance
           if (near && pixels[index + 3] > 200) return true
         }
         return false
       }),
-    { area: box, wanted: [red, green, blue] },
+    { area: box, wanted: [red, green, blue], tolerance },
   )
 
 const drag = async (from: [number, number], to: [number, number]): Promise<void> => {
@@ -866,7 +869,14 @@ await step('cada acción recuerda su vista al volver a ella, también tras recar
   await page.mouse.click(price.x + price.width * 0.15, (placed as [number, number])[1])
   await page.keyboard.press('Delete')
   check(!(await drawingsOf(symbol)).some((drawing) => drawing.id === reference?.id), 'la línea de referencia no se borró')
-  await button('Auto').click()
+  check((await button('Auto').count()) === 1, 'se perdió el desplazamiento vertical antes de cambiar de periodo')
+  await button('W').click()
+  await page.getByText(/ · 1W · /).waitFor({ timeout: 10_000 })
+  await settle()
+  check((await button('Auto').count()) === 0, 'la escala de precios siguió fija al cambiar de periodo')
+  await button('D').click()
+  await page.getByText(/ · 1D · /).waitFor({ timeout: 10_000 })
+  await settle()
 })
 
 await step('añade KO y PEP seguidos sin cerrar el buscador ni cambiar el gráfico', async () => {
@@ -1538,7 +1548,7 @@ await step('el tema doji pinta velas y rellenos con sus colores y se recuerda al
   await page.mouse.move(700, 10)
   check(near(await chartPixel(price), [21, 20, 18]), `el gráfico no recuperó el fondo de doji: ${await chartPixel(price)}`)
   check(await hasColor(price, [60, 198, 138]), 'no hay velas alcistas con el verde de doji')
-  check(await hasColor(price, [242, 92, 105]), 'no hay velas bajistas con el rojo de doji')
+  check(await hasColor(price, [242, 92, 105], EXACT_TOLERANCE), 'no hay velas bajistas con el rojo de doji')
   await button('Chart').click()
   await page.getByRole('radio', { name: 'Area', exact: true }).click()
   await page.keyboard.press('Escape')

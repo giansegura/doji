@@ -265,11 +265,11 @@ const toSort = (raw: unknown): WatchlistSort | null => {
 
 const THEMES: ThemeName[] = ['doji', 'midnight', 'light']
 
-const FORMER_THEMES: Record<string, ThemeName> = { dark: 'midnight' }
+const FORMER_THEMES = new Map<string, ThemeName>([['dark', 'midnight']])
 
 const toTheme = (raw: unknown): ThemeName => {
   const name = typeof raw === 'string' ? raw : ''
-  return THEMES.find((theme) => theme === name) ?? FORMER_THEMES[name] ?? DEFAULT_STATE.theme
+  return THEMES.find((theme) => theme === name) ?? FORMER_THEMES.get(name) ?? DEFAULT_STATE.theme
 }
 
 export const normalizeState = (raw: unknown): AppState => {

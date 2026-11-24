@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react'
 import { MAX_SMAS, SMA_COLORS, SMA_MAX_LENGTH, SMA_MIN_LENGTH } from '../../../shared/limits'
 import { displaySymbol } from '../../../shared/symbols'
 import type {
@@ -70,6 +70,13 @@ const CURSOR_MODES: [CursorMode, string][] = [
 
 type MenuName = 'indicators' | 'chart' | 'config' | 'theme'
 
+const MENU_KEYS: Record<string, (at: number, count: number) => number> = {
+  ArrowDown: (at) => at + 1,
+  ArrowUp: (at) => at - 1,
+  Home: () => 0,
+  End: (_, count) => count - 1,
+}
+
 const CameraIcon = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
     <path d="M2.5 6h2.7l1.1-1.8h5.4L12.8 6h2.7v8h-13z" strokeLinejoin="round" />
@@ -121,6 +128,8 @@ export const TopBar = ({
   const [styleOpenId, setStyleOpenId] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const themeRef = useRef<HTMLDivElement>(null)
+  const themeButtonRef = useRef<HTMLButtonElement>(null)
+  const themeOptionsRef = useRef<(HTMLButtonElement | null)[]>([])
 
   useEffect(() => {
     if (!openMenu) return undefined
@@ -139,7 +148,36 @@ export const TopBar = ({
     }
   }, [openMenu])
 
+  useEffect(() => {
+    if (openMenu !== 'theme') return
+    themeOptionsRef.current[Math.max(THEME_OPTIONS.findIndex((option) => option.name === theme), 0)]?.focus()
+  }, [openMenu, theme])
+
   const toggleMenu = (name: MenuName) => setOpenMenu((current) => (current === name ? null : name))
+
+  const closeThemes = () => {
+    setOpenMenu(null)
+    themeButtonRef.current?.focus()
+  }
+
+  const pickTheme = (name: ThemeName) => {
+    onTheme(name)
+    closeThemes()
+  }
+
+  const handleThemeKey = (event: ReactKeyboardEvent) => {
+    if (event.key === 'Escape') {
+      event.stopPropagation()
+      closeThemes()
+      return
+    }
+    const options = themeOptionsRef.current
+    const at = options.findIndex((option) => option === document.activeElement)
+    const target = MENU_KEYS[event.key]?.(at, options.length)
+    if (target === undefined) return
+    event.preventDefault()
+    options[(target + options.length) % options.length]?.focus()
+  }
 
   const setRsi = (patch: Partial<Indicators['rsi']>) => onIndicators({ ...indicators, rsi: { ...indicators.rsi, ...patch } })
 
@@ -387,6 +425,7 @@ export const TopBar = ({
       </Styles.Button>
       <Styles.MenuAnchor ref={themeRef}>
         <Styles.Button
+          ref={themeButtonRef}
           type="button"
           title="Theme"
           aria-label="Theme"
@@ -397,17 +436,17 @@ export const TopBar = ({
           <PaletteIcon />
         </Styles.Button>
         {openMenu === 'theme' && (
-          <Styles.Menu $right role="menu" aria-label="Theme">
-            {THEME_OPTIONS.map((option) => (
+          <Styles.Menu $right role="menu" aria-label="Theme" onKeyDown={handleThemeKey}>
+            {THEME_OPTIONS.map((option, index) => (
               <Styles.ThemeOption
                 key={option.name}
+                ref={(node: HTMLButtonElement | null) => {
+                  themeOptionsRef.current[index] = node
+                }}
                 type="button"
                 role="menuitemradio"
                 aria-checked={option.name === theme}
-                onClick={() => {
-                  onTheme(option.name)
-                  setOpenMenu(null)
-                }}
+                onClick={() => pickTheme(option.name)}
               >
                 <Styles.ThemeSwatch
                   aria-hidden="true"

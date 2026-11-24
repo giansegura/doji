@@ -263,8 +263,13 @@ export const createDojiServer = ({ api, newId, version }: ServerDeps): McpServer
     }
   }
 
-  const changeList = async <T>(wanted: string | undefined, change: (state: AppState, list: SymbolList) => Edit<T>) =>
-    update(api, (state) => change(state, findList(state, wanted)))
+  const pickList = async (wanted: string | undefined): Promise<SymbolList> => findList(await api.getState(), wanted)
+
+  const changeList = async <T>(picked: SymbolList, change: (state: AppState, list: SymbolList) => Edit<T>) =>
+    update(api, (state): Edit<T> => {
+      const list = state.watchlists.find((candidate) => candidate.id === picked.id)
+      return list ? change(state, list) : { ok: false, error: `${picked.name} was deleted while saving. Nothing was changed.` }
+    })
 
   server.registerTool(
     'create_watchlist',
@@ -303,10 +308,10 @@ export const createDojiServer = ({ api, newId, version }: ServerDeps): McpServer
     },
     ({ watchlist, symbols, section }) =>
       run(async () => {
-        findList(await api.getState(), watchlist)
+        const picked = await pickList(watchlist)
         const { found, notFound } = await resolve(symbols)
         let name = ''
-        const detail = await changeList(watchlist, (state, list) => {
+        const detail = await changeList(picked, (state, list) => {
           name = list.name
           return addSymbols(state, { listId: list.id, symbols: found, section: section ?? null })
         })
@@ -327,9 +332,10 @@ export const createDojiServer = ({ api, newId, version }: ServerDeps): McpServer
     },
     ({ watchlist, title }) =>
       run(async () => {
+        const picked = await pickList(watchlist)
         const id = newId()
         let name = ''
-        const detail = await changeList(watchlist, (state, list) => {
+        const detail = await changeList(picked, (state, list) => {
           name = list.name
           return addSectionTo(state, { listId: list.id, id, title })
         })
@@ -350,8 +356,9 @@ export const createDojiServer = ({ api, newId, version }: ServerDeps): McpServer
     },
     ({ watchlist, symbols }) =>
       run(async () => {
+        const picked = await pickList(watchlist)
         let name = ''
-        const detail = await changeList(watchlist, (state, list) => {
+        const detail = await changeList(picked, (state, list) => {
           name = list.name
           return removeSymbols(state, { listId: list.id, symbols })
         })
@@ -370,7 +377,8 @@ export const createDojiServer = ({ api, newId, version }: ServerDeps): McpServer
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     },
-    ({ watchlist, name }) => run(() => changeList(watchlist, (state, list) => renameList(state, { listId: list.id, name }))),
+    ({ watchlist, name }) =>
+      run(async () => changeList(await pickList(watchlist), (state, list) => renameList(state, { listId: list.id, name }))),
   )
 
   server.registerTool(
@@ -384,7 +392,8 @@ export const createDojiServer = ({ api, newId, version }: ServerDeps): McpServer
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     },
-    ({ watchlist, icon }) => run(() => changeList(watchlist, (state, list) => setListIcon(state, { listId: list.id, icon }))),
+    ({ watchlist, icon }) =>
+      run(async () => changeList(await pickList(watchlist), (state, list) => setListIcon(state, { listId: list.id, icon }))),
   )
 
   return server

@@ -541,6 +541,36 @@ test('Should show a forex pair like TradingView on the symbol button', () => {
   expect(screen.getByRole('button', { name: 'EURUSD' }).textContent).toBe('EURUSD')
 })
 
+test('Should move the focus to the current theme when the list opens and through the themes with the arrow keys', async () => {
+  const { user } = setup()
+  screen.getByRole('button', { name: 'Theme' }).focus()
+  await user.keyboard('{Enter}')
+  expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: 'Midnight' }))
+  await user.keyboard('{ArrowDown}')
+  expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: 'Light' }))
+  await user.keyboard('{ArrowDown}')
+  expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: 'Doji' }))
+  await user.keyboard('{ArrowUp}')
+  expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: 'Light' }))
+  await user.keyboard('{Home}')
+  expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: 'Doji' }))
+  await user.keyboard('{End}')
+  expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: 'Light' }))
+})
+
+test('Should give the focus back to the theme button after picking a theme or pressing Escape', async () => {
+  const { handlers, user } = setup()
+  const trigger = screen.getByRole('button', { name: 'Theme' })
+  trigger.focus()
+  await user.keyboard('{Enter}{ArrowUp}{Enter}')
+  expect(handlers.onTheme).toHaveBeenCalledWith('doji')
+  expect(screen.queryByRole('menu', { name: 'Theme' })).toBeNull()
+  expect(document.activeElement).toBe(trigger)
+  await user.keyboard('{Enter}{Escape}')
+  expect(screen.queryByRole('menu', { name: 'Theme' })).toBeNull()
+  expect(document.activeElement).toBe(trigger)
+})
+
 test('Should close the list of themes with Escape or a click elsewhere', async () => {
   const { user } = setup()
   await user.click(screen.getByRole('button', { name: 'Theme' }))

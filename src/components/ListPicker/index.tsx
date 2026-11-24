@@ -63,6 +63,7 @@ export const ListPicker = ({ lists, activeId, onSelect, onCreate, onRename, onDe
   const [mode, setMode] = useState<Mode>(BROWSE)
   const [text, setText] = useState('')
   const rootRef = useRef<HTMLDivElement>(null)
+  const iconButtonsRef = useRef(new Map<string, HTMLButtonElement>())
   const active = lists.find((list) => list.id === activeId) ?? lists[0]
   const browsing = mode.kind === 'browse'
 
@@ -130,14 +131,21 @@ export const ListPicker = ({ lists, activeId, onSelect, onCreate, onRename, onDe
   }
 
   const handleIconKey = (event: KeyboardEvent, id: string) => {
-    if (event.key === 'Enter') {
-      const icon = toListIcon(text)
-      if (icon) chooseIcon(id, icon)
-    }
-    if (event.key === 'Escape') {
-      event.stopPropagation()
-      setMode(BROWSE)
-    }
+    if (event.key !== 'Enter') return
+    const icon = toListIcon(text)
+    if (icon) chooseIcon(id, icon)
+  }
+
+  const handlePaletteKey = (event: KeyboardEvent, id: string) => {
+    if (event.key !== 'Escape') return
+    event.stopPropagation()
+    setMode(BROWSE)
+    iconButtonsRef.current.get(id)?.focus()
+  }
+
+  const keepIconButton = (id: string) => (node: HTMLButtonElement | null) => {
+    if (node) iconButtonsRef.current.set(id, node)
+    else iconButtonsRef.current.delete(id)
   }
 
   const handleDelete = (id: string) => {
@@ -201,6 +209,7 @@ export const ListPicker = ({ lists, activeId, onSelect, onCreate, onRename, onDe
                     <Styles.ItemName>{list.name}</Styles.ItemName>
                   </Styles.Item>
                   <Styles.IconButton
+                    ref={keepIconButton(list.id)}
                     type="button"
                     title="Icon"
                     aria-label={`Icon for ${list.name}`}
@@ -241,7 +250,7 @@ export const ListPicker = ({ lists, activeId, onSelect, onCreate, onRename, onDe
               )}
             </Styles.Row>
             {mode.kind === 'icon' && mode.id === list.id && (
-              <Styles.Palette role="group" aria-label={`Icons for ${list.name}`}>
+              <Styles.Palette role="group" aria-label={`Icons for ${list.name}`} onKeyDown={(event) => handlePaletteKey(event, list.id)}>
                 <Styles.PaletteGrid>
                   {LIST_ICONS.map((icon) => (
                     <Styles.PaletteIcon

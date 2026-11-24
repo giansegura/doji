@@ -33,10 +33,14 @@ export const captureView = (range: VisibleRange, timeIndex: TimeIndex, timeframe
   return { timeframe, from: from.date, fromOffset: from.offset, to: to.date, toOffset: to.offset, price }
 }
 
-export const restoreView = (view: SavedView, timeIndex: TimeIndex): VisibleRange => ({
-  from: timeIndex.dateToIndex(view.from) + view.fromOffset,
-  to: timeIndex.dateToIndex(view.to) + view.toOffset,
-})
+const HALF_BAR = 0.5
+
+export const restoreView = (view: SavedView, timeIndex: TimeIndex, timeframe: Timeframe): VisibleRange => {
+  const from = timeIndex.dateToIndex(view.from)
+  const to = timeIndex.dateToIndex(view.to)
+  if (view.timeframe !== timeframe) return { from: from - HALF_BAR, to: Math.max(to, from) + HALF_BAR }
+  return { from: from + view.fromOffset, to: to + view.toOffset }
+}
 
 const isNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
 

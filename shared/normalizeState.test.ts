@@ -376,6 +376,12 @@ test('Should keep the look of a configuration saved with the former dark theme',
   expect(normalizeState({ theme: 'dark' }).theme).toBe('midnight')
 })
 
+test('Should open with the doji theme a configuration whose theme names a built-in property of objects', () => {
+  expect(normalizeState({ theme: 'constructor' }).theme).toBe('doji')
+  expect(normalizeState({ theme: '__proto__' }).theme).toBe('doji')
+  expect(normalizeState({ theme: 'toString' }).theme).toBe('doji')
+})
+
 test('Should keep the icon of a watchlist and drop one that is not valid', () => {
   const lists = normalizeState({
     watchlists: [

@@ -31,7 +31,7 @@ test('Should remember the price range of a view that was moved by hand', () => {
 
 test('Should bring back the same bars, even with new bars added since', () => {
   const grown = createTimeIndex(days(1630), 'D')
-  const range = restoreView(view(), grown)
+  const range = restoreView(view(), grown, 'D')
   expect(range.from).toBe(grown.dateToIndex('2021-03-01') - 0.5)
   expect(range.to).toBe(grown.dateToIndex('2022-06-15') + 0.25)
 })
@@ -40,7 +40,7 @@ test('Should keep the space after the last bar when the view reached into the fu
   const last = days(1600).at(-1) as string
   const ahead = captureView({ from: 1450.5, to: 1609.5 }, daily, 'D', null)
   expect(ahead.to > last).toBe(true)
-  expect(restoreView(ahead, daily)).toEqual({ from: 1450.5, to: 1609.5 })
+  expect(restoreView(ahead, daily, 'D')).toEqual({ from: 1450.5, to: 1609.5 })
 })
 
 test('Should bring back the same dates on another timeframe', () => {
@@ -48,9 +48,19 @@ test('Should bring back the same dates on another timeframe', () => {
     days(1600).filter((_, index) => index % 5 === 0),
     'W',
   )
-  const range = restoreView(view(), weekly)
+  const range = restoreView(view(), weekly, 'W')
   expect(Math.round(range.from + 0.5)).toBe(weekly.dateToIndex('2021-03-01'))
   expect(Math.round(range.to - 0.25)).toBe(weekly.dateToIndex('2022-06-15'))
+})
+
+test('Should show at least one whole bar, in order, when both edges fall in the same bar of a longer timeframe', () => {
+  const monthly = createTimeIndex(
+    Array.from({ length: 80 }, (_, index) => `${2020 + Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}-01`),
+    'M',
+  )
+  const march = monthly.dateToIndex('2021-03-01')
+  const range = restoreView(view({ from: '2021-03-01', fromOffset: 0.25, to: '2021-03-26', toOffset: -0.25 }), monthly, 'M')
+  expect(range).toEqual({ from: march - 0.5, to: march + 0.5 })
 })
 
 const memory = (): StorageLike & { data: Map<string, string> } => {

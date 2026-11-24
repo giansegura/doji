@@ -627,7 +627,7 @@ export const useChart = ({
     const next = { count, timeIndex }
     if (timeIndex && (!previous || previous.symbol !== symbol)) {
       const saved = views.get(`${viewId}:${symbol}`)
-      chart.timeScale().setVisibleLogicalRange(saved ? restoreView(saved, timeIndex) : initialRange(count))
+      chart.timeScale().setVisibleLogicalRange(saved ? restoreView(saved, timeIndex, timeframe) : initialRange(count))
       applyPriceRange(series, saved?.timeframe === timeframe ? saved.price : null)
     } else if (timeIndex && previous?.timeIndex && previousRange && previous.timeframe !== timeframe) {
       chart.timeScale().setVisibleLogicalRange(
@@ -636,6 +636,7 @@ export const useChart = ({
           { count: next.count, timeIndex },
         ),
       )
+      applyPriceRange(series, null)
     }
     viewRef.current = { symbol, timeframe, ...next }
     setHandles(

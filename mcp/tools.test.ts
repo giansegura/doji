@@ -56,7 +56,9 @@ const initial: AppState = {
   notes: { KO: 'Tesis' },
 }
 
-const fakeApi = (over: { conflicts?: number; down?: boolean; state?: AppState } = {}) => {
+const fakeApi = (
+  over: { conflicts?: number; down?: boolean; state?: AppState; meanwhile?: (state: AppState) => AppState } = {},
+) => {
   const box = { state: over.state ?? initial, saves: 0, conflicts: over.conflicts ?? 0 }
   const fail = () => {
     if (over.down) throw new Error('doji is not running at http://127.0.0.1:4780. Start it with "npm start" in the doji folder.')
@@ -70,7 +72,7 @@ const fakeApi = (over: { conflicts?: number; down?: boolean; state?: AppState } 
       box.saves += 1
       if (box.conflicts > 0) {
         box.conflicts -= 1
-        box.state = { ...box.state, rev: box.state.rev + 1, theme: 'light' }
+        box.state = { ...(over.meanwhile ?? ((state: AppState) => ({ ...state, theme: 'light' })))(box.state), rev: box.state.rev + 1 }
         return 'conflict'
       }
       if (state.rev !== box.state.rev) return 'conflict'
@@ -393,4 +395,35 @@ test('Should put an icon on a watchlist and take it away', async () => {
   expect(box.state.watchlists[1].icon).toBe('💻')
   expect((await call('set_watchlist_icon', { watchlist: 'Tech', icon: '' })).data).toEqual({ id: 'tech', icon: null })
   expect(box.state.watchlists[1].icon).toBeUndefined()
+})
+
+test('Should keep working on the watchlist that was active when asked, even if the user switches lists meanwhile', async () => {
+  const { api, box } = fakeApi({ conflicts: 1, meanwhile: (state) => ({ ...state, activeWatchlistId: 'tech' }) })
+  const { call } = await connect(api)
+  expect((await call('remove_from_watchlist', { symbols: ['PEP', 'NVDA'] })).data).toEqual({
+    watchlist: 'Principal',
+    removed: ['PEP'],
+    missing: ['NVDA'],
+  })
+  expect(itemsIn(box.state, 'Tech')).toEqual(['NVDA'])
+})
+
+test('Should add to the watchlist that was active when asked, even if the user switches lists meanwhile', async () => {
+  const { api, box } = fakeApi({ conflicts: 1, meanwhile: (state) => ({ ...state, activeWatchlistId: 'tech' }) })
+  const { call } = await connect(api)
+  expect((await call('add_to_watchlist', { symbols: ['MSFT'] })).data).toMatchObject({ watchlist: 'Principal', added: ['MSFT'] })
+  expect(itemsIn(box.state, 'Tech')).toEqual(['NVDA'])
+})
+
+test('Should refuse to change a watchlist deleted meanwhile instead of changing another one', async () => {
+  const { api, box } = fakeApi({
+    conflicts: 1,
+    meanwhile: (state) => ({ ...state, watchlists: state.watchlists.filter((list) => list.id !== 'main'), activeWatchlistId: 'tech' }),
+  })
+  const { call } = await connect(api)
+  expect(await call('add_section', { title: 'Semis' })).toMatchObject({
+    failed: true,
+    text: 'Principal was deleted while saving. Nothing was changed.',
+  })
+  expect(itemsIn(box.state, 'Tech')).toEqual(['NVDA'])
 })
