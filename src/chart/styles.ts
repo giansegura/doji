@@ -48,6 +48,15 @@ export const LegendTitle = styled.div`
   font-size: 14px;
 `
 
+export const LegendEarnings = styled.span`
+  padding: 1px 6px;
+  font-size: 11px;
+  color: ${(props) => props.theme.ui.accent};
+  border: 1px solid ${(props) => props.theme.ui.accent};
+  border-radius: 9px;
+  white-space: nowrap;
+`
+
 export const LegendLabel = styled.div`
   color: ${(props) => props.theme.ui.textMuted};
 `

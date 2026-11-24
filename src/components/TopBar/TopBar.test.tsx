@@ -463,6 +463,21 @@ test('Should set the length and the multiplier of the Bollinger Bands', async ()
   )
 })
 
+test('Should switch the volume profile on and set how many rows it splits the prices into', async () => {
+  const { handlers, user } = setup()
+  await openIndicators(user)
+  expect(screen.queryByRole('spinbutton', { name: 'Volume profile rows' })).toBeNull()
+  await user.click(screen.getByRole('checkbox', { name: 'Volume profile' }))
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ volumeProfile: { visible: true, rows: 24 } }))
+})
+
+test('Should set the rows of the volume profile', async () => {
+  const { handlers, user } = setup({ ...DEFAULT_STATE.indicators, volumeProfile: { visible: true, rows: 24 } })
+  await openIndicators(user)
+  await typeInto(user, 'Volume profile rows', '40')
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ volumeProfile: { visible: true, rows: 40 } }))
+})
+
 test('Should switch the MACD on and set its three lengths', async () => {
   const { handlers, user } = setup()
   await openIndicators(user)

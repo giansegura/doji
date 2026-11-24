@@ -1,5 +1,5 @@
 import { changesSince } from '../../shared/stateChanges'
-import type { AppState, History, Quote, SymbolInfo } from '../../shared/types'
+import type { AppState, Earnings, History, Quote, SymbolInfo } from '../../shared/types'
 import type { SaveResult } from '../state/stateSync'
 
 export type ApiError = Error & { code: string }
@@ -37,6 +37,8 @@ export const getKeptHistory = (symbol: string): Promise<History> =>
 
 export const searchSymbols = (query: string): Promise<SymbolInfo[]> =>
   request(`/api/search?q=${encodeURIComponent(query)}`)
+
+export const getEarnings = (symbol: string): Promise<Earnings> => request(`/api/earnings?symbol=${encodeURIComponent(symbol)}`)
 
 export const getQuotes = (symbols: string[]): Promise<Quote[]> =>
   request(`/api/quotes?symbols=${symbols.map(encodeURIComponent).join(',')}`)

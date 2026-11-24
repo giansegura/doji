@@ -97,6 +97,8 @@ export type Rectangle = DrawingBase & { kind: 'rect'; p1: LinePoint; p2: LinePoi
 
 export type Drawing = TrendLine | HorizontalLine | Channel | Rectangle
 
+export type Earnings = { past: string[]; next: string | null; nextIsEstimate: boolean }
+
 export type DrawingKind = 'trend' | 'hline' | 'channel' | 'rect'
 
 export type LineLook = Pick<DrawingBase, 'color' | 'width' | 'lineStyle' | 'opacity'> & { hidePrice?: true }
@@ -110,6 +112,7 @@ export type Indicators = {
   sma: SmaConfig[]
   bollinger: { visible: boolean; length: number; multiplier: number }
   macd: { visible: boolean; fast: number; slow: number; signal: number }
+  volumeProfile: { visible: boolean; rows: number }
 }
 
 export type ChartType = 'candles' | 'bars' | 'line' | 'area' | 'baseline'
@@ -168,6 +171,7 @@ export const DEFAULT_STATE: AppState = {
     sma: [],
     bollinger: { visible: false, length: 20, multiplier: 2 },
     macd: { visible: false, fast: 12, slow: 26, signal: 9 },
+    volumeProfile: { visible: false, rows: 24 },
   },
   chart: { type: 'candles', scale: 'normal', invert: false, cursor: 'normal' },
   listWidth: LIST_DEFAULT_WIDTH,

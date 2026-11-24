@@ -448,3 +448,15 @@ test('Should keep the text of a line, trimmed and no longer than sixty character
     undefined,
   ])
 })
+
+test('Should keep the volume profile hidden with twenty-four rows unless the configuration says otherwise', () => {
+  expect(normalizeState({}).indicators.volumeProfile).toEqual({ visible: false, rows: 24 })
+  expect(normalizeState({ indicators: { volumeProfile: { visible: true, rows: 40 } } }).indicators.volumeProfile).toEqual({
+    visible: true,
+    rows: 40,
+  })
+  expect(normalizeState({ indicators: { volumeProfile: { visible: 'sí', rows: 500 } } }).indicators.volumeProfile).toEqual({
+    visible: false,
+    rows: 24,
+  })
+})

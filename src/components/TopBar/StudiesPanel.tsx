@@ -1,4 +1,11 @@
-import { BAND_MAX_MULTIPLIER, BAND_MIN_MULTIPLIER, SMA_MAX_LENGTH, SMA_MIN_LENGTH } from '../../../shared/limits'
+import {
+  BAND_MAX_MULTIPLIER,
+  BAND_MIN_MULTIPLIER,
+  PROFILE_MAX_ROWS,
+  PROFILE_MIN_ROWS,
+  SMA_MAX_LENGTH,
+  SMA_MIN_LENGTH,
+} from '../../../shared/limits'
 import type { Indicators } from '../../../shared/types'
 import { NumberField } from './NumberField'
 import * as Styles from './styles'
@@ -15,12 +22,15 @@ const MACD_FIELDS = [
 ] as const
 
 export const StudiesPanel = ({ indicators, onIndicators }: StudiesPanelProps) => {
-  const { bollinger, macd } = indicators
+  const { bollinger, macd, volumeProfile } = indicators
 
   const setBollinger = (patch: Partial<Indicators['bollinger']>) =>
     onIndicators({ ...indicators, bollinger: { ...bollinger, ...patch } })
 
   const setMacd = (patch: Partial<Indicators['macd']>) => onIndicators({ ...indicators, macd: { ...macd, ...patch } })
+
+  const setProfile = (patch: Partial<Indicators['volumeProfile']>) =>
+    onIndicators({ ...indicators, volumeProfile: { ...volumeProfile, ...patch } })
 
   return (
     <>
@@ -53,6 +63,26 @@ export const StudiesPanel = ({ indicators, onIndicators }: StudiesPanelProps) =>
             />
           </Styles.MenuItem>
         </>
+      )}
+      <Styles.MenuRow>
+        <input
+          type="checkbox"
+          checked={volumeProfile.visible}
+          onChange={(event) => setProfile({ visible: event.target.checked })}
+        />
+        <Styles.RowLabel>Volume profile</Styles.RowLabel>
+      </Styles.MenuRow>
+      {volumeProfile.visible && (
+        <Styles.MenuItem $indented>
+          <Styles.RowLabel>Rows</Styles.RowLabel>
+          <NumberField
+            label="Volume profile rows"
+            value={volumeProfile.rows}
+            min={PROFILE_MIN_ROWS}
+            max={PROFILE_MAX_ROWS}
+            onChange={(rows) => setProfile({ rows })}
+          />
+        </Styles.MenuItem>
       )}
       <Styles.MenuRow>
         <input type="checkbox" checked={macd.visible} onChange={(event) => setMacd({ visible: event.target.checked })} />
