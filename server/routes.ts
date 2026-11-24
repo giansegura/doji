@@ -72,7 +72,7 @@ export const createApi = (deps: ApiDeps): Route => {
     'GET /api/history': async ({ query }) => {
       const symbol = query.get('symbol') ?? ''
       if (!SYMBOL_PATTERN.test(symbol)) return fail(400, 'invalid_symbol')
-      return ok(await deps.history.get(symbol))
+      return ok(await (query.get('cached') === '1' ? deps.history.peek(symbol) : deps.history.get(symbol)))
     },
     'GET /api/search': async ({ query }) => {
       const text = (query.get('q') ?? '').trim()

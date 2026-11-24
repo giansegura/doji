@@ -7,6 +7,7 @@ import {
   SMA_MIN_LENGTH,
   SMA_MIN_WIDTH,
 } from './limits'
+import { toListWidth } from './listWidth'
 import {
   type AppState,
   type ChartSettings,
@@ -28,7 +29,7 @@ const DEFAULT_LINE_COLOR = '#2962FF'
 const DEFAULT_LINE_WIDTH = 2
 const NEVER_ADJUST = '9999-12-31'
 const DEFAULT_LIST_ID = 'default'
-const DEFAULT_LIST_NAME = 'Lista'
+const DEFAULT_LIST_NAME = 'Watchlist'
 
 const asRecord = (value: unknown): Raw =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Raw) : {}
@@ -188,6 +189,7 @@ export const normalizeState = (raw: unknown): AppState => {
     activeWatchlistId: watchlists.some((list) => list.id === activeId) ? (activeId as string) : watchlists[0].id,
     indicators: toIndicators(source.indicators),
     chart: toChart(source.chart),
+    listWidth: toListWidth(source.listWidth),
     lines: toLines(source.lines),
   }
 }

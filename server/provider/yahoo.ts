@@ -1,4 +1,4 @@
-import type { Bar, History, Quote, Split, SymbolInfo } from '../../shared/types'
+import type { Bar, ExtendedQuote, ExtendedSession, History, Quote, Split, SymbolInfo } from '../../shared/types'
 
 export type ProviderErrorKind = 'not_found' | 'rate_limited' | 'unavailable'
 
@@ -99,7 +99,7 @@ export const parseHistory = (json: unknown, fetchedAt: string): History => {
   const result = asObject(asArray(asObject(asObject(json).chart).result)[0])
   const meta = asObject(result.meta)
   const symbol = asString(meta.symbol)
-  if (!symbol) throw providerError('not_found', 'Yahoo no devolvió datos para el símbolo')
+  if (!symbol) throw providerError('not_found', 'Yahoo returned no data for the symbol')
 
   const formatter = formatterFor(asString(meta.exchangeTimezoneName) ?? 'UTC')
   const toDate = (seconds: number): string => formatter.format(new Date(seconds * 1000))
@@ -137,7 +137,31 @@ export const parseLogoUrl = (json: unknown, symbol: string): string | null => {
   return asString(match?.logoUrl) ?? null
 }
 
-export const parseQuotes = (json: unknown): Quote[] =>
+type Period = { start: number; end: number }
+
+const toPeriod = (raw: unknown): Period | null => {
+  const period = asObject(raw)
+  const start = asNumber(period.start)
+  const end = asNumber(period.end)
+  return start !== null && end !== null ? { start, end } : null
+}
+
+const sessionAt = (seconds: number, periods: unknown): ExtendedSession | null => {
+  const current = asObject(periods)
+  const regular = toPeriod(current.regular)
+  const pre = toPeriod(current.pre)
+  if (!regular || (seconds >= regular.start && seconds < regular.end)) return null
+  return pre && seconds >= pre.start && seconds < regular.start ? 'pre' : 'post'
+}
+
+const toExtended = (meta: Record<string, unknown>, price: number, now: Date): ExtendedQuote | null => {
+  const extendedPrice = asNumber(meta.fulldayPrice)
+  const session = sessionAt(now.getTime() / 1000, meta.currentTradingPeriod)
+  if (meta.hasPrePostMarketData !== true || extendedPrice === null || !session) return null
+  return { session, price: extendedPrice, changePercent: ((extendedPrice - price) / price) * 100 }
+}
+
+export const parseQuotes = (json: unknown, now: Date): Quote[] =>
   asArray(asObject(asObject(json).spark).result)
     .map((raw): Quote | null => {
       const item = asObject(raw)
@@ -147,7 +171,13 @@ export const parseQuotes = (json: unknown): Quote[] =>
       const previousClose = asNumber(meta.chartPreviousClose) ?? asNumber(meta.previousClose)
       if (!symbol || price === null || !previousClose) return null
       const change = price - previousClose
-      return { symbol, price, change, changePercent: (change / previousClose) * 100 }
+      return {
+        symbol,
+        price,
+        change,
+        changePercent: (change / previousClose) * 100,
+        extended: toExtended(meta, price, now),
+      }
     })
     .filter((quote): quote is Quote => quote !== null)
 
@@ -163,7 +193,7 @@ export const createYahooProvider = (deps: {
     try {
       return await deps.fetch(url, { headers: YAHOO_HEADERS })
     } catch {
-      throw providerError('unavailable', 'Sin conexión con Yahoo')
+      throw providerError('unavailable', 'No connection to Yahoo')
     }
   }
 
@@ -175,14 +205,14 @@ export const createYahooProvider = (deps: {
     const response = first.status === 429 ? await deps.sleep(RETRY_DELAY_MS).then(() => attempt(url)) : first
     if (response.status === 429) {
       blockedUntil = deps.now().getTime() + COOLDOWN_MS
-      throw providerError('rate_limited', 'Yahoo rechazó la petición por exceso de uso')
+      throw providerError('rate_limited', 'Yahoo rejected the request for excessive use')
     }
-    if (response.status === 404) throw providerError('not_found', 'Yahoo no conoce el símbolo')
-    if (response.status !== 200) throw providerError('unavailable', `Yahoo respondió ${response.status}`)
+    if (response.status === 404) throw providerError('not_found', 'Yahoo does not know the symbol')
+    if (response.status !== 200) throw providerError('unavailable', `Yahoo answered ${response.status}`)
     try {
       return await response.json()
     } catch {
-      throw providerError('unavailable', 'Yahoo devolvió una respuesta ilegible')
+      throw providerError('unavailable', 'Yahoo returned an unreadable answer')
     }
   }
 
@@ -204,7 +234,7 @@ export const createYahooProvider = (deps: {
     const out: Quote[] = []
     for (const batch of chunk(symbols, QUOTES_BATCH)) {
       const list = batch.map(encodeURIComponent).join(',')
-      out.push(...parseQuotes(await request(`${SPARK_URL}?symbols=${list}&range=1d&interval=1d`)))
+      out.push(...parseQuotes(await request(`${SPARK_URL}?symbols=${list}&range=1d&interval=1d`), deps.now()))
     }
     return out
   }

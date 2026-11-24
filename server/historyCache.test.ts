@@ -328,3 +328,29 @@ test('Should not download everything over and over while the tail keeps disagree
   await cache.get('AAPL')
   expect(calls.map((call) => call.fromDate).slice(4)).toEqual(['2026-11-13', undefined])
 })
+
+test('Should hand over the copy it keeps without asking the source again', async () => {
+  const { cache, calls, advance } = await makeCache([full, tail])
+  await cache.get('AAPL')
+  advance(3 * HOUR)
+  const kept = await cache.peek('aapl')
+  expect(kept.bars).toEqual(full.bars)
+  expect(kept.stale).toBe(false)
+  expect(calls).toHaveLength(1)
+})
+
+test('Should hand over the copy on disk in a new process without asking the source', async () => {
+  const first = await makeCache([full])
+  await first.cache.get('AAPL')
+  const second = await makeCache([tail], { dir: first.dir })
+  const kept = await second.cache.peek('AAPL')
+  expect(kept.bars).toEqual(full.bars)
+  expect(second.calls).toEqual([])
+})
+
+test('Should download a history it is asked to hand over but does not keep', async () => {
+  const { cache, calls } = await makeCache([full])
+  const kept = await cache.peek('AAPL')
+  expect(kept.bars).toEqual(full.bars)
+  expect(calls).toEqual([{ symbol: 'AAPL', fromDate: undefined }])
+})

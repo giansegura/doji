@@ -39,37 +39,37 @@ export const ConfigPanel = ({ onExport, onImport }: ConfigPanelProps) => {
   return (
     <>
       <Styles.MenuAction type="button" onClick={onExport}>
-        Exportar configuración
+        Export settings
       </Styles.MenuAction>
       <Styles.MenuAction type="button" onClick={() => inputRef.current?.click()}>
-        Importar configuración…
+        Import settings…
       </Styles.MenuAction>
       <Styles.HiddenInput
         ref={inputRef}
         type="file"
         accept="application/json,.json"
-        aria-label="Archivo de configuración"
+        aria-label="Settings file"
         onChange={handleFile}
       />
       {step.kind === 'invalid' && (
         <Styles.MenuNote role="alert" $danger>
-          Ese archivo no es una configuración de doji.
+          That file is not a doji settings file.
         </Styles.MenuNote>
       )}
       {step.kind === 'confirm' && (
         <Styles.ConfirmBox>
-          <Styles.MenuNote>{`Se reemplazarán tus listas, líneas, indicadores y ajustes por los de «${step.fileName}».`}</Styles.MenuNote>
+          <Styles.MenuNote>{`Your watchlists, lines, indicators and settings will be replaced with those in “${step.fileName}”.`}</Styles.MenuNote>
           <Styles.ConfirmActions>
             <Styles.TextButton type="button" $danger onClick={handleConfirm}>
-              Reemplazar
+              Replace
             </Styles.TextButton>
             <Styles.TextButton type="button" onClick={() => setStep(IDLE)}>
-              Cancelar
+              Cancel
             </Styles.TextButton>
           </Styles.ConfirmActions>
         </Styles.ConfirmBox>
       )}
-      {step.kind === 'done' && <Styles.MenuNote role="status">Configuración importada.</Styles.MenuNote>}
+      {step.kind === 'done' && <Styles.MenuNote role="status">Settings imported.</Styles.MenuNote>}
     </>
   )
 }

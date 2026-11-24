@@ -217,12 +217,14 @@ test('Should compute change from the previous close and skip incomplete quotes',
       ],
     },
   }
-  expect(parseQuotes(json)).toEqual([{ symbol: 'AAA', price: 110, change: 10, changePercent: 10 }])
-  expect(parseQuotes({})).toEqual([])
+  expect(parseQuotes(json, new Date(0))).toEqual([
+    { symbol: 'AAA', price: 110, change: 10, changePercent: 10, extended: null },
+  ])
+  expect(parseQuotes({}, new Date(0))).toEqual([])
 })
 
 test('Should parse real batch quotes including a dashed symbol', () => {
-  const out = parseQuotes(spark)
+  const out = parseQuotes(spark, new Date(0))
   expect(out.map((quote) => quote.symbol).sort()).toEqual(['AAPL', 'BRK-B', 'MSFT'])
   out.forEach((quote) => {
     expect(quote.price).toBeGreaterThan(0)
@@ -351,4 +353,74 @@ test('Should return no results for a blank search without calling Yahoo', async 
   const { provider, calls } = makeProvider([{ status: 200, body: searchApple }])
   expect(await provider.search('   ')).toEqual([])
   expect(calls).toHaveLength(0)
+})
+
+const PRE_START = 1_795_510_800
+const OPEN = 1_795_530_600
+const CLOSE = 1_795_554_000
+
+const sparkOf = (meta: Record<string, unknown>) => ({
+  spark: {
+    result: [
+      {
+        symbol: 'AAA',
+        response: [
+          {
+            meta: {
+              symbol: 'AAA',
+              regularMarketPrice: 200,
+              chartPreviousClose: 190,
+              hasPrePostMarketData: true,
+              fulldayPrice: 203,
+              currentTradingPeriod: {
+                pre: { start: PRE_START, end: OPEN },
+                regular: { start: OPEN, end: CLOSE },
+                post: { start: CLOSE, end: CLOSE + 4 * 3600 },
+              },
+              ...meta,
+            },
+          },
+        ],
+      },
+    ],
+  },
+})
+
+const extendedAt = (seconds: number, meta: Record<string, unknown> = {}) =>
+  parseQuotes(sparkOf(meta), new Date(seconds * 1000))[0]?.extended
+
+test('Should read the pre-market price and its change from the regular close', () => {
+  expect(extendedAt(PRE_START + 600)).toEqual({ session: 'pre', price: 203, changePercent: 1.5 })
+})
+
+test('Should read the after-hours price once the regular session has closed', () => {
+  expect(extendedAt(CLOSE + 600, { fulldayPrice: 198 })).toEqual({ session: 'post', price: 198, changePercent: -1 })
+})
+
+test('Should keep showing the last after-hours price until the next pre-market opens', () => {
+  expect(extendedAt(CLOSE + 9 * 3600)?.session).toBe('post')
+  expect(extendedAt(PRE_START - 600)?.session).toBe('post')
+})
+
+test('Should have no extended price during the regular session', () => {
+  expect(extendedAt(OPEN)).toBeNull()
+  expect(extendedAt(CLOSE - 1)).toBeNull()
+})
+
+test('Should have no extended price for an instrument that does not trade outside regular hours', () => {
+  expect(extendedAt(PRE_START + 600, { hasPrePostMarketData: false })).toBeNull()
+})
+
+test('Should give the extended price even when it has not moved from the regular close', () => {
+  expect(extendedAt(PRE_START + 600, { fulldayPrice: 200 })).toEqual({ session: 'pre', price: 200, changePercent: 0 })
+})
+
+test('Should have no extended price when it is missing', () => {
+  expect(extendedAt(PRE_START + 600, { fulldayPrice: undefined })).toBeNull()
+  expect(extendedAt(PRE_START + 600, { currentTradingPeriod: undefined })).toBeNull()
+})
+
+test('Should still give the regular quote when the extended data is unusable', () => {
+  const [quote] = parseQuotes(sparkOf({ fulldayPrice: 'caro', currentTradingPeriod: 7 }), new Date(PRE_START * 1000))
+  expect(quote).toEqual({ symbol: 'AAA', price: 200, change: 10, changePercent: (10 / 190) * 100, extended: null })
 })

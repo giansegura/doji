@@ -76,7 +76,7 @@ const button = (name: string | RegExp) => page.getByRole('button', { name, exact
 const row = (symbol: string) => page.getByRole('listitem').getByRole('button', { name: new RegExp(`^${symbol}\\b`) })
 
 const drawLine = async (box: Box, from: [number, number], to: [number, number]): Promise<void> => {
-  await button('Línea de tendencia').click()
+  await button('Trend line').click()
   await page.mouse.click(...at(box, ...from))
   await page.mouse.move(...at(box, (from[0] + to[0]) / 2, (from[1] + to[1]) / 2), { steps: 5 })
   await page.mouse.click(...at(box, ...to))
@@ -202,7 +202,7 @@ await step('dibuja una línea sobre el precio', async () => {
   check(lines[0].pane === 'price', 'la línea no está en el panel del precio')
   check(lines[0].p1.date < lines[0].p2.date, 'los extremos no tienen fechas crecientes')
   check((await button('Cursor').getAttribute('aria-pressed')) === 'true', 'la herramienta no volvió al cursor')
-  await page.getByRole('toolbar', { name: 'Línea seleccionada' }).waitFor({ timeout: 2000 })
+  await page.getByRole('toolbar', { name: 'Selected line' }).waitFor({ timeout: 2000 })
   await page.mouse.move(700, 10)
   await page.waitForTimeout(300)
   check(await bluePixelNear(...at(price, 0.45, 0.4)), 'no hay línea azul pintada entre los dos clics')
@@ -240,11 +240,11 @@ await step('la línea del RSI no se ve en semanal y vuelve en diario', async () 
   await button('W').click()
   await page.waitForTimeout(600)
   await page.mouse.click(...middle)
-  check((await page.getByRole('toolbar', { name: 'Línea seleccionada' }).count()) === 0, 'la línea del RSI diario se puede seleccionar en semanal')
+  check((await page.getByRole('toolbar', { name: 'Selected line' }).count()) === 0, 'la línea del RSI diario se puede seleccionar en semanal')
   await button('D').click()
   await page.waitForTimeout(600)
   await page.mouse.click(...middle)
-  await page.getByRole('toolbar', { name: 'Línea seleccionada' }).waitFor({ timeout: 2000 })
+  await page.getByRole('toolbar', { name: 'Selected line' }).waitFor({ timeout: 2000 })
 })
 
 await step('arrastra la línea del precio sin mover el gráfico', async () => {
@@ -256,7 +256,7 @@ await step('arrastra la línea del precio sin mover el gráfico', async () => {
   check(after.p1.date > before.p1.date && after.p2.date > before.p2.date, 'la línea no se desplazó en el tiempo')
   check(after.p1.value < before.p1.value && after.p2.value < before.p2.value, 'la línea no bajó de precio')
   await page.mouse.click(...at(price, 0.45, 0.4))
-  check((await page.getByRole('toolbar', { name: 'Línea seleccionada' }).count()) === 0, 'la línea sigue en su sitio antiguo')
+  check((await page.getByRole('toolbar', { name: 'Selected line' }).count()) === 0, 'la línea sigue en su sitio antiguo')
 })
 
 await step('cambia color, grosor y extensión de la línea', async () => {
@@ -264,8 +264,8 @@ await step('cambia color, grosor y extensión de la línea', async () => {
   const middle = at(price, 0.45, 0.4)
   await page.mouse.click(middle[0] + 60, middle[1] + 40)
   await button('Color #F23645').click()
-  await button('Grosor 4').click()
-  await button('Extender a la derecha').click()
+  await button('Width 4').click()
+  await button('Extend right').click()
   const [line] = await linesOf('AAPL')
   check(line.color === '#F23645' && line.width === 4 && line.extendRight, 'el estilo no se guardó')
 })
@@ -278,7 +278,7 @@ await step('borra la línea del precio con Supr', async () => {
 
 await step('cancela una línea a medias con Esc', async () => {
   const { price } = await panes()
-  await button('Línea de tendencia').click()
+  await button('Trend line').click()
   await page.mouse.click(...at(price, 0.2, 0.6))
   await page.mouse.move(...at(price, 0.4, 0.4), { steps: 4 })
   await page.keyboard.press('Escape')
@@ -287,15 +287,15 @@ await step('cancela una línea a medias con Esc', async () => {
 })
 
 await step('Esc con la herramienta armada vuelve al cursor', async () => {
-  await button('Línea de tendencia').click()
-  check((await button('Línea de tendencia').getAttribute('aria-pressed')) === 'true', 'la herramienta no se armó')
+  await button('Trend line').click()
+  check((await button('Trend line').getAttribute('aria-pressed')) === 'true', 'la herramienta no se armó')
   await page.keyboard.press('Escape')
   check((await button('Cursor').getAttribute('aria-pressed')) === 'true', 'Esc no devolvió el cursor')
 })
 
 await step('un clic que empieza fuera del gráfico no termina la línea', async () => {
   const { price } = await panes()
-  await button('Línea de tendencia').click()
+  await button('Trend line').click()
   await page.mouse.click(...at(price, 0.2, 0.6))
   await page.mouse.move(26, 700)
   await page.mouse.down()
@@ -310,7 +310,7 @@ await step('mover una línea en vertical en semanal conserva sus fechas', async 
   const isMonday = (date: string): boolean => new Date(`${date}T00:00:00Z`).getUTCDay() === 1
   const { price } = await panes()
   const drawFrom = async (shift: number): Promise<TrendLine> => {
-    await button('Línea de tendencia').click()
+    await button('Trend line').click()
     await page.mouse.click(price.x + price.width * 0.3 + shift, price.y + price.height * 0.5)
     await page.mouse.click(price.x + price.width * 0.6 + shift, price.y + price.height * 0.5)
     const drawn = (await linesOf('AAPL')).find((line) => line.pane === 'price')
@@ -348,23 +348,74 @@ await step('el gráfico se desplaza al arrastrar en vacío', async () => {
   await drag(at(price, 0.5, 0.12), at(price, 0.75, 0.12))
   const after = await timeAxisPixels()
   check(before !== after, 'el gráfico no se movió')
+  check((await button('Auto').count()) === 0, 'un arrastre horizontal soltó el ajuste automático')
 })
+
+await step('arrastrar en vertical mueve el gráfico y «Auto» lo vuelve a encajar', async () => {
+  const { price } = await panes()
+  const settle = async (): Promise<void> => {
+    await page.mouse.move(700, 10)
+    await page.waitForTimeout(400)
+  }
+  const referenceY = async (): Promise<number> => {
+    await settle()
+    const spot = await blueCentre(price)
+    check(spot !== null, 'no se encontró la línea de referencia')
+    return (spot as [number, number])[1]
+  }
+  await button('Trend line').click()
+  await page.mouse.click(...at(price, 0.3, 0.45))
+  await page.mouse.click(...at(price, 0.6, 0.45))
+  await page.mouse.click(...at(price, 0.1, 0.12))
+  const before = await referenceY()
+  check((await button('Auto').count()) === 0, 'el botón Auto aparece antes de mover nada')
+  const start = at(price, 0.8, 0.15)
+  await drag(start, [start[0], start[1] + 70])
+  const lowered = (await referenceY()) - before
+  check(lowered >= 45 && lowered <= 72, `la línea debía bajar con el arrastre y bajó ${Math.round(lowered)} px`)
+  await button('Auto').waitFor({ timeout: 3000 })
+  await drag(start, [start[0], start[1] - 40])
+  const raised = (await referenceY()) - before
+  check(raised < lowered - 20, `la línea debía subir con el segundo arrastre y quedó a ${Math.round(raised)} px`)
+  await button('Auto').click()
+  const fitted = (await referenceY()) - before
+  check(Math.abs(fitted) <= 2, `tras «Auto» la línea quedó a ${Math.round(fitted)} px de donde estaba`)
+  check((await button('Auto').count()) === 0, 'el botón Auto sigue después de encajar')
+})
+
+await step('el botón «Auto» sigue lo que se hace en el eje de precios', async () => {
+  const { price } = await panes()
+  const axisX = price.x + price.width - 25
+  await drag([axisX, price.y + price.height * 0.3], [axisX, price.y + price.height * 0.5])
+  await button('Auto').waitFor({ timeout: 3000 })
+  await page.mouse.dblclick(axisX, price.y + price.height * 0.4)
+  await page.waitForTimeout(400)
+  check((await button('Auto').count()) === 0, 'el doble clic en el eje no devolvió el ajuste automático')
+  await page.mouse.move(700, 10)
+  await page.waitForTimeout(300)
+  const spot = await blueCentre(price)
+  check(spot !== null, 'no se encontró la línea de referencia para borrarla')
+  await page.mouse.click(...(spot as [number, number]))
+  await page.keyboard.press('Delete')
+  check((await linesOf('AAPL')).every((line) => line.pane === 'rsi'), 'la línea de referencia no se borró')
+})
+
 
 await step('la vista no salta al cambiar de tema y volver', async () => {
   const before = await timeAxisPixels()
-  await button(/Cambiar a tema claro/).click()
+  await button(/Switch to light theme/).click()
   await page.waitForTimeout(400)
-  await button(/Cambiar a tema oscuro/).click()
+  await button(/Switch to dark theme/).click()
   const after = await timeAxisPixels()
   check(before === after, 'la vista volvió a la última vela')
 })
 
 await step('la vista no salta al quitar y poner el volumen', async () => {
   const before = await timeAxisPixels()
-  await button('Indicadores').click()
-  await page.getByRole('checkbox', { name: 'Volumen' }).click()
+  await button('Indicators').click()
+  await page.getByRole('checkbox', { name: 'Volume' }).click()
   await page.waitForTimeout(400)
-  await page.getByRole('checkbox', { name: 'Volumen' }).click()
+  await page.getByRole('checkbox', { name: 'Volume' }).click()
   await page.keyboard.press('Escape')
   const after = await timeAxisPixels()
   check(before === after, 'la vista volvió a la última vela')
@@ -373,24 +424,49 @@ await step('la vista no salta al quitar y poner el volumen', async () => {
 await step('cambia de tema', async () => {
   const background = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor)
   const dark = await background()
-  await button(/Cambiar a tema claro/).click()
+  await button(/Switch to light theme/).click()
   await page.waitForTimeout(300)
   check((await background()) !== dark, 'el fondo no cambió')
   check((await savedState()).theme === 'light', 'el tema no se guardó')
 })
 
+await step('cambiar a una acción de la lista no espera a la fuente', async () => {
+  const fresh = /\/api\/history\?symbol=NVDA$/
+  let held = 0
+  await page.route(fresh, async (route) => {
+    held += 1
+    await new Promise((resolve) => setTimeout(resolve, 4000))
+    await route.continue()
+  })
+  const started = Date.now()
+  await row('NVDA').click()
+  await page.getByText(/NVIDIA Corporation · 1D/).waitFor({ timeout: 2000 })
+  const shown = Date.now() - started
+  check((await page.getByRole('status').filter({ hasText: 'Loading' }).count()) === 0, 'apareció el aviso de carga')
+  check(held >= 1, 'no se pidieron los datos frescos por detrás')
+  console.log(`       NVDA en pantalla en ${shown} ms con la fuente retenida 4 s`)
+  await page.waitForTimeout(4500)
+  await page.unroute(fresh)
+  check((await savedState()).symbol === 'NVDA', 'el símbolo no se guardó')
+})
+
 await step('cambia de acción desde la lista', async () => {
+  const { price } = await panes()
+  const start = at(price, 0.8, 0.15)
+  await drag(start, [start[0], start[1] + 60])
+  await button('Auto').waitFor({ timeout: 3000 })
   await row('MSFT').click()
   await page.getByText(/Microsoft Corporation · 1D/).waitFor({ timeout: 15_000 })
   await page.waitForTimeout(800)
+  check((await button('Auto').count()) === 0, 'el ajuste automático no volvió al cambiar de acción')
   const state = await savedState()
   check(state.symbol === 'MSFT', 'el símbolo no se guardó')
   check(state.lines.MSFT === undefined, 'MSFT tiene líneas que no se dibujaron')
 })
 
 await step('añade KO desde el buscador', async () => {
-  await button('Añadir símbolo').click()
-  await page.getByPlaceholder('Buscar símbolo o empresa').fill('KO')
+  await button('Add symbol').click()
+  await page.getByPlaceholder('Search symbol or company').fill('KO')
   await page.getByRole('option').filter({ hasText: 'Coca-Cola' }).first().click()
   await page.getByText(/Coca-Cola.* · 1D/).waitFor({ timeout: 15_000 })
   const state = await savedState()
@@ -400,23 +476,23 @@ await step('añade KO desde el buscador', async () => {
 
 await step('quita KO de la lista', async () => {
   await row('KO').hover()
-  await button('Quitar KO').click()
+  await button('Remove KO').click()
   check(!activeItems(await savedState()).some((item) => item.symbol === 'KO'), 'KO sigue en la lista')
 })
 
 await step('Enter antes de que lleguen los resultados elige el primero', async () => {
   const before = activeItems(await savedState()).map((item) => item.symbol)
-  await button('Añadir símbolo').click()
-  await page.getByPlaceholder('Buscar símbolo o empresa').pressSequentially('KO')
+  await button('Add symbol').click()
+  await page.getByPlaceholder('Search symbol or company').pressSequentially('KO')
   await page.keyboard.press('Enter')
-  await page.getByRole('dialog', { name: 'Buscar símbolo' }).waitFor({ state: 'detached', timeout: 10_000 })
+  await page.getByRole('dialog', { name: 'Symbol search' }).waitFor({ state: 'detached', timeout: 10_000 })
   const added = activeItems(await savedState())
     .map((item) => item.symbol)
     .filter((symbol) => !before.includes(symbol))
   check(added.length === 1, `se esperaba un símbolo nuevo y hay ${added.length}`)
   check(added[0] === 'KO', `se eligió ${added[0]} en lugar del primer resultado de KO`)
   await row('KO').hover()
-  await button('Quitar KO').click()
+  await button('Remove KO').click()
   check(!activeItems(await savedState()).some((item) => item.symbol === 'KO'), 'KO sigue en la lista')
 })
 
@@ -430,7 +506,7 @@ await step('reordena la lista arrastrando una fila', async () => {
 })
 
 await step('oculta y muestra el RSI', async () => {
-  await button('Indicadores').click()
+  await button('Indicators').click()
   await page.getByRole('checkbox', { name: 'RSI', exact: true }).click()
   await page.waitForTimeout(500)
   check((await page.getByText(/^RSI \d+ close$/).count()) === 0, 'la leyenda del RSI sigue visible')
@@ -440,9 +516,9 @@ await step('oculta y muestra el RSI', async () => {
 })
 
 await step('añade dos medias móviles', async () => {
-  await button('Indicadores').click()
-  await button('Añadir media móvil').click()
-  await button('Añadir media móvil').click()
+  await button('Indicators').click()
+  await button('Add moving average').click()
+  await button('Add moving average').click()
   await page.keyboard.press('Escape')
   const sma = (await savedState()).indicators.sma
   check(sma.map((item) => item.length).join(',') === '20,50', `periodos inesperados: ${sma.map((item) => item.length)}`)
@@ -451,9 +527,9 @@ await step('añade dos medias móviles', async () => {
 })
 
 await step('cambia el periodo de una media y quita la otra', async () => {
-  await button('Indicadores').click()
-  await page.getByRole('spinbutton', { name: 'Periodo de la media 2' }).fill('200')
-  await button('Quitar media 1').click()
+  await button('Indicators').click()
+  await page.getByRole('spinbutton', { name: 'Length of average 2' }).fill('200')
+  await button('Remove average 1').click()
   await page.keyboard.press('Escape')
   const sma = (await savedState()).indicators.sma
   check(sma.length === 1 && sma[0].length === 200, 'no quedó una única media de 200')
@@ -464,27 +540,27 @@ await step('cambia el periodo de una media y quita la otra', async () => {
 await step('muestra logos de empresa y no la columna de cambio absoluto', async () => {
   await page.locator('li img[data-loaded="true"]').first().waitFor({ timeout: 30_000 })
   check((await page.getByText('Cambio', { exact: true }).count()) === 0, 'la columna Cambio sigue visible')
-  check((await page.getByText('Cambio %', { exact: true }).count()) === 1, 'falta la columna Cambio %')
+  check((await page.getByText('Change %', { exact: true }).count()) === 1, 'falta la columna Cambio %')
 })
 
 await step('cambia el color y el grosor de una media', async () => {
-  await button('Indicadores').click()
-  await button('Estilo de la media 1').click()
-  await button('Color #F23645 de la media 1').click()
-  await button('Grosor 3 de la media 1').click()
+  await button('Indicators').click()
+  await button('Style of average 1').click()
+  await button('Color #F23645 of average 1').click()
+  await button('Width 3 of average 1').click()
   await page.keyboard.press('Escape')
   const [sma] = (await savedState()).indicators.sma
   check(sma.color === '#F23645' && sma.width === 3, 'el estilo de la media no se guardó')
 })
 
 await step('cambia el tipo de gráfico, la escala y el cursor', async () => {
-  await button('Gráfico').click()
-  for (const type of ['Barras', 'Línea', 'Área', 'Línea base']) {
+  await button('Chart').click()
+  for (const type of ['Bars', 'Line', 'Area', 'Baseline']) {
     await page.getByRole('radio', { name: type, exact: true }).click()
     await page.waitForTimeout(250)
   }
-  await page.getByRole('radio', { name: 'Logarítmica' }).click()
-  await page.getByRole('radio', { name: 'Imán a OHLC' }).click()
+  await page.getByRole('radio', { name: 'Logarithmic' }).click()
+  await page.getByRole('radio', { name: 'Magnet to OHLC' }).click()
   await page.keyboard.press('Escape')
   const saved = (await savedState()).chart
   check(saved.type === 'baseline' && saved.scale === 'log' && saved.cursor === 'magnetOhlc', `ajustes inesperados: ${JSON.stringify(saved)}`)
@@ -501,29 +577,29 @@ await step('las líneas se pueden dibujar sobre otro tipo de gráfico', async ()
 })
 
 await step('vuelve a velas y escala normal', async () => {
-  await button('Gráfico').click()
-  await page.getByRole('radio', { name: 'Velas' }).click()
+  await button('Chart').click()
+  await page.getByRole('radio', { name: 'Candles' }).click()
   await page.getByRole('radio', { name: 'Normal' }).click()
-  await page.getByRole('radio', { name: 'Libre' }).click()
+  await page.getByRole('radio', { name: 'Free' }).click()
   await page.keyboard.press('Escape')
   const saved = (await savedState()).chart
   check(saved.type === 'candles' && saved.scale === 'normal' && saved.cursor === 'normal', 'no volvió a los ajustes iniciales')
 })
 
 await step('crea una lista nueva', async () => {
-  await button('Listas de seguimiento').click()
-  await button('Crear lista nueva').click()
-  await page.getByRole('textbox', { name: 'Nombre de la lista nueva' }).fill('Prueba')
+  await button('Watchlists').click()
+  await button('New watchlist').click()
+  await page.getByRole('textbox', { name: 'Name of the new watchlist' }).fill('Prueba')
   await page.keyboard.press('Enter')
   const state = await savedState()
   check(state.watchlists.length === 2, `se esperaban 2 listas y hay ${state.watchlists.length}`)
   check(state.watchlists[1].name === 'Prueba' && state.activeWatchlistId === state.watchlists[1].id, 'la lista nueva no es la activa')
-  await page.getByText('La lista está vacía').waitFor({ timeout: 3000 })
+  await page.getByText('This watchlist is empty').waitFor({ timeout: 3000 })
 })
 
 await step('añade un símbolo solo a la lista nueva', async () => {
-  await button('Añadir símbolo').click()
-  await page.getByPlaceholder('Buscar símbolo o empresa').fill('NFLX')
+  await button('Add symbol').click()
+  await page.getByPlaceholder('Search symbol or company').fill('NFLX')
   await page.getByRole('option').filter({ hasText: 'Netflix' }).first().click()
   await row('NFLX').waitFor({ timeout: 15_000 })
   const state = await savedState()
@@ -532,64 +608,118 @@ await step('añade un símbolo solo a la lista nueva', async () => {
 })
 
 await step('renombra la lista', async () => {
-  await button('Listas de seguimiento').click()
-  await button('Renombrar Prueba').click()
-  await page.getByRole('textbox', { name: 'Nuevo nombre de Prueba' }).fill('Bancos')
+  await button('Watchlists').click()
+  await button('Rename Prueba').click()
+  await page.getByRole('textbox', { name: 'New name for Prueba' }).fill('Bancos')
   await page.keyboard.press('Enter')
   await page.keyboard.press('Escape')
   check((await savedState()).watchlists[1].name === 'Bancos', 'el nombre no se guardó')
 })
 
 await step('vuelve a la primera lista', async () => {
-  await button('Listas de seguimiento').click()
-  await page.getByRole('menuitem', { name: 'Lista', exact: true }).click()
+  await button('Watchlists').click()
+  await page.getByRole('menuitem', { name: 'Watchlist', exact: true }).click()
   await row('AAPL').waitFor({ timeout: 3000 })
   check((await row('NFLX').count()) === 0, 'la primera lista muestra símbolos de la otra')
 })
 
 await step('duplica la primera lista y borra la copia', async () => {
-  await button('Listas de seguimiento').click()
-  await button('Duplicar Lista').click()
+  await button('Watchlists').click()
+  await button('Duplicate Watchlist').click()
   const copied = await savedState()
   const names = copied.watchlists.map((list) => list.name).join(' | ')
-  check(names === 'Lista | Lista (copia) | Bancos', `listas inesperadas: ${names}`)
+  check(names === 'Watchlist | Watchlist (copy) | Bancos', `listas inesperadas: ${names}`)
   check(copied.activeWatchlistId === copied.watchlists[1].id, 'la copia no es la lista activa')
   check(
     copied.watchlists[1].items.map((item) => item.symbol).join(',') === copied.watchlists[0].items.map((item) => item.symbol).join(','),
     'la copia no tiene los mismos símbolos',
   )
   await row('AAPL').waitFor({ timeout: 3000 })
-  await button('Listas de seguimiento').click()
-  await button('Borrar Lista (copia)').click()
-  await button('Confirmar borrado de Lista (copia)').click()
+  await button('Watchlists').click()
+  await button('Delete Watchlist (copy)').click()
+  await button('Confirm deleting Watchlist (copy)').click()
   await page.keyboard.press('Escape')
   check((await savedState()).watchlists.length === 2, 'la copia no se borró')
 })
 
 await step('borra la lista tras confirmar', async () => {
-  await button('Listas de seguimiento').click()
-  await button('Borrar Bancos').click()
+  await button('Watchlists').click()
+  await button('Delete Bancos').click()
   check((await savedState()).watchlists.length === 2, 'se borró sin confirmar')
-  await button('Confirmar borrado de Bancos').click()
+  await button('Confirm deleting Bancos').click()
   await page.keyboard.press('Escape')
   const state = await savedState()
-  check(state.watchlists.length === 1 && state.watchlists[0].name === 'Lista', 'no quedó solo la primera lista')
+  check(state.watchlists.length === 1 && state.watchlists[0].name === 'Watchlist', 'no quedó solo la primera lista')
+})
+
+await step('el borde de la lista cambia su ancho y se conserva al recargar', async () => {
+  const separator = page.getByRole('separator', { name: 'Watchlist width' })
+  const listWidth = async (): Promise<number> => ((await page.locator('aside').boundingBox()) as Box).width
+  const chartWidth = async (): Promise<number> => ((await page.locator('main').boundingBox()) as Box).width
+  const pull = async (pixels: number): Promise<void> => {
+    const grip = (await separator.boundingBox()) as Box
+    const from: [number, number] = [grip.x + grip.width / 2, grip.y + 300]
+    await drag(from, [from[0] - pixels, from[1]])
+  }
+  const before = { list: await listWidth(), chart: await chartWidth() }
+  await pull(120)
+  const wider = { list: await listWidth(), chart: await chartWidth() }
+  check(Math.abs(wider.list - before.list - 120) <= 2, `la lista debía crecer 120 px y creció ${Math.round(wider.list - before.list)}`)
+  check(Math.abs(before.chart - wider.chart - 120) <= 2, `el gráfico debía encoger 120 px y encogió ${Math.round(before.chart - wider.chart)}`)
+  check((await savedState()).listWidth === Math.round(wider.list), 'el ancho de la lista no se guardó')
+  await page.reload()
+  await waitForChart()
+  check(Math.abs((await listWidth()) - wider.list) <= 1, 'el ancho de la lista no se conservó al recargar')
+  const rowsLayout = (): Promise<{ cut: number; prices: number }> =>
+    page.evaluate(() => ({
+      cut: [...document.querySelectorAll('aside li button > div:first-child > :last-child')].filter(
+        (ticker) => ticker.scrollWidth > ticker.clientWidth,
+      ).length,
+      prices: [...document.querySelectorAll('aside li button > div:nth-child(2)')].filter(
+        (price) => getComputedStyle(price).display !== 'none',
+      ).length,
+    }))
+  const rowCount = await page.locator('aside li').count()
+  await pull(-1000)
+  check((await listWidth()) === 220, `la lista no se detuvo en su ancho mínimo: ${await listWidth()}`)
+  const narrow = await rowsLayout()
+  check(narrow.cut === 0, `con la lista al mínimo se cortan ${narrow.cut} tickers`)
+  check(narrow.prices === 0, 'con la lista al mínimo sigue la columna del último precio')
+  check(!(await page.getByText('Last', { exact: true }).isVisible()), 'con la lista al mínimo sigue el rótulo «Último»')
+  await pull(1000)
+  check((await listWidth()) === 640, `la lista no se detuvo en su ancho máximo: ${await listWidth()}`)
+  const wide = await rowsLayout()
+  check(wide.cut === 0 && wide.prices === rowCount, 'con la lista ancha faltan precios o se cortan tickers')
+  const extendedShown = (): Promise<boolean> => page.getByText('Ext', { exact: true }).isVisible()
+  check(await extendedShown(), 'con la lista ancha no se ve la columna de pre y post mercado')
+  await pull(380 - 640)
+  check((await listWidth()) === 380, `la lista no quedó en 380 px: ${await listWidth()}`)
+  const tight = await rowsLayout()
+  check(!(await extendedShown()), 'la columna de pre y post mercado sigue con la lista en 380 px')
+  check(tight.cut === 0 && tight.prices === rowCount, 'con la lista en 392 px faltan precios o se cortan tickers')
+  await pull(1)
+  check(await extendedShown(), 'la columna de pre y post mercado no aparece con la lista en 381 px')
+  check((await rowsLayout()).cut === 0, 'con las cuatro columnas justas se cortan tickers')
+  await pull(259)
+  await pull(before.list - 640)
+  check((await listWidth()) === before.list, `la lista no volvió a su ancho: ${await listWidth()}`)
+  check((await savedState()).listWidth === before.list, 'el ancho restaurado no se guardó')
 })
 
 const exportedPath = join(outDir, 'config-exportada.json')
 
 const chooseConfigFile = async (file: string | { name: string; mimeType: string; buffer: Buffer }): Promise<void> => {
-  await button('Configuración').click()
-  await page.getByLabel('Archivo de configuración').setInputFiles(file)
+  await button('Settings').click()
+  await page.getByLabel('Settings file').setInputFiles(file)
 }
 
 const jsonFile = (name: string, text: string) => ({ name, mimeType: 'application/json', buffer: Buffer.from(text) })
 
 await step('exporta la configuración a un archivo', async () => {
-  await button('Configuración').click()
+  await button('Settings').click()
   const [download] = await Promise.all([
     page.waitForEvent('download', { timeout: 5000 }),
-    button('Exportar configuración').click(),
+    button('Export settings').click(),
   ])
   const name = download.suggestedFilename()
   check(/^doji-config-\d{4}-\d{2}-\d{2}\.json$/.test(name), `nombre de archivo inesperado: ${name}`)
@@ -603,8 +733,8 @@ await step('exporta la configuración a un archivo', async () => {
 await step('un archivo que no es una configuración no cambia nada', async () => {
   const before = await savedState()
   await chooseConfigFile(jsonFile('nota.json', 'hola'))
-  await page.getByRole('alert').getByText('Ese archivo no es una configuración de doji.').waitFor({ timeout: 3000 })
-  check(!(await button('Reemplazar').isVisible()), 'se ofreció importar un archivo inválido')
+  await page.getByRole('alert').getByText('That file is not a doji settings file.').waitFor({ timeout: 3000 })
+  check(!(await button('Replace').isVisible()), 'se ofreció importar un archivo inválido')
   await page.keyboard.press('Escape')
   check((await savedState()).rev === before.rev, 'el archivo inválido cambió el estado')
 })
@@ -619,12 +749,12 @@ await step('importa una configuración solo tras confirmar', async () => {
     activeWatchlistId: 'importada',
   }
   await chooseConfigFile(jsonFile('otra.json', JSON.stringify(other)))
-  await page.getByText(/«otra\.json»/).waitFor({ timeout: 3000 })
-  check((await savedState()).watchlists[0].name === 'Lista', 'se importó sin confirmar')
-  await button('Reemplazar').click()
-  await page.getByText('Configuración importada.').waitFor({ timeout: 3000 })
+  await page.getByText(/“otra\.json”/).waitFor({ timeout: 3000 })
+  check((await savedState()).watchlists[0].name === 'Watchlist', 'se importó sin confirmar')
+  await button('Replace').click()
+  await page.getByText('Settings imported.').waitFor({ timeout: 3000 })
   await page.keyboard.press('Escape')
-  await button('Listas de seguimiento').getByText('Importada').waitFor({ timeout: 3000 })
+  await button('Watchlists').getByText('Importada').waitFor({ timeout: 3000 })
   await button('MSFT').first().waitFor({ timeout: 3000 })
   const state = await savedState()
   check(state.watchlists.length === 1 && state.watchlists[0].name === 'Importada', 'no se guardó la lista importada')
@@ -634,8 +764,8 @@ await step('importa una configuración solo tras confirmar', async () => {
 await step('importar lo exportado devuelve la configuración anterior', async () => {
   const exported = JSON.parse(await readFile(exportedPath, 'utf8')) as AppState
   await chooseConfigFile(exportedPath)
-  await button('Reemplazar').click()
-  await page.getByText('Configuración importada.').waitFor({ timeout: 3000 })
+  await button('Replace').click()
+  await page.getByText('Settings imported.').waitFor({ timeout: 3000 })
   await page.keyboard.press('Escape')
   const { rev: _rev, ...current } = await savedState()
   check(JSON.stringify(current) === JSON.stringify(exported), 'la configuración no volvió a ser la exportada')
@@ -669,7 +799,7 @@ await step('al cerrar con un estado grande se guarda el último cambio', async (
   await waitForChart()
   const before = await savedState()
   check(new TextEncoder().encode(JSON.stringify(before)).length > 65_536, 'el estado de prueba no supera el límite del navegador')
-  await button(/Cambiar a tema/).click()
+  await button(/Switch to .* theme/).click()
   await page.goto('about:blank')
   const after = await savedState()
   check(after.theme !== before.theme, 'el último cambio se perdió al cerrar')
@@ -689,8 +819,8 @@ await step('una pestaña atrasada no pisa lo que guardó otra', async () => {
   await other.close()
   const afterOther = await savedState()
   check(afterOther.timeframe === 'W', 'la segunda pestaña no guardó')
-  await button(/Cambiar a tema/).click()
-  await page.getByText('El estado cambió en otra pestaña y se ha recargado').waitFor({ timeout: 5000 })
+  await button(/Switch to .* theme/).click()
+  await page.getByText('The settings changed in another tab and were reloaded').waitFor({ timeout: 5000 })
   const final = await savedState()
   check(final.timeframe === 'W', 'la pestaña atrasada pisó el cambio de la otra')
   check(final.theme === afterOther.theme, 'la pestaña atrasada guardó su cambio sobre un estado viejo')

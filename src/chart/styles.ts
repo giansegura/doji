@@ -73,6 +73,25 @@ export const Notice = styled.div`
   color: ${(props) => props.theme.ui.textMuted};
 `
 
+export const AutoFit = styled.button`
+  position: absolute;
+  right: 6px;
+  bottom: 3px;
+  z-index: 3;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: ${(props) => props.theme.ui.panel};
+  border: 1px solid ${(props) => props.theme.ui.accent};
+  color: ${(props) => props.theme.ui.accent};
+  font-size: 11px;
+  line-height: 18px;
+
+  &:hover {
+    background: ${(props) => props.theme.ui.hover};
+  }
+`
+
 export const Toolbar = styled.div`
   position: absolute;
   top: 56px;

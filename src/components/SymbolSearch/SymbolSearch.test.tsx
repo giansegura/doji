@@ -12,7 +12,7 @@ const applied: SymbolInfo = { symbol: 'AMAT', name: 'Applied Materials, Inc.', e
 const setup = (search: (query: string) => Promise<SymbolInfo[]>) => {
   const handlers = { onPick: vi.fn(), onClose: vi.fn() }
   renderWithTheme(<SymbolSearch search={search} {...handlers} />)
-  return { handlers, user: userEvent.setup(), input: screen.getByPlaceholderText('Buscar símbolo o empresa') }
+  return { handlers, user: userEvent.setup(), input: screen.getByPlaceholderText('Search symbol or company') }
 }
 
 test('Should focus the field when it opens', () => {
@@ -79,13 +79,13 @@ test('Should close when clicking outside the dialog', async () => {
 test('Should say when there are no results', async () => {
   const { user, input } = setup(async () => [])
   await user.type(input, 'zzzz')
-  expect(await screen.findByText('Sin resultados')).toBeTruthy()
+  expect(await screen.findByText('No results')).toBeTruthy()
 })
 
 test('Should say when the search fails', async () => {
   const { user, input } = setup(() => Promise.reject(new Error('sin red')))
   await user.type(input, 'app')
-  expect(await screen.findByText('No se pudo buscar')).toBeTruthy()
+  expect(await screen.findByText('Search failed')).toBeTruthy()
 })
 
 test('Should not search for blank text', async () => {
@@ -94,7 +94,7 @@ test('Should not search for blank text', async () => {
   await user.type(input, '   ')
   await act(async () => new Promise((done) => setTimeout(done, 350)))
   expect(search).not.toHaveBeenCalled()
-  expect(screen.getByText('Escribe un ticker o el nombre de una empresa')).toBeTruthy()
+  expect(screen.getByText('Type a ticker or a company name')).toBeTruthy()
 })
 
 test('Should ignore a slow response to an older query', async () => {
@@ -158,7 +158,7 @@ test('Should forget an early Enter when the search finds nothing', async () => {
   const search = vi.fn(async (query: string) => (query === 'zz' ? [] : [apple]))
   const { handlers, user, input } = setup(search)
   await user.type(input, 'zz{Enter}')
-  await screen.findByText('Sin resultados')
+  await screen.findByText('No results')
   await user.clear(input)
   await user.type(input, 'app')
   await screen.findByText('Apple Inc.')

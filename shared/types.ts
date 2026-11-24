@@ -1,3 +1,5 @@
+import { LIST_DEFAULT_WIDTH } from './limits'
+
 export type Timeframe = 'D' | 'W'
 
 export type ThemeName = 'dark' | 'light'
@@ -25,7 +27,17 @@ export type History = {
   stale: boolean
 }
 
-export type Quote = { symbol: string; price: number; change: number; changePercent: number }
+export type ExtendedSession = 'pre' | 'post'
+
+export type ExtendedQuote = { session: ExtendedSession; price: number; changePercent: number }
+
+export type Quote = {
+  symbol: string
+  price: number
+  change: number
+  changePercent: number
+  extended?: ExtendedQuote | null
+}
 
 export type PaneId = 'price' | 'rsi'
 
@@ -69,6 +81,7 @@ export type AppState = {
   activeWatchlistId: string
   indicators: Indicators
   chart: ChartSettings
+  listWidth: number
   lines: Record<string, TrendLine[]>
 }
 
@@ -81,7 +94,7 @@ export const DEFAULT_STATE: AppState = {
   watchlists: [
     {
       id: 'default',
-      name: 'Lista',
+      name: 'Watchlist',
       items: [
     { symbol: 'AAPL', name: 'Apple Inc.', exchange: 'NASDAQ' },
     { symbol: 'MSFT', name: 'Microsoft Corporation', exchange: 'NASDAQ' },
@@ -101,5 +114,6 @@ export const DEFAULT_STATE: AppState = {
     sma: [],
   },
   chart: { type: 'candles', scale: 'normal', invert: false, cursor: 'normal' },
+  listWidth: LIST_DEFAULT_WIDTH,
   lines: {},
 }

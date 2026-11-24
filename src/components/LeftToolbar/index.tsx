@@ -20,11 +20,11 @@ const TrendLineIcon = () => (
 
 const TOOLS: { tool: Tool; label: string; icon: ReactNode }[] = [
   { tool: 'cursor', label: 'Cursor', icon: <CursorIcon /> },
-  { tool: 'trendline', label: 'Línea de tendencia', icon: <TrendLineIcon /> },
+  { tool: 'trendline', label: 'Trend line', icon: <TrendLineIcon /> },
 ]
 
 export const LeftToolbar = ({ tool, onTool }: LeftToolbarProps) => (
-  <Styles.Bar aria-label="Herramientas">
+  <Styles.Bar aria-label="Tools">
     {TOOLS.map((item) => (
       <Styles.ToolButton
         key={item.tool}

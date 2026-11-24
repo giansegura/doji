@@ -36,7 +36,7 @@ const carrier = () => {
 }
 
 const row = (symbol: string): HTMLElement =>
-  screen.getByRole('button', { name: (name) => name.startsWith(symbol) && !name.startsWith('Quitar') })
+  screen.getByRole('button', { name: (name) => name.startsWith(symbol) && !name.startsWith('Remove') })
 
 test('Should show the price and the percent change with sign', () => {
   setup()
@@ -51,7 +51,7 @@ test('Should not show the absolute change', () => {
   expect(within(row('AAPL')).queryByText('+2.70')).toBeNull()
   expect(within(row('MSFT')).queryByText('−1.72')).toBeNull()
   expect(screen.queryByText('Cambio')).toBeNull()
-  expect(screen.getByText('Cambio %')).toBeTruthy()
+  expect(screen.getByText('Change %')).toBeTruthy()
 })
 
 test('Should show the logo of each company before its ticker', () => {
@@ -62,7 +62,7 @@ test('Should show the logo of each company before its ticker', () => {
 
 test('Should show a dash while a quote is missing', () => {
   setup()
-  expect(within(row('KO')).getAllByText('—')).toHaveLength(2)
+  expect(within(row('KO')).getAllByText('—')).toHaveLength(3)
 })
 
 test('Should mark the active symbol', () => {
@@ -79,14 +79,14 @@ test('Should select a symbol on click', async () => {
 
 test('Should remove without selecting', async () => {
   const { handlers, user } = setup()
-  await user.click(screen.getByRole('button', { name: 'Quitar MSFT' }))
+  await user.click(screen.getByRole('button', { name: 'Remove MSFT' }))
   expect(handlers.onRemove).toHaveBeenCalledWith('MSFT')
   expect(handlers.onSelect).not.toHaveBeenCalled()
 })
 
 test('Should ask to add a symbol', async () => {
   const { handlers, user } = setup()
-  await user.click(screen.getByRole('button', { name: 'Añadir símbolo' }))
+  await user.click(screen.getByRole('button', { name: 'Add symbol' }))
   expect(handlers.onAdd).toHaveBeenCalledTimes(1)
 })
 
@@ -109,7 +109,7 @@ test('Should not report a move when a row is dropped on itself', () => {
 
 test('Should invite to add symbols when the list is empty', () => {
   setup({ items: [] })
-  expect(screen.getByText('La lista está vacía')).toBeTruthy()
+  expect(screen.getByText('This watchlist is empty')).toBeTruthy()
   expect(screen.queryAllByRole('listitem')).toHaveLength(0)
 })
 
@@ -126,4 +126,42 @@ test('Should take the drop for itself', () => {
   const rows = screen.getAllByRole('listitem')
   fireEvent.dragStart(rows[0], carrier())
   expect(fireEvent.drop(rows[2])).toBe(false)
+})
+
+const withExtended: Record<string, Quote> = {
+  AAPL: { ...quotes.AAPL, extended: { session: 'pre', price: 231.1, changePercent: 0.7631 } },
+  MSFT: { ...quotes.MSFT, extended: { session: 'post', price: 429.05, changePercent: -0.4986 } },
+  KO: { symbol: 'KO', price: 62.1, change: 0.2, changePercent: 0.32, extended: null },
+}
+
+test('Should have a column for the change outside regular hours', () => {
+  setup()
+  expect(screen.getByText('Ext')).toBeTruthy()
+  expect(screen.queryByText('Pre/Post')).toBeNull()
+})
+
+test('Should show only the percent change of the pre-market price and keep the price at hand', () => {
+  setup({ quotes: withExtended })
+  const cell = within(row('AAPL')).getByTitle('Pre-market: 231.10 (+0.76%)')
+  expect(cell.textContent).toBe('+0.76%')
+  expect(within(cell).queryByRole('img')).toBeNull()
+})
+
+test('Should show only the percent change of the after-hours price and keep the price at hand', () => {
+  setup({ quotes: withExtended })
+  const cell = within(row('MSFT')).getByTitle('Post-market: 429.05 (−0.50%)')
+  expect(cell.textContent).toBe('−0.50%')
+})
+
+test('Should show a dash for a symbol with no price outside regular hours', () => {
+  setup({ quotes: withExtended })
+  expect(within(row('KO')).getAllByText('—')).toHaveLength(1)
+  expect(within(row('KO')).getByText('62.10')).toBeTruthy()
+})
+
+test('Should mark next to the ticker whether the symbol is in pre-market or after hours', () => {
+  setup({ quotes: withExtended })
+  expect(within(row('AAPL')).getByRole('img', { name: 'Pre-market' })).toBeTruthy()
+  expect(within(row('MSFT')).getByRole('img', { name: 'Post-market' })).toBeTruthy()
+  expect(within(row('KO')).queryByRole('img', { name: /mercado/ })).toBeNull()
 })

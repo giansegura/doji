@@ -21,7 +21,7 @@ test('Should keep the valid parts of an older or partial state', () => {
     timeframe: 'X',
   })
   expect(out.theme).toBe('light')
-  expect(out.watchlists).toEqual([{ id: 'default', name: 'Lista', items: [{ symbol: 'KO', name: 'Coca-Cola', exchange: 'NYSE' }] }])
+  expect(out.watchlists).toEqual([{ id: 'default', name: 'Watchlist', items: [{ symbol: 'KO', name: 'Coca-Cola', exchange: 'NYSE' }] }])
   expect(out.activeWatchlistId).toBe('default')
   expect(out.timeframe).toBe('D')
   expect(out.symbol).toBe('AAPL')
@@ -30,7 +30,7 @@ test('Should keep the valid parts of an older or partial state', () => {
 })
 
 test('Should keep an empty watchlist the user left empty', () => {
-  expect(normalizeState({ watchlist: [] }).watchlists).toEqual([{ id: 'default', name: 'Lista', items: [] }])
+  expect(normalizeState({ watchlist: [] }).watchlists).toEqual([{ id: 'default', name: 'Watchlist', items: [] }])
 })
 
 const ko = { symbol: 'KO', name: 'Coca-Cola', exchange: 'NYSE' }
@@ -66,8 +66,8 @@ test('Should drop lists without id, repeated ids and symbols without ticker', ()
     ],
   })
   expect(out.watchlists).toEqual([
-    { id: 'a', name: 'Lista', items: [ko] },
-    { id: 'b', name: 'Lista', items: [] },
+    { id: 'a', name: 'Watchlist', items: [ko] },
+    { id: 'b', name: 'Watchlist', items: [] },
   ])
 })
 
@@ -77,7 +77,7 @@ test('Should fall back to the default list when no list is usable', () => {
 })
 
 test('Should keep at most twenty lists', () => {
-  const many = Array.from({ length: 25 }, (_, index) => ({ id: `l${index}`, name: `Lista ${index}`, items: [] }))
+  const many = Array.from({ length: 25 }, (_, index) => ({ id: `l${index}`, name: `List ${index}`, items: [] }))
   expect(normalizeState({ watchlists: many }).watchlists).toHaveLength(20)
 })
 
@@ -184,4 +184,13 @@ test('Should read a revision of at least one', () => {
   expect(normalizeState({ rev: 0 }).rev).toBe(1)
   expect(normalizeState({ rev: 'x' }).rev).toBe(1)
   expect(normalizeState({ rev: 2.5 }).rev).toBe(1)
+})
+
+test('Should keep a usable list width and repair the rest', () => {
+  expect(normalizeState({ listWidth: 400 }).listWidth).toBe(400)
+  expect(normalizeState({ listWidth: 300.6 }).listWidth).toBe(301)
+  expect(normalizeState({ listWidth: 100 }).listWidth).toBe(220)
+  expect(normalizeState({ listWidth: 5000 }).listWidth).toBe(640)
+  expect(normalizeState({ listWidth: 'ancha' }).listWidth).toBe(DEFAULT_STATE.listWidth)
+  expect(normalizeState({}).listWidth).toBe(400)
 })

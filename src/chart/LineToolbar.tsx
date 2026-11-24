@@ -25,7 +25,7 @@ const TrashIcon = () => (
 )
 
 export const LineToolbar = ({ line, onChange, onDelete }: LineToolbarProps) => (
-  <Styles.Toolbar role="toolbar" aria-label="Línea seleccionada">
+  <Styles.Toolbar role="toolbar" aria-label="Selected line">
     {LINE_COLORS.map((color) => (
       <Styles.Swatch
         key={color}
@@ -41,7 +41,7 @@ export const LineToolbar = ({ line, onChange, onDelete }: LineToolbarProps) => (
       <Styles.ToolbarButton
         key={width}
         type="button"
-        aria-label={`Grosor ${width}`}
+        aria-label={`Width ${width}`}
         aria-pressed={line.width === width}
         onClick={() => onChange({ ...line, width })}
       >
@@ -51,14 +51,14 @@ export const LineToolbar = ({ line, onChange, onDelete }: LineToolbarProps) => (
     <Styles.ToolbarDivider />
     <Styles.ToolbarButton
       type="button"
-      title="Extender a la derecha"
-      aria-label="Extender a la derecha"
+      title="Extend right"
+      aria-label="Extend right"
       aria-pressed={line.extendRight}
       onClick={() => onChange({ ...line, extendRight: !line.extendRight })}
     >
       <ExtendIcon />
     </Styles.ToolbarButton>
-    <Styles.ToolbarButton type="button" title="Borrar línea" aria-label="Borrar línea" onClick={onDelete}>
+    <Styles.ToolbarButton type="button" title="Delete line" aria-label="Delete line" onClick={onDelete}>
       <TrashIcon />
     </Styles.ToolbarButton>
   </Styles.Toolbar>

@@ -2,6 +2,8 @@
 
 Gráficos de bolsa privados, en local: velas diarias y semanales, volumen, RSI, medias móviles, líneas de tendencia y listas de seguimiento, con tema claro y oscuro.
 
+La interfaz está en inglés.
+
 ## Arrancar
 
 ```bash
@@ -17,10 +19,11 @@ Para otro puerto: `PORT=4790 npm start`.
 
 - **Símbolo:** el botón de arriba a la izquierda abre el buscador (ticker o nombre de empresa). `Enter` elige el primer resultado, aunque lo pulses antes de que termine la búsqueda.
 - **Periodo:** `D` diario, `W` semanal.
-- **Indicadores:** volumen y RSI se activan o quitan desde el menú; el periodo del RSI y su media se ajustan ahí.
-- **Medias móviles (SMA):** en el mismo menú, "Añadir media móvil" (hasta seis). Se calculan sobre el cierre. Cada una tiene su periodo; el círculo de color abre la paleta (16 colores, o cualquier otro con el selector) y el grosor; la `×` la quita.
-- **Gráfico:** el menú "Gráfico" cambia el tipo (velas, barras, línea, área, línea base), la escala de precios (normal, logarítmica, porcentaje, indexada a 100, invertida) y el cursor (libre o imán). El icono de la cámara guarda una imagen del gráfico.
-- **Configuración:** el menú "Configuración" exporta todo (listas, líneas, indicadores, tema y ajustes del gráfico) a un archivo `doji-config-AAAA-MM-DD.json` y lo vuelve a importar. Importar reemplaza la configuración actual entera, por eso pide confirmación.
+- **Indicadores:** volumen y RSI se activan o quitan desde el menú "Indicators"; el periodo del RSI y su media se ajustan ahí.
+- **Medias móviles (SMA):** en el mismo menú, "Add moving average" (hasta seis). Se calculan sobre el cierre. Cada una tiene su periodo; el círculo de color abre la paleta (16 colores, o cualquier otro con el selector) y el grosor; la `×` la quita.
+- **Gráfico:** el menú "Chart" cambia el tipo (velas, barras, línea, área, línea base), la escala de precios (normal, logarítmica, porcentaje, indexada a 100, invertida) y el cursor (libre o imán). El icono de la cámara guarda una imagen del gráfico.
+- **Configuración:** el menú "Settings" exporta todo (listas, líneas, indicadores, tema y ajustes del gráfico) a un archivo `doji-config-AAAA-MM-DD.json` y lo vuelve a importar. Importar reemplaza la configuración actual entera, por eso pide confirmación.
+- **Mover el gráfico:** arrastra para desplazarlo en el tiempo; el precio se encaja solo a la pantalla. Si empiezas el arrastre hacia arriba o hacia abajo, el gráfico se mueve también en vertical y deja de encajarse: desde ese momento se arrastra libre en cualquier dirección. El botón "Auto" de la esquina inferior derecha, o un doble clic en el eje de precios, lo vuelve a encajar; al cambiar de acción se encaja solo.
 - **Línea de tendencia:** elige la herramienta en la barra izquierda y haz clic en dos puntos, sobre el precio o sobre el RSI.
   - Clic en una línea para seleccionarla; arrastra un extremo o el cuerpo para moverla.
   - Con la línea seleccionada aparece una barra para cambiar color, grosor, extenderla a la derecha o borrarla.
@@ -28,12 +31,14 @@ Para otro puerto: `PORT=4790 npm start`.
   - Una línea puede acabar más allá de la última vela. Ese tramo se cuenta en días de bolsa: sin fines de semana y, en acciones de EE. UU., sin los festivos de su bolsa.
 - **Listas:** el nombre de la lista (arriba a la derecha) abre el desplegable para cambiar de lista, crear una nueva, renombrarla, duplicarla o borrarla (pide confirmación). Siempre queda al menos una.
 - **Símbolos de la lista:** `+` añade un símbolo a la lista activa; pasa el ratón por una fila para quitarla; arrastra las filas para reordenar.
+- **Ancho de la lista:** arrastra el borde izquierdo de la lista para ensancharla o estrecharla; el gráfico ocupa el resto. Va de 220 a 640 px (400 por defecto) y se guarda con el resto de la configuración. Las columnas se adaptan para que los tickers se lean enteros: por debajo de 381 px se oculta "Ext" y por debajo de 300 px también "Last".
+- **Horas extendidas:** la columna "Ext" muestra, en porcentaje, cuánto se separa del cierre el último precio fuera del horario normal, en verde o rojo; al pasar el ratón se ve el precio. Un punto junto al ticker indica la sesión: naranja en el pre-mercado y azul en el post-mercado. Durante la sesión normal, y en lo que no cotiza fuera de horario (índices, cripto, bolsas europeas), muestra un guion. Con el mercado cerrado se queda el último dato del post-mercado hasta que abre el siguiente pre-mercado.
 
 ## Dónde se guarda todo
 
 En la carpeta `data/` del proyecto, que no se versiona:
 
-- `data/state.json`: listas de seguimiento, líneas, tema e indicadores. Es el archivo que conviene copiar si quieres una copia de seguridad. "Exportar configuración" te da esa misma copia desde la app, y es la forma de llevar tu configuración a otro ordenador. Se puede importar tanto un archivo exportado como una copia de `state.json`.
+- `data/state.json`: listas de seguimiento, líneas, tema e indicadores. Es el archivo que conviene copiar si quieres una copia de seguridad. "Export settings" te da esa misma copia desde la app, y es la forma de llevar tu configuración a otro ordenador. Se puede importar tanto un archivo exportado como una copia de `state.json`.
 - `data/state.json.bak-AAAA-MM-DD`: copia automática del estado tal como estaba antes del primer cambio de cada día. Se conservan las siete últimas.
 - `data/state.json.corrupt-…`: si alguna vez el archivo no se puede leer como JSON, se guarda aparte con este nombre y la app arranca con valores por defecto.
 - `data/cache/`: histórico descargado de cada acción y logos de las empresas. Se puede borrar sin perder nada.
@@ -50,6 +55,7 @@ Los precios salen de los endpoints públicos de Yahoo Finance. No es una API ofi
 - Si Yahoo no responde, se muestra el último histórico guardado con un aviso de su fecha.
 - Los logos se piden primero a Yahoo y, si no lo tiene, a `financialmodelingprep.com`; a ese segundo servicio solo se le envía el ticker. Se guardan en disco y no se vuelven a pedir en un mes. Sin logo se muestra la inicial.
 - El histórico completo de cada acción se vuelve a descargar cada 12 horas; entre medias solo se piden los últimos días.
+- Cambiar de acción dentro de la lista es inmediato: al abrir la app se precargan en segundo plano los históricos de la lista activa (hasta 24 acciones), con la copia que el servidor ya tenga y sin consultar a Yahoo. Al cambiar se pinta esa copia y los datos frescos la sustituyen un instante después. Una acción que nunca se ha abierto y no está en la lista sí tiene que descargarse.
 - Todo lo que habla con Yahoo está en `server/provider/yahoo.ts`; cambiar de fuente es reescribir ese archivo. La segunda fuente de logos se configura en `server/index.ts`.
 
 ## Límites conocidos
@@ -68,6 +74,13 @@ npm run smoke -- http://127.0.0.1:4780 /tmp/capturas   # prueba completa en Chro
 ```
 
 La prueba completa dibuja y borra líneas y cambia el tema y la lista: ejecútala contra una carpeta de datos de prueba (`DOJI_DATA_DIR`), no contra la tuya.
+
+## Contribuir
+
+- Cada cambio va en una rama y entra por un pull request; a `main` no se sube directamente.
+- El título del pull request sigue [Conventional Commits](https://www.conventionalcommits.org/), en inglés: `type(optional-scope): summary`, con el resumen en minúscula inicial y sin punto final. Tipos: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
+- Los pull requests se fusionan siempre con squash, y el commit resultante toma el título del pull request.
+- Antes de fusionar tienen que pasar tres comprobaciones: `tests`, `build` y `conventional-title`. CodeRabbit revisa cada pull request.
 
 ## Avisos
 

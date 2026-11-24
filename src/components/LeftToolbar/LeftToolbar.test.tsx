@@ -6,14 +6,14 @@ import { LeftToolbar } from '.'
 
 test('Should mark the active tool', () => {
   renderWithTheme(<LeftToolbar tool="trendline" onTool={() => undefined} />)
-  expect(screen.getByRole('button', { name: 'Línea de tendencia' }).getAttribute('aria-pressed')).toBe('true')
+  expect(screen.getByRole('button', { name: 'Trend line' }).getAttribute('aria-pressed')).toBe('true')
   expect(screen.getByRole('button', { name: 'Cursor' }).getAttribute('aria-pressed')).toBe('false')
 })
 
 test('Should report the chosen tool', async () => {
   const onTool = vi.fn()
   renderWithTheme(<LeftToolbar tool="cursor" onTool={onTool} />)
-  await userEvent.setup().click(screen.getByRole('button', { name: 'Línea de tendencia' }))
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Trend line' }))
   expect(onTool).toHaveBeenCalledWith('trendline')
   await userEvent.setup().click(screen.getByRole('button', { name: 'Cursor' }))
   expect(onTool).toHaveBeenLastCalledWith('cursor')

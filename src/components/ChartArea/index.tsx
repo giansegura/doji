@@ -47,18 +47,18 @@ export const ChartArea = ({
 
   if (hasBars(history) && history !== lastShown) setLastShown(history)
 
-  if (loading && !shown) return <Styles.Message>Cargando…</Styles.Message>
+  if (loading && !shown) return <Styles.Message>Loading…</Styles.Message>
 
   if (errorCode === 'not_found' || (history && history.bars.length === 0)) {
-    return <Styles.Message>No hay datos para {symbol}</Styles.Message>
+    return <Styles.Message>No data for {symbol}</Styles.Message>
   }
 
   if (!shown) {
     return (
       <Styles.Message>
-        No se pudieron cargar los datos
+        Could not load the data
         <Styles.ActionButton type="button" onClick={onRetry}>
-          Reintentar
+          Retry
         </Styles.ActionButton>
       </Styles.Message>
     )
@@ -77,7 +77,7 @@ export const ChartArea = ({
         onLinesChange={loading ? ignore : onLinesChange}
         onToolDone={loading ? ignore : onToolDone}
       />
-      {loading && <Styles.Veil role="status">{`Cargando ${symbol}…`}</Styles.Veil>}
+      {loading && <Styles.Veil role="status">{`Loading ${symbol}…`}</Styles.Veil>}
     </>
   )
 }

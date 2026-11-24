@@ -32,6 +32,9 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
 export const getHistory = (symbol: string): Promise<History> =>
   request(`/api/history?symbol=${encodeURIComponent(symbol)}`)
 
+export const getKeptHistory = (symbol: string): Promise<History> =>
+  request(`/api/history?symbol=${encodeURIComponent(symbol)}&cached=1`)
+
 export const searchSymbols = (query: string): Promise<SymbolInfo[]> =>
   request(`/api/search?q=${encodeURIComponent(query)}`)
 

@@ -11,7 +11,14 @@ const BOXES: Record<PaneId, PaneBox | null> = {
 }
 
 const setup = (options: Options = {}) => {
-  const record = { calls: [] as string[], measured: 0, cursor: 'default' as CursorKind, stopped: 0, prevented: 0 }
+  const record = {
+    calls: [] as string[],
+    vertical: [] as PaneId[],
+    measured: 0,
+    cursor: 'default' as CursorKind,
+    stopped: 0,
+    prevented: 0,
+  }
   const boxes = { ...BOXES, ...options.boxes }
   const session = createPointerSession({
     controller: {
@@ -38,6 +45,9 @@ const setup = (options: Options = {}) => {
     isInside: () => options.inside ?? true,
     setCursor: (cursor) => {
       record.cursor = cursor
+    },
+    onVerticalDrag: (pane) => {
+      record.vertical.push(pane)
     },
   })
   const event = (clientX: number, clientY: number, over: Partial<PointerLike> = {}): PointerLike => ({
@@ -189,4 +199,80 @@ test('Should measure only the pane that holds the gesture', () => {
   session.move(event(900, 900))
   expect(record.measured).toBe(1)
   expect(record.calls).toEqual(['down rsi 50,40', 'move rsi 800,540'])
+})
+
+test('Should report a drag of the chart that starts mostly upwards or downwards', () => {
+  const { record, session, event } = setup({ accepts: false })
+  session.down(event(150, 80))
+  session.move(event(151, 84))
+  expect(record.vertical).toEqual(['price'])
+})
+
+test('Should report the pane the vertical drag started in', () => {
+  const { record, session, event } = setup({ accepts: false })
+  session.down(event(150, 400))
+  session.move(event(150, 392))
+  expect(record.vertical).toEqual(['rsi'])
+})
+
+test('Should not report a drag of the chart that starts mostly sideways', () => {
+  const { record, session, event } = setup({ accepts: false })
+  session.down(event(150, 80))
+  session.move(event(154, 81))
+  session.move(event(160, 140))
+  expect(record.vertical).toEqual([])
+})
+
+test('Should treat a diagonal drag as sideways', () => {
+  const { record, session, event } = setup({ accepts: false })
+  session.down(event(150, 80))
+  session.move(event(153, 83))
+  expect(record.vertical).toEqual([])
+})
+
+test('Should wait until the drag has started before judging its direction', () => {
+  const { record, session, event } = setup({ accepts: false })
+  session.down(event(150, 80))
+  session.move(event(150, 84))
+  expect(record.vertical).toEqual([])
+  session.move(event(151, 86))
+  expect(record.vertical).toEqual(['price'])
+})
+
+test('Should report a vertical drag once per press', () => {
+  const { record, session, event } = setup({ accepts: false })
+  session.down(event(150, 80))
+  session.move(event(150, 90))
+  session.move(event(150, 120))
+  expect(record.vertical).toEqual(['price'])
+})
+
+test('Should not report a vertical drag of a press the controller took', () => {
+  const { record, session, event } = setup()
+  session.down(event(150, 80))
+  session.move(event(150, 120))
+  expect(record.vertical).toEqual([])
+})
+
+test('Should not report a vertical drag that started outside the panes or with another button', () => {
+  const { record, session, event } = setup({ accepts: false })
+  session.down(event(520, 80))
+  session.move(event(520, 120))
+  session.down(event(150, 80, { button: 2, buttons: 2 }))
+  session.move(event(150, 120, { button: 2, buttons: 2 }))
+  expect(record.vertical).toEqual([])
+})
+
+test('Should forget the press once the button is released', () => {
+  const { record, session, event } = setup({ accepts: false })
+  session.down(event(150, 80))
+  session.up(event(150, 81, { buttons: 0 }))
+  session.move(event(150, 120))
+  session.down(event(150, 80))
+  session.move(event(150, 82, { buttons: 0 }))
+  session.move(event(150, 120))
+  session.down(event(150, 80))
+  session.cancel()
+  session.move(event(150, 120))
+  expect(record.vertical).toEqual([])
 })
