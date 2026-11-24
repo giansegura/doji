@@ -2,7 +2,7 @@ import { LIST_DEFAULT_WIDTH } from './limits'
 
 export type Timeframe = 'D' | 'W' | 'M'
 
-export type ThemeName = 'dark' | 'light'
+export type ThemeName = 'doji' | 'midnight' | 'light'
 
 export type Bar = {
   time: string
@@ -21,7 +21,7 @@ export type ListSection = { kind: 'section'; id: string; title: string }
 
 export type ListItem = SymbolInfo | ListSection
 
-export type SymbolList = { id: string; name: string; items: ListItem[] }
+export type SymbolList = { id: string; name: string; items: ListItem[]; icon?: string }
 
 export type SortColumn = 'symbol' | 'last' | 'change' | 'ext'
 
@@ -131,7 +131,7 @@ export type AppState = {
 export const DEFAULT_STATE: AppState = {
   version: 1,
   rev: 1,
-  theme: 'dark',
+  theme: 'doji',
   symbol: 'AAPL',
   timeframe: 'D',
   watchlists: [

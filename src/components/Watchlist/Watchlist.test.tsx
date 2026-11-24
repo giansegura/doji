@@ -342,7 +342,7 @@ test('Should drop a drag that began before the list got sorted', () => {
     onSort: vi.fn(),
   }
   const view = (sort: WatchlistSort | null) => (
-    <ThemeProvider theme={themes.dark}>
+    <ThemeProvider theme={themes.midnight}>
       <Watchlist items={items} quotes={quotes} activeSymbol="AAPL" sort={sort} {...handlers} />
     </ThemeProvider>
   )
@@ -387,7 +387,7 @@ test('Should say that prices refresh every fifteen seconds when they are not liv
 })
 
 const listWith = (price: number) => (
-  <ThemeProvider theme={themes.dark}>
+  <ThemeProvider theme={themes.midnight}>
     <Watchlist
       items={items}
       quotes={{ ...quotes, AAPL: { ...quotes.AAPL, price } }}

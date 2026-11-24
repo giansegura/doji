@@ -1,6 +1,6 @@
 import { expect, test, vi } from 'vitest'
 import { DEFAULT_STATE } from '../shared/types'
-import { createDojiApi } from './dojiApi'
+import { createDojiApi, isMissingSymbol } from './dojiApi'
 
 const BASE = 'http://127.0.0.1:4780'
 
@@ -40,7 +40,10 @@ test('Should ask for the history and the quotes of symbols, escaping them', asyn
 
 test('Should say that a symbol is unknown', async () => {
   const api = createDojiApi({ baseUrl: BASE, fetch: reply(404, { error: 'not_found' }) })
-  await expect(api.getHistory('ZZZZ')).rejects.toThrow('doji has no data for ZZZZ.')
+  const error = await api.getHistory('ZZZZ').catch((failure: unknown) => failure)
+  expect((error as Error).message).toBe('doji has no data for ZZZZ.')
+  expect(isMissingSymbol(error)).toBe(true)
+  expect(isMissingSymbol(new Error('doji is not running'))).toBe(false)
 })
 
 test('Should say how to start doji when it does not answer', async () => {

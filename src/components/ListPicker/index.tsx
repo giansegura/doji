@@ -1,5 +1,6 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { LIST_NAME_MAX_LENGTH, MAX_LISTS } from '../../../shared/limits'
+import { LIST_ICONS, toListIcon } from '../../../shared/listIcon'
 import type { SymbolList } from '../../../shared/types'
 import * as Styles from './styles'
 
@@ -11,9 +12,15 @@ type ListPickerProps = {
   onRename: (id: string, name: string) => void
   onDelete: (id: string) => void
   onDuplicate: (id: string) => void
+  onIcon: (id: string, icon: string | null) => void
 }
 
-type Mode = { kind: 'browse' } | { kind: 'create' } | { kind: 'rename'; id: string } | { kind: 'confirm'; id: string }
+type Mode =
+  | { kind: 'browse' }
+  | { kind: 'create' }
+  | { kind: 'rename'; id: string }
+  | { kind: 'confirm'; id: string }
+  | { kind: 'icon'; id: string }
 
 const BROWSE: Mode = { kind: 'browse' }
 
@@ -36,17 +43,27 @@ const CopyIcon = () => (
   </svg>
 )
 
+const SmileIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true">
+    <circle cx="7" cy="7" r="5" />
+    <path d="M4.9 8.3c.5.7 1.2 1.1 2.1 1.1s1.6-.4 2.1-1.1" strokeLinecap="round" />
+    <circle cx="5.3" cy="5.7" r="0.6" fill="currentColor" stroke="none" />
+    <circle cx="8.7" cy="5.7" r="0.6" fill="currentColor" stroke="none" />
+  </svg>
+)
+
 const TrashIcon = () => (
   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true">
     <path d="M2.5 4h9M5.5 4V2.8h3V4M3.8 4l.5 7.5h5.4l.5-7.5" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 )
 
-export const ListPicker = ({ lists, activeId, onSelect, onCreate, onRename, onDelete, onDuplicate }: ListPickerProps) => {
+export const ListPicker = ({ lists, activeId, onSelect, onCreate, onRename, onDelete, onDuplicate, onIcon }: ListPickerProps) => {
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<Mode>(BROWSE)
   const [text, setText] = useState('')
   const rootRef = useRef<HTMLDivElement>(null)
+  const iconButtonsRef = useRef(new Map<string, HTMLButtonElement>())
   const active = lists.find((list) => list.id === activeId) ?? lists[0]
   const browsing = mode.kind === 'browse'
 
@@ -108,6 +125,29 @@ export const ListPicker = ({ lists, activeId, onSelect, onCreate, onRename, onDe
     close()
   }
 
+  const chooseIcon = (id: string, icon: string | null) => {
+    onIcon(id, icon)
+    setMode(BROWSE)
+  }
+
+  const handleIconKey = (event: KeyboardEvent, id: string) => {
+    if (event.key !== 'Enter') return
+    const icon = toListIcon(text)
+    if (icon) chooseIcon(id, icon)
+  }
+
+  const handlePaletteKey = (event: KeyboardEvent, id: string) => {
+    if (event.key !== 'Escape') return
+    event.stopPropagation()
+    setMode(BROWSE)
+    iconButtonsRef.current.get(id)?.focus()
+  }
+
+  const keepIconButton = (id: string) => (node: HTMLButtonElement | null) => {
+    if (node) iconButtonsRef.current.set(id, node)
+    else iconButtonsRef.current.delete(id)
+  }
+
   const handleDelete = (id: string) => {
     onDelete(id)
     setMode(BROWSE)
@@ -121,13 +161,15 @@ export const ListPicker = ({ lists, activeId, onSelect, onCreate, onRename, onDe
         aria-expanded={open}
         onClick={() => (open ? close() : setOpen(true))}
       >
+        {active?.icon && <Styles.ListIcon aria-hidden="true">{active.icon}</Styles.ListIcon>}
         <Styles.TriggerName>{active?.name ?? 'Watchlist'}</Styles.TriggerName>
         <ChevronIcon />
       </Styles.Trigger>
       {open && (
         <Styles.Menu role="menu">
           {lists.map((list) => (
-            <Styles.Row key={list.id} role="none">
+            <div key={list.id} role="none">
+            <Styles.Row role="none">
               {mode.kind === 'rename' && mode.id === list.id && (
                 <Styles.Input
                   type="text"
@@ -163,8 +205,21 @@ export const ListPicker = ({ lists, activeId, onSelect, onCreate, onRename, onDe
                     aria-current={list.id === active?.id ? 'true' : undefined}
                     onClick={() => handleSelect(list.id)}
                   >
+                    {list.icon && <Styles.ListIcon aria-hidden="true">{list.icon}</Styles.ListIcon>}
                     <Styles.ItemName>{list.name}</Styles.ItemName>
                   </Styles.Item>
+                  <Styles.IconButton
+                    ref={keepIconButton(list.id)}
+                    type="button"
+                    title="Icon"
+                    aria-label={`Icon for ${list.name}`}
+                    aria-expanded={mode.kind === 'icon' && mode.id === list.id}
+                    onClick={() =>
+                      mode.kind === 'icon' && mode.id === list.id ? setMode(BROWSE) : startEditing({ kind: 'icon', id: list.id }, '')
+                    }
+                  >
+                    <SmileIcon />
+                  </Styles.IconButton>
                   <Styles.IconButton
                     type="button"
                     title="Rename"
@@ -194,6 +249,38 @@ export const ListPicker = ({ lists, activeId, onSelect, onCreate, onRename, onDe
                 </>
               )}
             </Styles.Row>
+            {mode.kind === 'icon' && mode.id === list.id && (
+              <Styles.Palette role="group" aria-label={`Icons for ${list.name}`} onKeyDown={(event) => handlePaletteKey(event, list.id)}>
+                <Styles.PaletteGrid>
+                  {LIST_ICONS.map((icon) => (
+                    <Styles.PaletteIcon
+                      key={icon}
+                      type="button"
+                      aria-label={icon}
+                      aria-pressed={list.icon === icon}
+                      onClick={() => chooseIcon(list.id, icon)}
+                    >
+                      {icon}
+                    </Styles.PaletteIcon>
+                  ))}
+                </Styles.PaletteGrid>
+                <Styles.PaletteFooter>
+                  <Styles.Input
+                    type="text"
+                    autoFocus
+                    aria-label={`Any emoji for ${list.name}`}
+                    placeholder="Any emoji, then Enter"
+                    value={text}
+                    onChange={(event) => setText(event.target.value)}
+                    onKeyDown={(event) => handleIconKey(event, list.id)}
+                  />
+                  <Styles.TextButton type="button" disabled={!list.icon} onClick={() => chooseIcon(list.id, null)}>
+                    No icon
+                  </Styles.TextButton>
+                </Styles.PaletteFooter>
+              </Styles.Palette>
+            )}
+            </div>
           ))}
           <Styles.Footer>
             {mode.kind === 'create' ? (

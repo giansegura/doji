@@ -69,7 +69,7 @@ test('Should use the new revision for the next save', async () => {
 
 test('Should not save when nothing changed', async () => {
   const { result, puts } = await mount()
-  act(() => result.current.dispatch({ type: 'setTheme', theme: 'dark' }))
+  act(() => result.current.dispatch({ type: 'setTheme', theme: 'doji' }))
   await wait(1000)
   expect(puts).toHaveLength(0)
 })
@@ -81,7 +81,7 @@ test('Should reload the state and say so when another tab saved first', async ()
   act(() => result.current.dispatch({ type: 'setTheme', theme: 'light' }))
   await wait(300)
   expect(result.current.state?.symbol).toBe('KO')
-  expect(result.current.state?.theme).toBe('dark')
+  expect(result.current.state?.theme).toBe('doji')
   expect(result.current.notice).toBe('The settings changed in another tab and were reloaded')
 })
 

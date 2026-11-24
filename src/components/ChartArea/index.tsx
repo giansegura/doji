@@ -15,6 +15,7 @@ type ChartAreaProps = {
   indicators: Indicators
   settings: ChartSettings
   live?: LivePrice | null
+  viewId?: string
   screenshotRef?: RefObject<(() => void) | null>
   lines: Drawing[]
   tool: Tool
@@ -38,6 +39,7 @@ export const ChartArea = ({
   indicators,
   settings,
   live = null,
+  viewId = 'main',
   screenshotRef,
   lines,
   tool,
@@ -76,6 +78,7 @@ export const ChartArea = ({
         indicators={indicators}
         settings={settings}
         live={live}
+        viewId={viewId}
         screenshotRef={screenshotRef}
         lines={loading ? NO_LINES : lines}
         tool={loading ? 'cursor' : tool}

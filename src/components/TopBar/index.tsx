@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react'
 import { MAX_SMAS, SMA_COLORS, SMA_MAX_LENGTH, SMA_MIN_LENGTH } from '../../../shared/limits'
 import { displaySymbol } from '../../../shared/symbols'
 import type {
@@ -14,6 +14,8 @@ import type {
 } from '../../../shared/types'
 import { newId } from '../../domain/newId'
 import { SMA_WIDTHS, addSma } from '../../domain/smaConfig'
+import { THEME_OPTIONS, themes } from '../../theme/tokens'
+import { Logo } from '../Logo'
 import { ConfigPanel } from './ConfigPanel'
 import { StudiesPanel } from './StudiesPanel'
 import { NumberField } from './NumberField'
@@ -66,7 +68,14 @@ const CURSOR_MODES: [CursorMode, string][] = [
   ['magnetOhlc', 'Magnet to OHLC'],
 ]
 
-type MenuName = 'indicators' | 'chart' | 'config'
+type MenuName = 'indicators' | 'chart' | 'config' | 'theme'
+
+const MENU_KEYS: Record<string, (at: number, count: number) => number> = {
+  ArrowDown: (at) => at + 1,
+  ArrowUp: (at) => at - 1,
+  Home: () => 0,
+  End: (_, count) => count - 1,
+}
 
 const CameraIcon = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
@@ -88,16 +97,12 @@ const SearchIcon = () => (
   </svg>
 )
 
-const SunIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-    <circle cx="9" cy="9" r="3.2" />
-    <path d="M9 1.5v2M9 14.5v2M1.5 9h2M14.5 9h2M3.7 3.7l1.4 1.4M12.9 12.9l1.4 1.4M3.7 14.3l1.4-1.4M12.9 5.1l1.4-1.4" strokeLinecap="round" />
-  </svg>
-)
-
-const MoonIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-    <path d="M15 10.5A6.5 6.5 0 0 1 7.5 3a6.5 6.5 0 1 0 7.5 7.5z" strokeLinejoin="round" />
+const PaletteIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+    <path d="M9 2.5a6.5 6.5 0 1 0 0 13c1 0 1.4-.6 1.4-1.3 0-.9-.8-1.2-.8-2 0-.7.6-1.2 1.3-1.2h1.6a3 3 0 0 0 3-3C15.5 4.9 12.6 2.5 9 2.5z" strokeLinejoin="round" />
+    <circle cx="5.6" cy="8.6" r="0.9" fill="currentColor" stroke="none" />
+    <circle cx="7.6" cy="5.6" r="0.9" fill="currentColor" stroke="none" />
+    <circle cx="11.2" cy="5.6" r="0.9" fill="currentColor" stroke="none" />
   </svg>
 )
 
@@ -122,7 +127,9 @@ export const TopBar = ({
   const [openMenu, setOpenMenu] = useState<MenuName | null>(null)
   const [styleOpenId, setStyleOpenId] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-  const nextTheme: ThemeName = theme === 'dark' ? 'light' : 'dark'
+  const themeRef = useRef<HTMLDivElement>(null)
+  const themeButtonRef = useRef<HTMLButtonElement>(null)
+  const themeOptionsRef = useRef<(HTMLButtonElement | null)[]>([])
 
   useEffect(() => {
     if (!openMenu) return undefined
@@ -130,7 +137,8 @@ export const TopBar = ({
       if (event.key === 'Escape') setOpenMenu(null)
     }
     const closeOnOutside = (event: PointerEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) setOpenMenu(null)
+      const target = event.target as Node
+      if (!menuRef.current?.contains(target) && !themeRef.current?.contains(target)) setOpenMenu(null)
     }
     window.addEventListener('keydown', closeOnEscape)
     window.addEventListener('pointerdown', closeOnOutside)
@@ -140,7 +148,36 @@ export const TopBar = ({
     }
   }, [openMenu])
 
+  useEffect(() => {
+    if (openMenu !== 'theme') return
+    themeOptionsRef.current[Math.max(THEME_OPTIONS.findIndex((option) => option.name === theme), 0)]?.focus()
+  }, [openMenu, theme])
+
   const toggleMenu = (name: MenuName) => setOpenMenu((current) => (current === name ? null : name))
+
+  const closeThemes = () => {
+    setOpenMenu(null)
+    themeButtonRef.current?.focus()
+  }
+
+  const pickTheme = (name: ThemeName) => {
+    onTheme(name)
+    closeThemes()
+  }
+
+  const handleThemeKey = (event: ReactKeyboardEvent) => {
+    if (event.key === 'Escape') {
+      event.stopPropagation()
+      closeThemes()
+      return
+    }
+    const options = themeOptionsRef.current
+    const at = options.findIndex((option) => option === document.activeElement)
+    const target = MENU_KEYS[event.key]?.(at, options.length)
+    if (target === undefined) return
+    event.preventDefault()
+    options[(target + options.length) % options.length]?.focus()
+  }
 
   const setRsi = (patch: Partial<Indicators['rsi']>) => onIndicators({ ...indicators, rsi: { ...indicators.rsi, ...patch } })
 
@@ -156,6 +193,9 @@ export const TopBar = ({
 
   return (
     <Styles.Bar>
+      <Styles.Brand aria-label="doji" title="doji">
+        <Logo size={22} />
+      </Styles.Brand>
       <Styles.SymbolButton type="button" aria-label={displaySymbol(symbol)} onClick={onOpenSearch}>
         <SearchIcon />
         {displaySymbol(symbol)}
@@ -383,13 +423,43 @@ export const TopBar = ({
       <Styles.Button type="button" title="Save image" aria-label="Save image" onClick={onScreenshot}>
         <CameraIcon />
       </Styles.Button>
-      <Styles.Button
-        type="button"
-        aria-label={nextTheme === 'light' ? 'Switch to light theme' : 'Switch to dark theme'}
-        onClick={() => onTheme(nextTheme)}
-      >
-        {nextTheme === 'light' ? <SunIcon /> : <MoonIcon />}
-      </Styles.Button>
+      <Styles.MenuAnchor ref={themeRef}>
+        <Styles.Button
+          ref={themeButtonRef}
+          type="button"
+          title="Theme"
+          aria-label="Theme"
+          aria-haspopup="menu"
+          aria-expanded={openMenu === 'theme'}
+          onClick={() => toggleMenu('theme')}
+        >
+          <PaletteIcon />
+        </Styles.Button>
+        {openMenu === 'theme' && (
+          <Styles.Menu $right role="menu" aria-label="Theme" onKeyDown={handleThemeKey}>
+            {THEME_OPTIONS.map((option, index) => (
+              <Styles.ThemeOption
+                key={option.name}
+                ref={(node: HTMLButtonElement | null) => {
+                  themeOptionsRef.current[index] = node
+                }}
+                type="button"
+                role="menuitemradio"
+                aria-checked={option.name === theme}
+                onClick={() => pickTheme(option.name)}
+              >
+                <Styles.ThemeSwatch
+                  aria-hidden="true"
+                  $panel={themes[option.name].ui.panel}
+                  $chart={themes[option.name].chart.bg}
+                  $accent={themes[option.name].ui.accent}
+                />
+                {option.label}
+              </Styles.ThemeOption>
+            ))}
+          </Styles.Menu>
+        )}
+      </Styles.MenuAnchor>
     </Styles.Bar>
   )
 }

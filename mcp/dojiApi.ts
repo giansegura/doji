@@ -21,6 +21,9 @@ const errorCodeOf = async (response: Response): Promise<string> => {
   return typeof body?.error === 'string' ? body.error : 'no detail'
 }
 
+export const isMissingSymbol = (error: unknown): boolean =>
+  error instanceof Error && (error as { missing?: unknown }).missing === true
+
 export const createDojiApi = ({ baseUrl, fetch = globalThis.fetch }: ApiDeps): DojiApi => {
   const send = async (path: string, init?: RequestInit): Promise<Response> => {
     try {
@@ -32,7 +35,7 @@ export const createDojiApi = ({ baseUrl, fetch = globalThis.fetch }: ApiDeps): D
 
   const read = async <T>(path: string, missing?: string): Promise<T> => {
     const response = await send(path)
-    if (response.status === NOT_FOUND && missing) throw new Error(missing)
+    if (response.status === NOT_FOUND && missing) throw Object.assign(new Error(missing), { missing: true })
     if (!response.ok) throw new Error(`doji answered ${response.status} (${await errorCodeOf(response)}).`)
     return (await response.json()) as T
   }

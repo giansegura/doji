@@ -31,8 +31,10 @@ import type {
   Timeframe,
 } from '../../shared/types'
 import { type LivePrice, withLivePrice } from '../domain/liveBar'
+import { withAlpha } from '../theme/alpha'
 import type { Theme } from '../theme/tokens'
 import { formatWithPrecision, priceFormatOf } from './priceFormat'
+import { type PriceRange, type ViewStore, captureView, restoreView, sharedViewStore } from './savedViews'
 import { createBandPrimitive } from './bandPrimitive'
 import { type HoverStore, createHoverStore } from './hoverStore'
 import { type SeriesData, buildSeriesData } from './seriesData'
@@ -81,6 +83,8 @@ type UseChartArgs = {
   indicators: Indicators
   settings: ChartSettings
   live?: LivePrice | null
+  viewId?: string
+  views?: ViewStore
 }
 
 const RSI_UPPER = 70
@@ -93,12 +97,8 @@ const NO_PANES: PaneTops = { rsi: null, macd: null }
 const SEPARATOR_PX = 1
 const RIGHT_OFFSET_BARS = 10
 const MAIN_LINE_WIDTH = 2
-const AREA_TOP = 'rgba(41, 98, 255, 0.28)'
-const AREA_BOTTOM = 'rgba(41, 98, 255, 0.04)'
-const UP_FILL_STRONG = 'rgba(8, 153, 129, 0.28)'
-const UP_FILL_SOFT = 'rgba(8, 153, 129, 0.04)'
-const DOWN_FILL_STRONG = 'rgba(242, 54, 69, 0.28)'
-const DOWN_FILL_SOFT = 'rgba(242, 54, 69, 0.04)'
+const FILL_STRONG = 0.28
+const FILL_SOFT = 0.04
 
 const SCALE_MODES: Record<ScaleMode, PriceScaleMode> = {
   normal: PriceScaleMode.Normal,
@@ -194,8 +194,8 @@ const MAIN_FACTORIES: Record<ChartType, (chart: IChartApi) => Main> = {
         series.applyOptions({
           lineColor: theme.chart.line,
           lineWidth: MAIN_LINE_WIDTH,
-          topColor: AREA_TOP,
-          bottomColor: AREA_BOTTOM,
+          topColor: withAlpha(theme.chart.line, FILL_STRONG),
+          bottomColor: withAlpha(theme.chart.line, FILL_SOFT),
         })
         series.setData(data.closes)
       },
@@ -212,11 +212,11 @@ const MAIN_FACTORIES: Record<ChartType, (chart: IChartApi) => Main> = {
           baseValue: { type: 'price', price: previousClose(data) },
           lineWidth: MAIN_LINE_WIDTH,
           topLineColor: theme.chart.up,
-          topFillColor1: UP_FILL_STRONG,
-          topFillColor2: UP_FILL_SOFT,
+          topFillColor1: withAlpha(theme.chart.up, FILL_STRONG),
+          topFillColor2: withAlpha(theme.chart.up, FILL_SOFT),
           bottomLineColor: theme.chart.down,
-          bottomFillColor1: DOWN_FILL_SOFT,
-          bottomFillColor2: DOWN_FILL_STRONG,
+          bottomFillColor1: withAlpha(theme.chart.down, FILL_SOFT),
+          bottomFillColor2: withAlpha(theme.chart.down, FILL_STRONG),
         })
         series.setData(data.closes)
       },
@@ -238,6 +238,22 @@ const tickSeries = (series: SeriesSet, data: SeriesData, smaConfigs: SmaConfig[]
   withLast(data.macd?.line, (point) => series.macd?.line.update(point))
   withLast(data.macd?.signal, (point) => series.macd?.signal.update(point))
   smaConfigs.forEach((config, index) => withLast(data.smas[index], (point) => series.smas.get(config.id)?.update(point)))
+}
+
+const manualPriceRange = (series: SeriesSet): PriceRange | null => {
+  const scale = series.main.series.priceScale()
+  return scale.options().autoScale ? null : scale.getVisibleRange()
+}
+
+const applyPriceRange = (series: SeriesSet, range: PriceRange | null): void => {
+  const scale = series.main.series.priceScale()
+  series.rsi?.priceScale().applyOptions({ autoScale: true })
+  if (!range) {
+    scale.applyOptions({ autoScale: true })
+    return
+  }
+  scale.applyOptions({ autoScale: false })
+  scale.setVisibleRange(range)
 }
 
 const syncMain = (chart: IChartApi, series: SeriesSet, type: ChartType): void => {
@@ -408,7 +424,16 @@ const syncIndicators = (chart: IChartApi, series: SeriesSet, indicators: Indicat
   chart.panes().forEach((pane, index) => pane.setStretchFactor(index === 0 ? PRICE_PANE_STRETCH : RSI_PANE_STRETCH))
 }
 
-export const useChart = ({ history, timeframe, theme, indicators, settings, live = null }: UseChartArgs) => {
+export const useChart = ({
+  history,
+  timeframe,
+  theme,
+  indicators,
+  settings,
+  live = null,
+  viewId = 'main',
+  views = sharedViewStore,
+}: UseChartArgs) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<SeriesSet | null>(null)
@@ -486,6 +511,23 @@ export const useChart = ({ history, timeframe, theme, indicators, settings, live
   const dataRef = useRef(data)
 
   useEffect(() => {
+    const save = (): void => {
+      const chart = chartRef.current
+      const series = seriesRef.current
+      const view = viewRef.current
+      const range = chart?.timeScale().getVisibleLogicalRange()
+      if (chart && series && view?.timeIndex && range) {
+        views.set(`${viewId}:${view.symbol}`, captureView(range, view.timeIndex, view.timeframe, manualPriceRange(series)))
+      }
+    }
+    window.addEventListener('pagehide', save)
+    return () => {
+      window.removeEventListener('pagehide', save)
+      save()
+    }
+  }, [viewId, views])
+
+  useEffect(() => {
     const container = containerRef.current
     if (!container) return undefined
     const chart = createChart(container, { autoSize: true, timeScale: { rightOffset: RIGHT_OFFSET_BARS } })
@@ -537,6 +579,9 @@ export const useChart = ({ history, timeframe, theme, indicators, settings, live
     const data = dataRef.current
     const previous = viewRef.current
     const previousRange = chart.timeScale().getVisibleLogicalRange()
+    if (previous?.timeIndex && previousRange && previous.symbol !== symbol) {
+      views.set(`${viewId}:${previous.symbol}`, captureView(previousRange, previous.timeIndex, previous.timeframe, manualPriceRange(series)))
+    }
 
     chart.applyOptions(chartOptions(theme, cursorMode))
     chart.priceScale('right', 0).applyOptions({
@@ -581,7 +626,9 @@ export const useChart = ({ history, timeframe, theme, indicators, settings, live
     const timeIndex = count > 0 ? createTimeIndex(data.bars.map((bar) => bar.time), timeframe) : null
     const next = { count, timeIndex }
     if (timeIndex && (!previous || previous.symbol !== symbol)) {
-      chart.timeScale().setVisibleLogicalRange(initialRange(count))
+      const saved = views.get(`${viewId}:${symbol}`)
+      chart.timeScale().setVisibleLogicalRange(saved ? restoreView(saved, timeIndex, timeframe) : initialRange(count))
+      applyPriceRange(series, saved?.timeframe === timeframe ? saved.price : null)
     } else if (timeIndex && previous?.timeIndex && previousRange && previous.timeframe !== timeframe) {
       chart.timeScale().setVisibleLogicalRange(
         rangeAfterTimeframeChange(
@@ -589,6 +636,7 @@ export const useChart = ({ history, timeframe, theme, indicators, settings, live
           { count: next.count, timeIndex },
         ),
       )
+      applyPriceRange(series, null)
     }
     viewRef.current = { symbol, timeframe, ...next }
     setHandles(

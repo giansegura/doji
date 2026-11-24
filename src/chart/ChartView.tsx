@@ -19,6 +19,7 @@ type ChartViewProps = {
   indicators: Indicators
   settings: ChartSettings
   live?: LivePrice | null
+  viewId?: string
   screenshotRef?: RefObject<(() => void) | null>
   lines: Drawing[]
   tool: Tool
@@ -35,6 +36,7 @@ export const ChartView = ({
   indicators,
   settings,
   live = null,
+  viewId = 'main',
   screenshotRef,
   lines,
   tool,
@@ -42,7 +44,7 @@ export const ChartView = ({
   onToolDone,
 }: ChartViewProps) => {
   const theme = useTheme()
-  const { containerRef, handles, data, rsiPaneTop, macdPaneTop, hover } = useChart({ history, timeframe, theme, indicators, settings, live })
+  const { containerRef, handles, data, rsiPaneTop, macdPaneTop, hover } = useChart({ history, timeframe, theme, indicators, settings, live, viewId })
   const { manual, release, fit } = useAutoFit(handles, history.info.symbol)
   const { selectedLine, updateLine, deleteSelected } = useDrawing({
     handles,

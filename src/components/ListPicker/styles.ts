@@ -160,3 +160,46 @@ export const CreateButton = styled.button`
     cursor: default;
   }
 `
+
+export const ListIcon = styled.span`
+  flex-shrink: 0;
+  width: 18px;
+  font-size: 15px;
+  line-height: 1;
+  text-align: center;
+`
+
+export const Palette = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 4px 8px;
+  border-bottom: 1px solid ${(props) => props.theme.ui.border};
+`
+
+export const PaletteGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+`
+
+export const PaletteIcon = styled.button`
+  height: 28px;
+  border-radius: 4px;
+  font-size: 16px;
+  line-height: 1;
+
+  &:hover {
+    background: ${(props) => props.theme.ui.hover};
+  }
+
+  &[aria-pressed='true'] {
+    box-shadow: inset 0 0 0 1.5px ${(props) => props.theme.ui.accent};
+  }
+`
+
+export const PaletteFooter = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`

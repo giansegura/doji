@@ -69,7 +69,7 @@ test('Should try again when the symbol changes', () => {
   const { rerender } = renderWithTheme(<SymbolLogo symbol="KO" />)
   fireEvent.error(image() as HTMLImageElement)
   rerender(
-    <ThemeProvider theme={themes.dark}>
+    <ThemeProvider theme={themes.midnight}>
       <SymbolLogo symbol="AAPL" />
     </ThemeProvider>,
   )
@@ -126,7 +126,7 @@ test('Should read the shape of each logo again when the symbol changes', () => {
   fireEvent.load(image() as HTMLImageElement)
   canvasGives(paintedWith([0, 0, 0, 0], [220, 0, 1, 255]))
   rerender(
-    <ThemeProvider theme={themes.dark}>
+    <ThemeProvider theme={themes.midnight}>
       <SymbolLogo symbol="SPY" />
     </ThemeProvider>,
   )

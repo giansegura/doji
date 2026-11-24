@@ -131,7 +131,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
           </Styles.Pane>
           {state.secondChart && (
             <Styles.Pane $second>
-              <ChartArea {...chartProps} timeframe={state.secondChart} />
+              <ChartArea {...chartProps} timeframe={state.secondChart} viewId="second" />
               <TimeframePicker
                 label="Second chart timeframe"
                 value={state.secondChart}
@@ -157,6 +157,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
               onRename={(id, name) => dispatch({ type: 'renameWatchlist', id, name })}
               onDelete={(id) => dispatch({ type: 'deleteWatchlist', id })}
               onDuplicate={(id) => dispatch({ type: 'duplicateWatchlist', id, newId: newId() })}
+              onIcon={(id, icon) => dispatch({ type: 'setWatchlistIcon', id, icon })}
             />
           }
           quotes={quotes}
@@ -188,7 +189,7 @@ export const App = () => {
 
   if (loadFailed) {
     return (
-      <ThemeProvider theme={themes.dark}>
+      <ThemeProvider theme={themes.doji}>
         <GlobalStyle />
         <Styles.FullScreen>
           <Styles.Message>

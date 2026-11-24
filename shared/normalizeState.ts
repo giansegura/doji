@@ -1,3 +1,4 @@
+import { toListIcon } from './listIcon'
 import {
   BAND_MAX_MULTIPLIER,
   BAND_MIN_MULTIPLIER,
@@ -22,6 +23,7 @@ import {
   type ListItem,
   type SortColumn,
   type SymbolInfo,
+  type ThemeName,
   type WatchlistSort,
   type SymbolList,
   type Timeframe,
@@ -91,7 +93,13 @@ const toList = (raw: unknown): SymbolList | null => {
   const list = asRecord(raw)
   const id = asText(list.id)
   if (!id) return null
-  return { id, name: asText(typeof list.name === 'string' ? list.name.trim() : null) ?? DEFAULT_LIST_NAME, items: toItems(list.items) }
+  const icon = toListIcon(list.icon)
+  return {
+    id,
+    name: asText(typeof list.name === 'string' ? list.name.trim() : null) ?? DEFAULT_LIST_NAME,
+    items: toItems(list.items),
+    ...(icon ? { icon } : {}),
+  }
 }
 
 const toLists = (source: Raw): SymbolList[] => {
@@ -255,6 +263,15 @@ const toSort = (raw: unknown): WatchlistSort | null => {
   return { column, direction: sort.direction }
 }
 
+const THEMES: ThemeName[] = ['doji', 'midnight', 'light']
+
+const FORMER_THEMES = new Map<string, ThemeName>([['dark', 'midnight']])
+
+const toTheme = (raw: unknown): ThemeName => {
+  const name = typeof raw === 'string' ? raw : ''
+  return THEMES.find((theme) => theme === name) ?? FORMER_THEMES.get(name) ?? DEFAULT_STATE.theme
+}
+
 export const normalizeState = (raw: unknown): AppState => {
   const source = asRecord(raw)
   const watchlists = toLists(source)
@@ -263,7 +280,7 @@ export const normalizeState = (raw: unknown): AppState => {
   return {
     version: 1,
     rev: rev !== null && Number.isInteger(rev) && rev >= 1 ? rev : 1,
-    theme: source.theme === 'light' || source.theme === 'dark' ? source.theme : DEFAULT_STATE.theme,
+    theme: toTheme(source.theme),
     symbol: asText(source.symbol) ?? DEFAULT_STATE.symbol,
     timeframe: asTimeframe(source.timeframe) ?? DEFAULT_STATE.timeframe,
     watchlists,

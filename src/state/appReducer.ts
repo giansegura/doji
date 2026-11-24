@@ -1,4 +1,5 @@
 import { LIST_NAME_MAX_LENGTH, MAX_LISTS, NOTE_MAX_LENGTH } from '../../shared/limits'
+import { toListIcon } from '../../shared/listIcon'
 import { isSection } from '../../shared/listItems'
 import { clampListWidth } from '../../shared/listWidth'
 import type {
@@ -25,6 +26,7 @@ export type Action =
   | { type: 'moveInWatchlist'; from: number; to: number }
   | { type: 'createWatchlist'; id: string; name: string }
   | { type: 'renameWatchlist'; id: string; name: string }
+  | { type: 'setWatchlistIcon'; id: string; icon: string | null }
   | { type: 'duplicateWatchlist'; id: string; newId: string }
   | { type: 'deleteWatchlist'; id: string }
   | { type: 'selectWatchlist'; id: string }
@@ -96,6 +98,15 @@ const renameWatchlist = (state: AppState, id: string, rawName: string): AppState
   return { ...state, watchlists: state.watchlists.map((list) => (list === target ? { ...list, name } : list)) }
 }
 
+const setWatchlistIcon = (state: AppState, id: string, raw: string | null): AppState => {
+  const target = state.watchlists.find((list) => list.id === id)
+  const icon = toListIcon(raw)
+  if (!target || (target.icon ?? null) === icon) return state
+  const { icon: _old, ...plain } = target
+  const updated: SymbolList = icon ? { ...plain, icon } : plain
+  return { ...state, watchlists: state.watchlists.map((list) => (list === target ? updated : list)) }
+}
+
 const withSuffix = (name: string, suffix: string): string =>
   `${name.slice(0, LIST_NAME_MAX_LENGTH - suffix.length)}${suffix}`
 
@@ -114,6 +125,7 @@ const duplicateWatchlist = (state: AppState, id: string, newId: string): AppStat
       state.watchlists.map((list) => list.name),
     ),
     items: source.items.map((item) => ({ ...item })),
+    ...(source.icon ? { icon: source.icon } : {}),
   }
   return {
     ...state,
@@ -199,6 +211,7 @@ export const appReducer = (state: AppState, action: Action): AppState => {
   if (action.type === 'moveInWatchlist') return moveInWatchlist(state, action.from, action.to)
   if (action.type === 'createWatchlist') return createWatchlist(state, action.id, action.name)
   if (action.type === 'renameWatchlist') return renameWatchlist(state, action.id, action.name)
+  if (action.type === 'setWatchlistIcon') return setWatchlistIcon(state, action.id, action.icon)
   if (action.type === 'duplicateWatchlist') return duplicateWatchlist(state, action.id, action.newId)
   if (action.type === 'deleteWatchlist') return deleteWatchlist(state, action.id)
   if (action.type === 'selectWatchlist') return selectWatchlist(state, action.id)
