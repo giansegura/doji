@@ -154,18 +154,20 @@ test('Should parse a real chart response', () => {
   expect(history.splits).toEqual([{ date: '2020-08-31', numerator: 4, denominator: 1 }])
 })
 
-test('Should keep only stocks and ETFs from a search', () => {
+test('Should keep only stocks, ETFs and forex pairs from a search', () => {
   const json = {
     quotes: [
       { symbol: 'AAPL', quoteType: 'EQUITY', longname: 'Apple Inc.', shortname: 'Apple', exchDisp: 'NASDAQ', exchange: 'NMS' },
       { symbol: 'SAAPL=F', quoteType: 'FUTURE', shortname: 'Apple futures', exchDisp: 'CME' },
       { symbol: 'SPY', quoteType: 'ETF', shortname: 'SPDR S&P 500', exchange: 'PCX' },
       { quoteType: 'EQUITY', shortname: 'sin símbolo' },
+      { symbol: 'EUR=X', quoteType: 'CURRENCY', shortname: 'USD/EUR', longname: 'USD/EUR', exchDisp: 'CCY', exchange: 'CCY' },
     ],
   }
   expect(parseSearch(json)).toEqual([
     { symbol: 'AAPL', name: 'Apple Inc.', exchange: 'NASDAQ' },
     { symbol: 'SPY', name: 'SPDR S&P 500', exchange: 'PCX' },
+    { symbol: 'EUR=X', name: 'USD/EUR', exchange: 'Forex' },
   ])
 })
 
@@ -423,4 +425,11 @@ test('Should have no extended price when it is missing', () => {
 test('Should still give the regular quote when the extended data is unusable', () => {
   const [quote] = parseQuotes(sparkOf({ fulldayPrice: 'caro', currentTradingPeriod: 7 }), new Date(PRE_START * 1000))
   expect(quote).toEqual({ symbol: 'AAA', price: 200, change: 10, changePercent: (10 / 190) * 100, extended: null })
+})
+
+test('Should name the market of a forex pair Forex', () => {
+  const json = chartJson({
+    meta: { symbol: 'EURUSD=X', shortName: 'EUR/USD', fullExchangeName: 'CCY', exchangeName: 'CCY', exchangeTimezoneName: 'Europe/London' },
+  })
+  expect(parseHistory(json, 'x').info).toEqual({ symbol: 'EURUSD=X', name: 'EUR/USD', exchange: 'Forex' })
 })

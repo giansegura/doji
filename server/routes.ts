@@ -1,5 +1,6 @@
 import { normalizeState } from '../shared/normalizeState'
 import { type StateChanges, applyChanges } from '../shared/stateChanges'
+import { SYMBOL_PATTERN } from '../shared/symbols'
 import type { HistoryCache } from './historyCache'
 import type { Logo, LogoStore } from './logoStore'
 import { type DataProvider, isProviderError } from './provider/yahoo'
@@ -12,8 +13,6 @@ export type ApiResult = { status: number; body: unknown } | { status: 200; image
 type ApiDeps = { history: HistoryCache; provider: DataProvider; state: StateStore; logos: LogoStore }
 
 type Route = (request: ApiRequest) => Promise<ApiResult>
-
-export const SYMBOL_PATTERN = /^[A-Za-z0-9^][A-Za-z0-9.\-^=]{0,14}$/
 
 const LOCAL_HOSTNAMES = ['127.0.0.1', 'localhost', '[::1]']
 const OWN_FETCH_SITES = ['same-origin', 'none']

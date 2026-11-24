@@ -30,3 +30,9 @@ test('Should abbreviate volume', () => {
   expect(formatVolume(2_500_000_000)).toBe('2.5B')
   expect(formatVolume(0)).toBe('0')
 })
+
+test('Should format a price with the decimals of its symbol', () => {
+  expect(formatPrice(1.096731, 'EURUSD=X')).toBe('1.0967')
+  expect(formatPrice(159.12938, 'JPY=X')).toBe('159.129')
+  expect(formatPrice(349.081, 'AAPL')).toBe('349.08')
+})

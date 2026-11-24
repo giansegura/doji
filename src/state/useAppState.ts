@@ -10,6 +10,7 @@ type StateApi = {
 }
 
 const SAVE_DELAY_MS = 300
+const CHECK_MS = 5000
 const RETRY_DELAY_MS = 5000
 const SAVE_FAILED = 'Could not save your changes'
 const RELOADED = 'The settings changed in another tab and were reloaded'
@@ -19,6 +20,7 @@ export const useAppState = (api: StateApi = DEFAULT_API) => {
   const [state, setState] = useState<AppState | null>(null)
   const [loadFailed, setLoadFailed] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [replaced, setReplaced] = useState(0)
   const apiRef = useRef(api)
   const baselineRef = useRef<AppState | null>(null)
 
@@ -29,6 +31,7 @@ export const useAppState = (api: StateApi = DEFAULT_API) => {
       setState(loaded)
       setNotice(message)
       setLoadFailed(false)
+      setReplaced((count) => count + 1)
     }
     const reload = (message: string | null): void => {
       apiRef.current
@@ -57,7 +60,7 @@ export const useAppState = (api: StateApi = DEFAULT_API) => {
       apiRef.current
         .getState()
         .then((fresh) => {
-          if (fresh.rev !== sync.rev() && !sync.hasUnsaved()) apply(fresh, null)
+          if (fresh.rev > sync.rev() && !sync.hasUnsaved()) apply(fresh, null)
         })
         .catch(() => undefined)
     }
@@ -72,7 +75,9 @@ export const useAppState = (api: StateApi = DEFAULT_API) => {
     tools.load()
     window.addEventListener('pagehide', tools.sync.flush)
     document.addEventListener('visibilitychange', tools.refreshIfChanged)
+    const check = setInterval(tools.refreshIfChanged, CHECK_MS)
     return () => {
+      clearInterval(check)
       window.removeEventListener('pagehide', tools.sync.flush)
       document.removeEventListener('visibilitychange', tools.refreshIfChanged)
       tools.sync.dispose()
@@ -92,5 +97,5 @@ export const useAppState = (api: StateApi = DEFAULT_API) => {
     tools.load()
   }, [tools])
 
-  return { state, dispatch, loadFailed, notice, retry }
+  return { state, dispatch, loadFailed, notice, retry, replaced }
 }

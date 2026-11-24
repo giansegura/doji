@@ -51,3 +51,18 @@ test('Should try again when the symbol changes', () => {
   )
   expect(image()?.getAttribute('src')).toBe('/api/logo?symbol=AAPL')
 })
+
+test('Should show the flags of both currencies of a forex pair instead of asking for a logo', () => {
+  renderWithTheme(<SymbolLogo symbol="EUR=X" />)
+  expect(image()).toBeNull()
+  const flags = [...document.querySelectorAll('[data-currency]')].map((flag) => [flag.getAttribute('data-currency'), flag.textContent])
+  expect(flags).toEqual([
+    ['EUR', '🇪🇺'],
+    ['USD', '🇺🇸'],
+  ])
+})
+
+test('Should show the code of a currency that has no country', () => {
+  renderWithTheme(<SymbolLogo symbol="XAUUSD=X" />)
+  expect(document.querySelector('[data-currency="XAU"]')?.textContent).toBe('X')
+})

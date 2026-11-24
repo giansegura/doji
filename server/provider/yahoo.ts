@@ -24,7 +24,8 @@ const RETRY_DELAY_MS = 1500
 const COOLDOWN_MS = 60_000
 const QUOTES_BATCH = 20
 const FULL_HISTORY_START = -2208988800
-const SEARCHABLE_TYPES = ['EQUITY', 'ETF']
+const SEARCHABLE_TYPES = ['EQUITY', 'ETF', 'CURRENCY']
+const FOREX_EXCHANGE = 'CCY'
 const CHART_URL = 'https://query1.finance.yahoo.com/v8/finance/chart'
 const SPARK_URL = 'https://query1.finance.yahoo.com/v7/finance/spark'
 const SEARCH_URL = 'https://query2.finance.yahoo.com/v1/finance/search'
@@ -56,9 +57,11 @@ const formatterFor = (timeZone: string): Intl.DateTimeFormat => {
   }
 }
 
+const marketName = (raw: string): string => (raw === FOREX_EXCHANGE ? 'Forex' : raw)
+
 const exchangeName = (meta: Json): string => {
   const full = asString(meta.fullExchangeName) ?? asString(meta.exchangeName) ?? ''
-  return full.startsWith('Nasdaq') ? 'NASDAQ' : full
+  return full.startsWith('Nasdaq') ? 'NASDAQ' : marketName(full)
 }
 
 const parseBars = (result: Json, toDate: (seconds: number) => string): Bar[] => {
@@ -125,7 +128,7 @@ export const parseSearch = (json: unknown): SymbolInfo[] =>
       return {
         symbol,
         name: asString(quote.longname) ?? asString(quote.shortname) ?? symbol,
-        exchange: asString(quote.exchDisp) ?? asString(quote.exchange) ?? '',
+        exchange: marketName(asString(quote.exchDisp) ?? asString(quote.exchange) ?? ''),
       }
     })
     .filter((result): result is SymbolInfo => result !== null)

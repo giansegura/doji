@@ -24,3 +24,11 @@ test('Should keep the server free of imports from the app code', async () => {
 test('Should keep the shared code free of imports from the app and the server', async () => {
   expect(await importersOf('shared', /from '(\.\.\/)+(src|server)\//)).toEqual([])
 })
+
+test('Should keep the program for AI apps talking to doji only through its API', async () => {
+  expect(await importersOf('mcp', /from '(\.\.\/)+server\//)).toEqual([])
+})
+
+test('Should keep the app free of imports from the program for AI apps', async () => {
+  expect(await importersOf('src', /from '(\.\.\/)+mcp\//)).toEqual([])
+})

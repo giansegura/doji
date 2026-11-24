@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { currencyPair } from '../../../shared/symbols'
 import * as Styles from './styles'
 
 type SymbolLogoProps = { symbol: string; size?: number }
@@ -7,7 +8,37 @@ type LogoState = { symbol: string; status: 'loading' | 'loaded' | 'missing' }
 
 const initialOf = (symbol: string): string => symbol.replace(/[^A-Za-z0-9]/g, '').charAt(0).toUpperCase() || '?'
 
-export const SymbolLogo = ({ symbol, size = 20 }: SymbolLogoProps) => {
+const FLAG_SCALE = 0.72
+const REGIONAL_A = 0x1f1e6
+const LETTER_A = 65
+const NO_COUNTRY = 'X'
+
+const flagOf = (currency: string): string | null => {
+  if (currency.startsWith(NO_COUNTRY)) return null
+  const country = currency === 'EUR' ? 'EU' : currency.slice(0, 2)
+  return String.fromCodePoint(...[...country].map((letter) => REGIONAL_A + letter.charCodeAt(0) - LETTER_A))
+}
+
+const CurrencyFlag = ({ currency, size, front }: { currency: string; size: number; front: boolean }) => {
+  const flag = flagOf(currency)
+  return (
+    <Styles.Flag data-currency={currency} $size={size} $front={front}>
+      {flag ? <Styles.Emoji $size={size}>{flag}</Styles.Emoji> : currency.charAt(0)}
+    </Styles.Flag>
+  )
+}
+
+const PairLogo = ({ pair: [base, quote], size }: { pair: [string, string]; size: number }) => {
+  const flagSize = Math.round(size * FLAG_SCALE)
+  return (
+    <Styles.Pair $size={size} aria-hidden="true">
+      <CurrencyFlag currency={quote} size={flagSize} front={false} />
+      <CurrencyFlag currency={base} size={flagSize} front />
+    </Styles.Pair>
+  )
+}
+
+const CompanyLogo = ({ symbol, size }: { symbol: string; size: number }) => {
   const [state, setState] = useState<LogoState>({ symbol, status: 'loading' })
   const status = state.symbol === symbol ? state.status : 'loading'
 
@@ -27,4 +58,9 @@ export const SymbolLogo = ({ symbol, size = 20 }: SymbolLogoProps) => {
       )}
     </Styles.Badge>
   )
+}
+
+export const SymbolLogo = ({ symbol, size = 20 }: SymbolLogoProps) => {
+  const pair = currencyPair(symbol)
+  return pair ? <PairLogo pair={pair} size={size} /> : <CompanyLogo symbol={symbol} size={size} />
 }

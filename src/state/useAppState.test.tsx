@@ -157,3 +157,55 @@ test('Should say when the state could not be loaded and load it on retry', async
   expect(result.current.loadFailed).toBe(false)
   expect(result.current.state).toEqual(DEFAULT_STATE)
 })
+
+test('Should pick up within five seconds what was saved from outside while the tab is visible', async () => {
+  const { result, box } = await mount()
+  box.server = { ...DEFAULT_STATE, symbol: 'MSFT', rev: 5 }
+  await wait(4_000)
+  expect(result.current.state?.symbol).toBe('AAPL')
+  await wait(1_000)
+  expect(result.current.state?.symbol).toBe('MSFT')
+  expect(result.current.notice).toBe(null)
+})
+
+test('Should not ask for the state again while nothing is visible', async () => {
+  const { api } = await mount()
+  const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+  await wait(15_000)
+  expect(api.getState).toHaveBeenCalledTimes(1)
+  visibility.mockRestore()
+})
+
+test('Should count every time the state is replaced by the one on the server', async () => {
+  const { result, box } = await mount()
+  expect(result.current.replaced).toBe(1)
+  box.server = { ...DEFAULT_STATE, symbol: 'MSFT', rev: 5 }
+  await wait(5_000)
+  expect(result.current.replaced).toBe(2)
+  act(() => result.current.dispatch({ type: 'setTheme', theme: 'light' }))
+  expect(result.current.replaced).toBe(2)
+})
+
+test('Should ignore a check that answers with an older revision than the one just saved', async () => {
+  const { result, api, box } = await mount()
+  const before = box.server
+  let answer: (state: AppState) => void = () => undefined
+  api.getState.mockImplementationOnce(
+    () =>
+      new Promise<AppState>((resolve) => {
+        answer = resolve
+      }),
+  )
+  await wait(5_000)
+  act(() => result.current.dispatch({ type: 'setTheme', theme: 'light' }))
+  await wait(300)
+  await act(async () => {
+    answer(before)
+    await vi.advanceTimersByTimeAsync(0)
+  })
+  expect(result.current.state?.theme).toBe('light')
+  act(() => result.current.dispatch({ type: 'setSymbol', symbol: 'MSFT' }))
+  await wait(300)
+  expect(box.server.symbol).toBe('MSFT')
+  expect(result.current.notice).toBe(null)
+})

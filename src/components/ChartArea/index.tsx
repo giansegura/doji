@@ -1,4 +1,5 @@
 import { type RefObject, useState } from 'react'
+import { displaySymbol } from '../../../shared/symbols'
 import type { ChartSettings, History, Indicators, Timeframe, Drawing } from '../../../shared/types'
 import { ChartView } from '../../chart/ChartView'
 import type { Tool } from '../../state/appReducer'
@@ -50,7 +51,7 @@ export const ChartArea = ({
   if (loading && !shown) return <Styles.Message>Loading…</Styles.Message>
 
   if (errorCode === 'not_found' || (history && history.bars.length === 0)) {
-    return <Styles.Message>No data for {symbol}</Styles.Message>
+    return <Styles.Message>No data for {displaySymbol(symbol)}</Styles.Message>
   }
 
   if (!shown) {
@@ -77,7 +78,7 @@ export const ChartArea = ({
         onLinesChange={loading ? ignore : onLinesChange}
         onToolDone={loading ? ignore : onToolDone}
       />
-      {loading && <Styles.Veil role="status">{`Loading ${symbol}…`}</Styles.Veil>}
+      {loading && <Styles.Veil role="status">{`Loading ${displaySymbol(symbol)}…`}</Styles.Veil>}
     </>
   )
 }

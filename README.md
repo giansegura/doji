@@ -17,8 +17,9 @@ Para otro puerto: `PORT=4790 npm start`.
 
 ## Uso
 
-- **Símbolo:** el botón de arriba a la izquierda abre el buscador (ticker o nombre de empresa). `Enter` elige el primer resultado, aunque lo pulses antes de que termine la búsqueda.
+- **Símbolo:** el botón de arriba a la izquierda abre el buscador (ticker o nombre de empresa). `Enter` elige el primer resultado, aunque lo pulses antes de que termine la búsqueda. También encuentra pares de divisas (por ejemplo `EURUSD` o `USDJPY`), que se muestran como en TradingView: sin el `=X` de Yahoo, con las banderas de las dos monedas y cuatro decimales (tres en los pares con yenes).
 - **Periodo:** `D` diario, `W` semanal, `M` mensual.
+- **Pestaña del navegador:** muestra el ticker, su último precio, una flecha y el cambio del día en porcentaje, los mismos de la lista.
 - **Dos gráficos:** el botón que hay junto a los periodos abre un segundo gráfico de la misma acción al lado del primero, con su propio periodo (selector `D`/`W`/`M` en su esquina). Comparten dibujos, indicadores y herramienta: una línea trazada sobre el precio en uno aparece en el otro. Los dibujos hechos sobre el RSI solo se ven en el periodo en que se dibujaron, porque el RSI cambia con el periodo.
 - **Indicadores:** volumen, RSI, Bandas de Bollinger y MACD se activan o quitan desde el menú "Indicators", cada uno con sus ajustes. El volumen puede llevar su media móvil. El MACD va en un panel propio, debajo del RSI.
 - **Medias móviles:** en el mismo menú, "Add moving average" (hasta seis). Se calculan sobre el cierre y cada una puede ser simple o exponencial con el botón `SMA`/`EMA`. Cada una tiene su periodo; el círculo de color abre la paleta (16 colores, o cualquier otro con el selector) y el grosor; la `×` la quita.
@@ -43,11 +44,50 @@ Para otro puerto: `PORT=4790 npm start`.
 - **Deshacer:** `Cmd+Z` (o `Ctrl+Z`) deshace el último cambio en los dibujos de la acción que estás viendo; con `Shift`, lo rehace. Un arrastre entero cuenta como un solo cambio.
 - **Atajos:** las flechas arriba y abajo recorren la lista. `Alt+T` arma la línea de tendencia, `Alt+H` la horizontal, `Alt+C` el canal y `Alt+R` el rectángulo; `Esc` vuelve al cursor.
 - **Listas:** el nombre de la lista (arriba a la derecha) abre el desplegable para cambiar de lista, crear una nueva, renombrarla, duplicarla o borrarla (pide confirmación). Siempre queda al menos una.
-- **Símbolos de la lista:** `+` añade un símbolo a la lista activa; pasa el ratón por una fila para quitarla; arrastra las filas para reordenar.
+- **Símbolos de la lista:** `+` abre el buscador para añadir a la lista activa; puedes añadir varios seguidos escribiendo el ticker y pulsando `Enter`, y cerrarlo con `Esc`. Añadir no cambia el gráfico. Pasa el ratón por una fila para quitarla; arrastra las filas para reordenar.
 - **Secciones:** el botón que hay junto a `+` añade un separador con título dentro de la lista. Se arrastra como cualquier fila y, al pasar el ratón, se puede renombrar o quitar.
 - **Notas:** el panel "Notes", debajo de la lista, guarda un texto por acción (tesis, precio de entrada, plan). Un punto azul avisa de que la acción tiene nota aunque el panel esté plegado.
 - **Ancho de la lista:** arrastra el borde izquierdo de la lista para ensancharla o estrecharla; el gráfico ocupa el resto. Va de 220 a 640 px (400 por defecto) y se guarda con el resto de la configuración. Las columnas se adaptan para que los tickers se lean enteros: por debajo de 381 px se oculta "Ext" y por debajo de 300 px también "Last".
 - **Horas extendidas:** la columna "Ext" muestra, en porcentaje, cuánto se separa del cierre el último precio fuera del horario normal, en verde o rojo; al pasar el ratón se ve el precio. Un punto junto al ticker indica la sesión: naranja en el pre-mercado y azul en el post-mercado. Durante la sesión normal, y en lo que no cotiza fuera de horario (índices, cripto, bolsas europeas), muestra un guion. Con el mercado cerrado se queda el último dato del post-mercado hasta que abre el siguiente pre-mercado.
+
+## Conectar tu IA (MCP)
+
+doji trae un servidor [MCP](https://modelcontextprotocol.io) para que la aplicación de IA que uses (Claude, ChatGPT, Gemini, Copilot…) lea tus gráficos y trabaje sobre ellos con tu propia suscripción. doji no llama a ninguna IA ni necesita claves.
+
+Herramientas que ofrece:
+
+| Herramienta | Qué hace |
+|---|---|
+| `get_watchlists` | Tus listas, con sus secciones, cuál está activa y qué hay en pantalla. |
+| `scan_watchlist` | Revisa una lista entera: precio, cambio, RSI, distancia a las SMA 50 y 200, rango de 52 semanas, MACD, volumen, alertas y notas. |
+| `get_chart` | Resumen de un gráfico con indicadores calculados por doji, máximos y mínimos recientes, últimas velas, tus dibujos y tu nota. |
+| `add_horizontal_line` | Dibuja una línea horizontal, con alerta si se pide. |
+| `set_alert` | Arma o desarma la alerta de una línea existente. |
+| `write_note` | Escribe en la nota de una acción. |
+
+La IA no puede borrar dibujos ni cambiar tus listas, pero `write_note` en modo `replace` sustituye la nota entera y borra lo que tuviera. Lo que añade aparece en doji en unos segundos, sin recargar; las alertas solo saltan con doji abierto en una pestaña.
+
+Para usarlo, doji tiene que estar en marcha (`npm start`). Después se registra en tu aplicación de IA el comando `<doji>/node_modules/.bin/tsx <doji>/mcp/index.ts`, cambiando `<doji>` por la ruta completa de la carpeta:
+
+- **Claude Code:** `claude mcp add --scope user doji -- <doji>/node_modules/.bin/tsx <doji>/mcp/index.ts`
+- **Claude Desktop**, en `claude_desktop_config.json`:
+
+  ```json
+  { "mcpServers": { "doji": { "command": "<doji>/node_modules/.bin/tsx", "args": ["<doji>/mcp/index.ts"] } } }
+  ```
+
+- **Codex y la app de escritorio de ChatGPT**, en `~/.codex/config.toml`:
+
+  ```toml
+  [mcp_servers.doji]
+  command = "<doji>/node_modules/.bin/tsx"
+  args = ["<doji>/mcp/index.ts"]
+  ```
+
+- **GitHub Copilot CLI:** `copilot mcp add doji -- <doji>/node_modules/.bin/tsx <doji>/mcp/index.ts`
+- **Otras aplicaciones:** cualquiera que admita servidores MCP locales (stdio) con ese comando y ese argumento.
+
+Si doji corre en otro puerto, añade la variable de entorno `DOJI_URL=http://127.0.0.1:<puerto>`. ChatGPT en el navegador no puede conectarse: solo llega a servidores accesibles desde internet, y doji solo escucha en tu ordenador.
 
 ## Dónde se guarda todo
 

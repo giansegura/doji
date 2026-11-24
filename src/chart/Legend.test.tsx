@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react'
 import { expect, test } from 'vitest'
-import { DEFAULT_STATE, type Indicators } from '../../shared/types'
+import { DEFAULT_STATE, type Indicators, type SymbolInfo } from '../../shared/types'
 import { renderWithTheme } from '../test/render'
 import { Legend } from './Legend'
 import type { HoverValues } from './seriesData'
@@ -26,12 +26,13 @@ type Options = {
   rsiPaneTop?: number | null
   macdPaneTop?: number | null
   timeframe?: 'D' | 'W'
+  info?: SymbolInfo
 }
 
 const setup = (over: Options = {}) =>
   renderWithTheme(
     <Legend
-      info={info}
+      info={over.info ?? info}
       timeframe={over.timeframe ?? 'D'}
       values={over.values === undefined ? values : over.values}
       indicators={over.indicators ?? DEFAULT_STATE.indicators}
@@ -167,4 +168,38 @@ test('Should hide the MACD legend without a MACD pane', () => {
   const indicators = { ...DEFAULT_STATE.indicators, macd: { visible: true, fast: 12, slow: 26, signal: 9 } }
   setup({ indicators, macdPaneTop: null, values: { ...values, macd: { line: 1.234, signal: 0.9, histogram: 0.334 } } })
   expect(text()).not.toContain('MACD')
+})
+
+test('Should show the prices of a forex pair with the decimals of forex', () => {
+  renderWithTheme(
+    <Legend
+      info={{ symbol: 'EURUSD=X', name: 'EUR/USD', exchange: 'Forex' }}
+      timeframe="D"
+      values={{ ...values, bar: { time: '2026-11-23', open: 1.09039, high: 1.09673, low: 1.08991, close: 1.096731, volume: 0 }, previousClose: 1.0906 }}
+      indicators={DEFAULT_STATE.indicators}
+      rsiPaneTop={null}
+      macdPaneTop={null}
+    />,
+  )
+  expect(text()).toContain('1.0967')
+  expect(text()).toContain('1.0899')
+})
+
+test('Should show the change and the MACD of a forex pair with the decimals of forex', () => {
+  const indicators = { ...DEFAULT_STATE.indicators, macd: { visible: true, fast: 12, slow: 26, signal: 9 } }
+  setup({
+    info: { symbol: 'EURUSD=X', name: 'EUR/USD', exchange: 'Forex' },
+    indicators,
+    macdPaneTop: 600,
+    values: {
+      ...values,
+      bar: { time: '2026-11-23', open: 1.09, high: 1.095, low: 1.089, close: 1.094, volume: 0 },
+      previousClose: 1.09,
+      macd: { line: 0.0012, signal: 0.0008, histogram: 0.0004 },
+    },
+  })
+  expect(text()).toContain('+0.0040 (+0.37%)')
+  expect(text()).toContain('0.0012')
+  expect(text()).toContain('0.0008')
+  expect(text()).toContain('0.0004')
 })
