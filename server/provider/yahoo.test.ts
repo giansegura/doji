@@ -96,6 +96,7 @@ test('Should date bars in the exchange time zone', () => {
     indicators: { quote: [{ open: [1], high: [1], low: [1], close: [1], volume: [1] }] },
   })
   expect(parseHistory(tokyo, 'x').bars[0].time).toBe('2026-11-23')
+  expect(parseHistory(tokyo, 'x').timezone).toBe('Asia/Tokyo')
   const newYork = chartJson({
     timestamp: [1795392000],
     indicators: { quote: [{ open: [1], high: [1], low: [1], close: [1], volume: [1] }] },

@@ -29,6 +29,7 @@ type ChartAreaProps = {
   holding?: Holding
   currency?: string
   inEuros?: boolean
+  locked?: boolean
 }
 
 const NO_LINES: Drawing[] = []
@@ -60,6 +61,7 @@ export const ChartArea = ({
   holding,
   currency,
   inEuros = false,
+  locked = false,
 }: ChartAreaProps) => {
   const [lastShown, setLastShown] = useState<History | null>(hasBars(history) ? history : null)
   const loading = status === 'loading'
@@ -105,6 +107,7 @@ export const ChartArea = ({
         holding={loading ? undefined : holding}
         currency={currency}
         inEuros={inEuros}
+        locked={locked}
       />
       {loading && <Styles.Veil role="status">{`Loading ${displaySymbol(symbol)}…`}</Styles.Veil>}
     </>

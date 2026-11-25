@@ -72,3 +72,10 @@ test('Should stop listening when the page closes', () => {
   unmount()
   expect(closed()).toBe(1)
 })
+
+test('Should name what an indicator alert watched', () => {
+  const { notify, fire, result } = setup()
+  fire([alert({ level: 30, price: 58.1, direction: 'down', label: 'RSI 14 crosses 30' })])
+  expect(notify).toHaveBeenCalledWith('AAPL: RSI 14 crosses 30', 'Going down, now at 58.10')
+  expect(result.current.fired[0].text).toBe('AAPL: RSI 14 crosses 30, going down')
+})

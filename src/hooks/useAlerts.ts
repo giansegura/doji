@@ -83,6 +83,11 @@ export const useAlerts = ({ notify = notifyDesktop, openAlerts = openAlertStream
       const notices = fresh.map((alert): FiredNotice => {
         const level = formatPrice(alert.level, alert.symbol)
         const shown = displaySymbol(alert.symbol)
+        const now = formatPrice(alert.price, alert.symbol)
+        if (alert.label) {
+          announce(`${shown}: ${alert.label}`, `Going ${alert.direction}, now at ${now}`)
+          return { id: alert.id, text: `${shown}: ${alert.label}, going ${alert.direction}`, time: clockOf(new Date(alert.at)) }
+        }
         const reading = `${alert.direction === 'up' ? 'Up' : 'Down'} through ${level}, now at ${formatPrice(alert.price, alert.symbol)}`
         announce(`${shown} crossed ${level}`, alert.text ? `${reading} · ${alert.text}` : reading)
         return { id: alert.id, text: `${shown} crossed ${level} going ${alert.direction}`, time: clockOf(new Date(alert.at)) }

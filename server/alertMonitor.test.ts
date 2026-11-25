@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { type AlertEvent, type AppState, DEFAULT_STATE, type Drawing, type LiveTick, type Quote } from '../shared/types'
-import { createAlertMonitor } from './alertMonitor'
+import { type DailyCloses, createAlertMonitor } from './alertMonitor'
 import type { SaveOutcome } from './stateStore'
 
 const level = (id: string, value: number, over: Partial<Drawing> = {}): Drawing =>
@@ -10,7 +10,10 @@ const stateWith = (lines: Record<string, Drawing[]>, rev = 5): AppState => ({ ..
 
 const tick = (symbol: string, price: number): LiveTick => ({ symbol, price, change: 0, changePercent: 0, time: 1, session: 'regular', volume: null })
 
-const harness = (initial: AppState, over: { conflicts?: number; quotes?: Quote[]; failures?: number } = {}) => {
+const harness = (
+  initial: AppState,
+  over: { conflicts?: number; quotes?: Quote[]; closes?: number[]; failures?: number; daily?: () => Promise<DailyCloses | null> } = {},
+) => {
   const box = {
     state: initial,
     saves: 0,
@@ -52,6 +55,7 @@ const harness = (initial: AppState, over: { conflicts?: number; quotes?: Quote[]
       box.quotesAsked.push(symbols)
       return over.quotes ?? []
     },
+    closes: over.daily ?? (async () => ({ closes: over.closes ?? [100, 100], lastDay: '2026-11-23' })),
     announce: (alerts) => {
       box.announced.push(...alerts)
     },
@@ -157,4 +161,63 @@ test('Should leave armed a line moved to another level while its old level fired
   await monitor.settled()
   expect(box.announced.map((alert) => alert.level)).toEqual([100])
   expect(box.state.lines.KO[0]).toMatchObject({ value: 120, alert: true })
+})
+
+const moveAlert = { id: 'm', kind: 'move' as const, value: 3, armed: true }
+
+test('Should listen to the symbols with an armed indicator alert too', async () => {
+  const { box, monitor } = harness({ ...stateWith({}), indicatorAlerts: { KO: [moveAlert], PEP: [{ ...moveAlert, armed: false }] } })
+  await monitor.start()
+  expect(box.joined).toEqual([['KO']])
+})
+
+test('Should fire an indicator alert when the day moves past its percent, disarm it and say what it watched', async () => {
+  const { box, monitor } = harness({ ...stateWith({}), indicatorAlerts: { KO: [moveAlert] } })
+  await monitor.start()
+  box.send?.([tick('KO', 100.5)])
+  await monitor.settled()
+  expect(box.announced).toEqual([])
+  box.send?.([tick('KO', 104)])
+  await monitor.settled()
+  expect(box.announced).toEqual([
+    {
+      id: 'a1',
+      symbol: 'KO',
+      level: 3,
+      price: 104,
+      direction: 'up',
+      at: '2026-11-24T15:00:00.000Z',
+      text: null,
+      label: 'Day move beyond 3%',
+    },
+  ])
+  expect(box.state.indicatorAlerts.KO).toEqual([{ ...moveAlert, armed: false }])
+})
+
+test('Should start a new daily bar with the live price when the exchange is already in a new session day', async () => {
+  const daily = async (): Promise<DailyCloses> => ({ closes: [100, 102], lastDay: '2026-11-23', timezone: 'America/New_York', everyDay: false })
+  const { box, monitor } = harness({ ...stateWith({}), indicatorAlerts: { KO: [moveAlert] } }, { daily })
+  await monitor.start()
+  box.send?.([tick('KO', 104.5)])
+  await monitor.settled()
+  expect(box.announced).toEqual([])
+  box.send?.([tick('KO', 105.5)])
+  await monitor.settled()
+  expect(box.announced.map((alert) => alert.price)).toEqual([105.5])
+})
+
+test('Should not announce an indicator alert removed while its daily closes were loading', async () => {
+  const loaded: { finish: () => void } = { finish: () => undefined }
+  const daily = (): Promise<DailyCloses> =>
+    new Promise((resolve) => {
+      loaded.finish = () => resolve({ closes: [100, 100], lastDay: '2026-11-23' })
+    })
+  const { box, monitor } = harness({ ...stateWith({}), indicatorAlerts: { KO: [moveAlert] } }, { daily })
+  await monitor.start()
+  box.send?.([tick('KO', 104)])
+  await Promise.resolve()
+  monitor.stateSaved({ ...stateWith({}, 6), indicatorAlerts: { KO: [] } })
+  loaded.finish()
+  await monitor.settled()
+  expect(box.announced).toEqual([])
 })

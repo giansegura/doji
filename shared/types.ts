@@ -50,6 +50,7 @@ export type History = {
   stale: boolean
   tradedAt?: number
   currency?: string
+  timezone?: string
 }
 
 export type CompanyProfile = {
@@ -120,6 +121,7 @@ export type DrawingBase = {
   opacity?: number
   by?: 'ai'
   currency?: 'EUR'
+  hidden?: true
 }
 
 export type TrendLine = DrawingBase & {
@@ -129,9 +131,16 @@ export type TrendLine = DrawingBase & {
   extendRight: boolean
   alert?: boolean
   text?: string
+  arrow?: true
 }
 
-export type HorizontalLine = DrawingBase & { kind: 'hline'; value: number; alert?: boolean; hidePrice?: true; text?: string }
+export type HorizontalLine = DrawingBase & { kind: 'hline'; value: number; alert?: boolean; hidePrice?: true; text?: string; from?: string }
+
+export type VerticalLine = DrawingBase & { kind: 'vline'; date: string; text?: string }
+
+export type PriceZone = DrawingBase & { kind: 'zone'; top: number; bottom: number; text?: string }
+
+export type TextNote = DrawingBase & { kind: 'note'; p1: LinePoint; text: string }
 
 export type Channel = DrawingBase & { kind: 'channel'; p1: LinePoint; p2: LinePoint; offset: number }
 
@@ -151,7 +160,7 @@ export type Position = DrawingBase & {
   riskPercent?: number
 }
 
-export type Drawing = TrendLine | HorizontalLine | Channel | Rectangle | Position
+export type Drawing = TrendLine | HorizontalLine | Channel | Rectangle | Position | VerticalLine | PriceZone | TextNote
 
 export type AlertEvent = {
   id: string
@@ -161,6 +170,7 @@ export type AlertEvent = {
   direction: 'up' | 'down'
   at: string
   text: string | null
+  label?: string
 }
 
 export type EarningsTiming = 'pre' | 'post'
@@ -176,11 +186,15 @@ export type Earnings = {
   nextEstimate?: number
 }
 
-export type DrawingKind = 'trend' | 'hline' | 'channel' | 'rect' | 'position'
+export type DrawingKind = 'trend' | 'hline' | 'channel' | 'rect' | 'position' | 'vline' | 'zone' | 'note'
 
 export type LineLook = Pick<DrawingBase, 'color' | 'width' | 'lineStyle' | 'opacity'> & { hidePrice?: true }
 
 export type SmaConfig = { id: string; length: number; color: string; width: number; kind?: 'ema' }
+
+export type IndicatorAlertKind = 'rsi' | 'average' | 'move'
+
+export type IndicatorAlert = { id: string; kind: IndicatorAlertKind; value: number; averageId?: string; armed: boolean }
 
 export type Indicators = {
   volume: { visible: boolean }
@@ -226,6 +240,9 @@ export type AppState = {
   activeFilterId: string | null
   holdings: Record<string, Holding>
   shareHoldings: boolean
+  indicatorAlerts: Record<string, IndicatorAlert[]>
+  drawingsHidden: boolean
+  drawingsLocked: boolean
   lineLooks: Partial<Record<DrawingKind, LineLook>>
   earningsBadge: boolean
 }
@@ -277,6 +294,9 @@ export const DEFAULT_STATE: AppState = {
   activeFilterId: null,
   holdings: {},
   shareHoldings: false,
+  indicatorAlerts: {},
+  drawingsHidden: false,
+  drawingsLocked: false,
   lineLooks: {},
   earningsBadge: false,
 }

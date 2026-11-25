@@ -121,3 +121,24 @@ test('Should label a position with its target, its stop, its reward to risk and 
 test('Should paint no zones and no labels for the other drawings', () => {
   expect(viewOf(trend, geometry, false, 'KO', tones)).toMatchObject({ zones: [], badges: [] })
 })
+
+test('Should write a text note at its point inside a box', () => {
+  const note: Drawing = { ...base, kind: 'note', p1: { date: 'd100', value: 60 }, text: 'Earnings' }
+  expect(viewOf(note, geometry, false)?.text).toEqual({ x: 108, y: 57, value: 'Earnings', align: 'left', box: { x: 100, y: 42, width: 72, height: 18 } })
+})
+
+test('Should write the text of a zone inside it at the left', () => {
+  const zone: Drawing = { ...base, kind: 'zone', top: 100, bottom: 120, text: 'Demand' }
+  expect(viewOf(zone, geometry, false)?.text).toEqual({ x: 8, y: 114, value: 'Demand', align: 'left' })
+})
+
+test('Should add the head of the arrow at the end of a trend line that has one', () => {
+  const straight: Drawing = { ...base, p1: { date: 'd100', value: 50 }, p2: { date: 'd200', value: 50 }, extendRight: false, arrow: true }
+  const segments = viewOf(straight, geometry, false)?.segments ?? []
+  expect(segments).toHaveLength(3)
+  const [, left, right] = segments
+  expect(left[0]).toEqual({ x: 200, y: 50 })
+  expect(left[1].x).toBeCloseTo(200 - 12 * Math.cos(Math.PI / 6), 6)
+  expect(left[1].y).toBeCloseTo(50 - 12 * Math.sin(Math.PI / 6), 6)
+  expect(right[1].y).toBeCloseTo(50 + 12 * Math.sin(Math.PI / 6), 6)
+})

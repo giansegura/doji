@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ThemeProvider } from 'styled-components'
 import { todayIso } from '../shared/dates'
 import { symbolsOf } from '../shared/listItems'
-import type { AppState, Bar, Drawing, DrawingKind, LineLook, SavedFilter, SymbolInfo } from '../shared/types'
+import type { AppState, Bar, Drawing, DrawingKind, IndicatorAlert, LineLook, SavedFilter, SymbolInfo } from '../shared/types'
 import { ChartArea } from './components/ChartArea'
+import { DrawingsList } from './components/DrawingsList'
 import { EarningsCalendar } from './components/EarningsCalendar'
 import { FilterBar } from './components/FilterBar'
+import { IndicatorAlerts } from './components/IndicatorAlerts'
 import { FilterEditor } from './components/FilterEditor'
 import { LeftToolbar } from './components/LeftToolbar'
 import { ListPicker } from './components/ListPicker'
@@ -27,7 +29,7 @@ import { calendarItems, earningsSoon } from './domain/earningsCalendar'
 import { freshQuotes } from './domain/liveBar'
 import { newId } from './domain/newId'
 import { replayBars } from './domain/replay'
-import { linesIn, mergeLinesIn } from './domain/currencyLines'
+import { mergeShown, visibleLines } from './domain/visibleLines'
 import { euroLive } from './domain/euroView'
 import { convertHistory, fxPairOf } from '../shared/currency'
 import { tabTitle } from './domain/tabTitle'
@@ -35,7 +37,7 @@ import { METRIC_FIELDS, allSymbols, filterItems } from './domain/filters'
 import { onlyFlagged } from './domain/flags'
 import { nextSort, sortItems } from './domain/watchlistSort'
 import { adjustLinesForSplits } from './domain/splits'
-import { useAlerts } from './hooks/useAlerts'
+import { askToNotify, useAlerts } from './hooks/useAlerts'
 import { useCompanyProfile } from './hooks/useCompanyProfile'
 import { useEarnings } from './hooks/useEarnings'
 import { useFxBars } from './hooks/useFxBars'
@@ -61,6 +63,8 @@ const NO_BARS: Bar[] = []
 type SearchMode = 'chart' | 'watchlist' | null
 
 const NO_DRAWINGS: Drawing[] = []
+
+const NO_ALERTS: IndicatorAlert[] = []
 
 const NO_FIELDS: never[] = []
 
@@ -119,6 +123,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   const shownSymbols = symbolsOf(shownItems).map((item) => item.symbol)
   const soon = useMemo(() => earningsSoon(listEarnings.earnings, today), [listEarnings.earnings, today])
   const drawings = state.lines[state.symbol] ?? NO_DRAWINGS
+  const symbolAlerts = state.indicatorAlerts[state.symbol] ?? NO_ALERTS
   const { changeDrawings, forgetDrawings } = useShortcuts({ symbol: state.symbol, drawings, symbols: shownSymbols, dispatch, onTool: setTool })
 
   useEffect(() => {
@@ -143,7 +148,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   const viewed = useMemo(() => (history && fx && fxBars ? convertHistory(history, fxBars, fx.factor) : history), [history, fx?.pair, fx?.factor, fxBars])
   const inEuros = viewed !== history
   const viewCurrency = inEuros ? 'EUR' : 'original'
-  const shownLines = useMemo(() => linesIn(drawings, viewCurrency), [drawings, viewCurrency])
+  const shownLines = useMemo(() => visibleLines(drawings, viewCurrency, state.drawingsHidden), [drawings, viewCurrency, state.drawingsHidden])
   const replayer = useReplay({ bars: viewed?.bars ?? NO_BARS, timeframe: state.timeframe, symbol: state.symbol })
   const { replay } = replayer
   const replayAt = replay.status === 'on' ? replay.cutoff : null
@@ -164,7 +169,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
     onPickBar: replay.status === 'picking' ? replayer.pick : undefined,
     lines: shownLines,
     tool,
-    onLinesChange: (shown: Drawing[]) => changeDrawings(mergeLinesIn(drawings, shown, viewCurrency)),
+    onLinesChange: (shown: Drawing[]) => changeDrawings(mergeShown(drawings, shownLines, shown, viewCurrency)),
     looks: state.lineLooks,
     onLook: (kind: DrawingKind, look: LineLook) => dispatch({ type: 'rememberLook', kind, look }),
     onToolDone: () => setTool('cursor'),
@@ -172,6 +177,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
     holding: inEuros ? undefined : state.holdings[state.symbol],
     currency: quotes[state.symbol]?.currency,
     inEuros,
+    locked: state.drawingsLocked,
   }
 
   const handlePick = (info: SymbolInfo) => {
@@ -211,10 +217,35 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
           onSplit={() => dispatch({ type: 'toggleSecondChart' })}
           shareHoldings={state.shareHoldings}
           onShareHoldings={(on) => dispatch({ type: 'setShareHoldings', on })}
+          armedAlerts={symbolAlerts.filter((alert) => alert.armed).length}
+          alerts={
+            <IndicatorAlerts
+              symbol={state.symbol}
+              alerts={symbolAlerts}
+              averages={state.indicators.sma}
+              onAdd={(draft) => {
+                askToNotify()
+                dispatch({ type: 'addIndicatorAlert', symbol: state.symbol, alert: { ...draft, id: newId() } })
+              }}
+              onArm={(id, armed) => {
+                if (armed) askToNotify()
+                dispatch({ type: 'armIndicatorAlert', symbol: state.symbol, id, armed })
+              }}
+              onRemove={(id) => dispatch({ type: 'removeIndicatorAlert', symbol: state.symbol, id })}
+            />
+          }
         />
       </Styles.Top>
       <Styles.Tools>
-        <LeftToolbar tool={tool} onTool={setTool} />
+        <LeftToolbar
+          tool={tool}
+          onTool={setTool}
+          hidden={state.drawingsHidden}
+          onHidden={(on) => dispatch({ type: 'setDrawingsHidden', on })}
+          locked={state.drawingsLocked}
+          onLocked={(on) => dispatch({ type: 'setDrawingsLocked', on })}
+          drawingsList={<DrawingsList symbol={state.symbol} drawings={drawings} onChange={changeDrawings} />}
+        />
       </Styles.Tools>
       <Styles.Chart>
         <Styles.Panes>

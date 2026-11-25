@@ -145,6 +145,15 @@ test('Should write the text of a line in its colour even when the line is faint'
   expect(calls).toContain('text Soporte 380,40 right #FFFFFF 1')
 })
 
+test('Should paint the box of a text note faintly behind its text', () => {
+  const { calls } = draw([
+    view({ color: '#FF9800', segments: [], text: { x: 108, y: 57, value: 'Earnings', align: 'left', box: { x: 100, y: 42, width: 72, height: 18 } } }),
+  ])
+  const box = calls.indexOf('fillRect 100,42 72x18 #FF9800 0.18')
+  expect(box).toBeGreaterThan(-1)
+  expect(calls.indexOf('text Earnings 108,57 left #FF9800 1')).toBeGreaterThan(box)
+})
+
 test('Should shade a measure, point its arrows to where it ends and write its reading below it', () => {
   const { calls } = draw([], {
     from: { x: 100, y: 200 },

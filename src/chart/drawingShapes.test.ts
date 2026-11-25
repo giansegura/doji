@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import type { Channel, HorizontalLine, Position, Rectangle, TrendLine } from '../../shared/types'
+import type { Channel, HorizontalLine, Position, PriceZone, Rectangle, TextNote, TrendLine, VerticalLine } from '../../shared/types'
 import { type ShapeGeometry, hitTestOutline, moveDrawing, offsetAt, outlineOf } from './drawingShapes'
 
 const geometry: ShapeGeometry = {
@@ -247,4 +247,62 @@ test('Should move the entry of a position with its levels in place, and the whol
     stop: 95,
     target: 125,
   })
+})
+
+const vline: VerticalLine = { ...base, kind: 'vline', date: 'd150' }
+const ray: HorizontalLine = { ...base, kind: 'hline', value: 80, from: 'd200' }
+const zone: PriceZone = { ...base, kind: 'zone', top: 120, bottom: 100 }
+const note: TextNote = { ...base, kind: 'note', p1: { date: 'd100', value: 60 }, text: 'Earnings' }
+
+test('Should outline a vertical line from top to bottom at its date', () => {
+  expect(outlineOf(vline, geometry)).toEqual({ segments: [[{ x: 150, y: 0 }, { x: 150, y: 10_000 }]], fill: null, handles: [] })
+  expect(hitTestOutline({ x: 152, y: 300 }, outlineOf(vline, geometry) as never)).toBe('body')
+})
+
+test('Should outline a horizontal ray from its start to the right edge, with a handle at the start', () => {
+  expect(outlineOf(ray, geometry)).toEqual({
+    segments: [[{ x: 200, y: 80 }, { x: 500, y: 80 }]],
+    fill: null,
+    handles: [{ part: 'level', at: { x: 200, y: 80 } }],
+  })
+})
+
+test('Should outline a zone as two levels across the pane with the band between them', () => {
+  expect(outlineOf(zone, geometry)).toEqual({
+    segments: [
+      [{ x: 0, y: 120 }, { x: 500, y: 120 }],
+      [{ x: 0, y: 100 }, { x: 500, y: 100 }],
+    ],
+    fill: [
+      { x: 0, y: 120 },
+      { x: 500, y: 120 },
+      { x: 500, y: 100 },
+      { x: 0, y: 100 },
+    ],
+    handles: [
+      { part: 'top', at: { x: 250, y: 120 } },
+      { part: 'bottom', at: { x: 250, y: 100 } },
+    ],
+  })
+})
+
+test('Should outline a text note as the box of its text and grab it anywhere inside', () => {
+  const outline = outlineOf(note, geometry)
+  expect(outline?.area).toEqual([
+    { x: 100, y: 42 },
+    { x: 172, y: 42 },
+    { x: 172, y: 60 },
+    { x: 100, y: 60 },
+  ])
+  expect(hitTestOutline({ x: 130, y: 50 }, outline as never)).toBe('body')
+  expect(hitTestOutline({ x: 300, y: 50 }, outline as never)).toBeNull()
+})
+
+test('Should move a vertical line to another date, a ray in time and price and a zone by its edges or whole', () => {
+  expect(moveDrawing(geometry, vline, 'body', { x: 150, y: 10 }, { x: 180, y: 90 })).toEqual({ ...vline, date: 'd180' })
+  expect(moveDrawing(geometry, ray, 'body', { x: 300, y: 80 }, { x: 320, y: 70 })).toEqual({ ...ray, value: 70, from: 'd220' })
+  expect(moveDrawing(geometry, zone, 'top', { x: 250, y: 120 }, { x: 250, y: 130 })).toEqual({ ...zone, top: 130 })
+  expect(moveDrawing(geometry, zone, 'bottom', { x: 250, y: 100 }, { x: 250, y: 125 })).toEqual({ ...zone, top: 125, bottom: 120 })
+  expect(moveDrawing(geometry, zone, 'body', { x: 250, y: 110 }, { x: 250, y: 100 })).toEqual({ ...zone, top: 110, bottom: 90 })
+  expect(moveDrawing(geometry, note, 'body', { x: 110, y: 55 }, { x: 140, y: 65 })).toEqual({ ...note, p1: { date: 'd130', value: 70 } })
 })

@@ -6,9 +6,9 @@ import type { Bar, Dividend, Drawing, History, LinePoint, Quote, SmaConfig, Time
 import { alertLevel } from '../shared/alerts'
 import { toMonthly } from '../src/domain/monthly'
 import { positionReading } from '../src/domain/position'
-import { rsi, sma } from '../shared/rsi'
+import { ema, rsi, sma } from '../shared/rsi'
 import { adjustLinesForSplits } from '../src/domain/splits'
-import { bollinger, ema, macd } from '../src/domain/studies'
+import { bollinger, macd } from '../src/domain/studies'
 import { toWeekly } from '../src/domain/weekly'
 
 export type SummaryInput = {
@@ -119,7 +119,12 @@ const describeDrawing = (drawing: Drawing, today: string, priceDigits: number) =
       ...(reading.shares !== null ? { shares: reading.shares } : {}),
     }
   }
-  if (drawing.kind === 'hline') return { id, kind: 'horizontal', pane, level: roundTo(drawing.value, digits), alert: drawing.alert === true }
+  if (drawing.kind === 'hline') {
+    return { id, kind: 'horizontal', pane, level: roundTo(drawing.value, digits), alert: drawing.alert === true, ...(drawing.from ? { from: drawing.from } : {}) }
+  }
+  if (drawing.kind === 'vline') return { id, kind: 'vertical', pane, date: drawing.date }
+  if (drawing.kind === 'zone') return { id, kind: 'zone', pane, top: roundTo(drawing.top, digits), bottom: roundTo(drawing.bottom, digits) }
+  if (drawing.kind === 'note') return { id, kind: 'text', pane, at: pointOf(drawing.p1, digits), text: drawing.text }
   const ends = { from: pointOf(drawing.p1, digits), to: pointOf(drawing.p2, digits) }
   if (drawing.kind === 'channel') return { id, kind: 'channel', pane, timeframe, ...ends, offset: roundTo(drawing.offset, digits) }
   if (drawing.kind === 'rect') return { id, kind: 'rectangle', pane, timeframe, ...ends }
@@ -131,6 +136,7 @@ const describeDrawing = (drawing: Drawing, today: string, priceDigits: number) =
     ...ends,
     extendRight: drawing.extendRight,
     alert: drawing.alert === true,
+    ...(drawing.arrow ? { arrow: true } : {}),
     levelToday: pane === 'price' ? roundTo(alertLevel(drawing, today), digits) : null,
   }
 }
@@ -232,6 +238,7 @@ export const summarizeChart = ({ history, timeframe, bars: count, averages, draw
       ...describeDrawing(drawing, last.time, digits),
       ...(drawing.by === 'ai' ? { madeByAi: true } : {}),
       ...(drawing.currency ? { currency: drawing.currency } : {}),
+      ...(drawing.hidden ? { hidden: true } : {}),
     })),
     note,
   }

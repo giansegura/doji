@@ -326,3 +326,33 @@ test('Should not offer an alert on a line drawn in euros', () => {
   setup({ currency: 'EUR' })
   expect(screen.queryByRole('button', { name: 'Alert' })).toBeNull()
 })
+
+const note: Drawing = { id: 'n', pane: 'price', timeframe: 'D', color: '#2962FF', width: 2, pricedAt: '2026-11-23', kind: 'note', p1: { date: '2026-11-20', value: 61 }, text: 'Text' }
+
+test('Should write the text of a note and keep the old one when the field is emptied', async () => {
+  const onChange = vi.fn()
+  renderWithTheme(<LineToolbar line={note} onChange={onChange} onDelete={vi.fn()} />)
+  const user = userEvent.setup()
+  const field = screen.getByRole('textbox', { name: 'Text on the line' })
+  await user.clear(field)
+  await user.type(field, 'Earnings beat{Enter}')
+  expect(onChange).toHaveBeenLastCalledWith({ ...note, text: 'Earnings beat' })
+  onChange.mockClear()
+  await user.clear(field)
+  await user.tab()
+  expect(onChange).not.toHaveBeenCalled()
+  expect((field as HTMLInputElement).value).toBe('Earnings beat')
+})
+
+test('Should turn a trend line into an arrow and back from the line style', async () => {
+  const { handlers, user } = setup()
+  await openStyle(user)
+  await user.click(screen.getByRole('button', { name: 'Arrow' }))
+  expect(handlers.onChange).toHaveBeenLastCalledWith({ ...line, arrow: true })
+})
+
+test('Should not offer an arrow on a horizontal line', async () => {
+  renderWithTheme(<LineToolbar line={others[0]} onChange={vi.fn()} onDelete={vi.fn()} />)
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Line style' }))
+  expect(screen.queryByRole('button', { name: 'Arrow' })).toBeNull()
+})

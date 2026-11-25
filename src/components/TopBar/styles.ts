@@ -364,3 +364,17 @@ export const TokenInput = styled.input`
     border-color: ${(props) => props.theme.ui.accent};
   }
 `
+
+export const Count = styled.span`
+  min-width: 14px;
+  height: 14px;
+  margin-left: -6px;
+  margin-top: -10px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: ${(props) => props.theme.ui.accent};
+  color: ${(props) => props.theme.ui.onAccent};
+  font-size: 9px;
+  line-height: 14px;
+  text-align: center;
+`

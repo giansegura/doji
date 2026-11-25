@@ -26,6 +26,9 @@ const rescale = (drawing: Drawing, factor: number): Drawing => {
       offset: drawing.offset * factor,
     }
   }
+  if (drawing.kind === 'vline') return drawing
+  if (drawing.kind === 'zone') return { ...drawing, top: drawing.top * factor, bottom: drawing.bottom * factor }
+  if (drawing.kind === 'note') return { ...drawing, p1: scaled(drawing.p1, factor) }
   return { ...drawing, p1: scaled(drawing.p1, factor), p2: scaled(drawing.p2, factor) }
 }
 

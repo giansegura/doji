@@ -1,4 +1,4 @@
-import { sma } from '../../shared/rsi'
+import { ema, sma } from '../../shared/rsi'
 
 type Series = (number | null)[]
 
@@ -12,22 +12,6 @@ const both = (a: Series, b: Series, combine: (x: number, y: number) => number): 
     return value === null || other === null || other === undefined ? null : combine(value, other)
   })
 
-export const ema = (values: Series, length: number): Series => {
-  const weight = 2 / (length + 1)
-  const seed: number[] = []
-  let current: number | null = null
-  return values.map((value) => {
-    if (value === null) return null
-    if (current !== null) {
-      current = value * weight + current * (1 - weight)
-      return current
-    }
-    seed.push(value)
-    if (seed.length < length) return null
-    current = seed.reduce((sum, item) => sum + item, 0) / length
-    return current
-  })
-}
 
 const deviation = (values: number[], length: number): Series => {
   let sum = 0

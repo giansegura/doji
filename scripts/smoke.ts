@@ -5,6 +5,7 @@ import { createServer } from 'node:http'
 import { join, resolve } from 'node:path'
 import { chromium } from 'playwright-core'
 import { dayInZone, mondayOf } from '../shared/dates'
+import { sessionDayOf, tradesOnWeekends } from '../shared/indicatorAlerts'
 import { symbolsOf } from '../shared/listItems'
 import type { AppState, Drawing, History, LiveTick, Quote, ThemeName, TrendLine } from '../shared/types'
 
@@ -112,10 +113,29 @@ const at = (box: Box, fx: number, fy: number): [number, number] => [box.x + box.
 
 const button = (name: string | RegExp) => page.getByRole('button', { name, exact: typeof name === 'string' })
 
+const TOOL_MENUS: Record<string, string> = {
+  'Trend line': 'More line tools',
+  'Horizontal line': 'More line tools',
+  'Horizontal ray': 'More line tools',
+  'Vertical line': 'More line tools',
+  'Parallel channel': 'More shapes',
+  Rectangle: 'More shapes',
+  'Horizontal zone': 'More shapes',
+  'Long position': 'More position tools',
+  'Short position': 'More position tools',
+}
+
+const pickTool = async (name: string): Promise<void> => {
+  const direct = button(name)
+  if ((await direct.count()) > 0) return direct.click()
+  await button(TOOL_MENUS[name]).click()
+  await page.getByRole('menuitem', { name, exact: true }).click()
+}
+
 const row = (symbol: string) => page.getByRole('listitem').getByRole('button', { name: new RegExp(`^${symbol}\\b`) })
 
 const drawLine = async (box: Box, from: [number, number], to: [number, number]): Promise<void> => {
-  await button('Trend line').click()
+  await pickTool('Trend line')
   await page.mouse.click(...at(box, ...from))
   await page.mouse.move(...at(box, (from[0] + to[0]) / 2, (from[1] + to[1]) / 2), { steps: 5 })
   await page.mouse.click(...at(box, ...to))
@@ -525,7 +545,7 @@ await step('borra la línea del precio con Supr', async () => {
 
 await step('cancela una línea a medias con Esc', async () => {
   const { price } = await panes()
-  await button('Trend line').click()
+  await pickTool('Trend line')
   await page.mouse.click(...at(price, 0.2, 0.6))
   await page.mouse.move(...at(price, 0.4, 0.4), { steps: 4 })
   await page.keyboard.press('Escape')
@@ -534,7 +554,7 @@ await step('cancela una línea a medias con Esc', async () => {
 })
 
 await step('Esc con la herramienta armada vuelve al cursor', async () => {
-  await button('Trend line').click()
+  await pickTool('Trend line')
   check((await button('Trend line').getAttribute('aria-pressed')) === 'true', 'la herramienta no se armó')
   await page.keyboard.press('Escape')
   check((await button('Cursor').getAttribute('aria-pressed')) === 'true', 'Esc no devolvió el cursor')
@@ -542,7 +562,7 @@ await step('Esc con la herramienta armada vuelve al cursor', async () => {
 
 await step('un clic que empieza fuera del gráfico no termina la línea', async () => {
   const { price } = await panes()
-  await button('Trend line').click()
+  await pickTool('Trend line')
   await page.mouse.click(...at(price, 0.2, 0.6))
   await page.mouse.move(26, 700)
   await page.mouse.down()
@@ -557,7 +577,7 @@ await step('mover una línea en vertical en semanal conserva sus fechas', async 
   const isMonday = (date: string): boolean => new Date(`${date}T00:00:00Z`).getUTCDay() === 1
   const { price } = await panes()
   const drawFrom = async (shift: number): Promise<TrendLine> => {
-    await button('Trend line').click()
+    await pickTool('Trend line')
     await page.mouse.click(price.x + price.width * 0.3 + shift, price.y + price.height * 0.5)
     await page.mouse.click(price.x + price.width * 0.6 + shift, price.y + price.height * 0.5)
     const drawn = (await linesOf('AAPL')).find((line) => line.pane === 'price')
@@ -610,7 +630,7 @@ await step('arrastrar en vertical mueve el gráfico y «Auto» lo vuelve a encaj
     check(spot !== null, 'no se encontró la línea de referencia')
     return (spot as [number, number])[1]
   }
-  await button('Trend line').click()
+  await pickTool('Trend line')
   await page.mouse.click(...at(price, 0.3, 0.45))
   await page.mouse.click(...at(price, 0.6, 0.45))
   await page.mouse.click(...at(price, 0.1, 0.12))
@@ -652,7 +672,7 @@ await step('una línea horizontal se pone con un clic y se arrastra', async () =
   const { price } = await panes()
   const levels = async () => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'hline')
   const y = price.y + price.height * 0.3
-  await button('Horizontal line').click()
+  await pickTool('Horizontal line')
   await page.mouse.click(price.x + price.width * 0.4, y)
   const [placed] = await levels()
   check(placed !== undefined, 'la línea horizontal no se guardó')
@@ -671,7 +691,7 @@ await step('una línea horizontal se deja blanca, fina, discontinua, tenue y sin
   const levels = async () => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'hline')
   const y = price.y + price.height * 0.3
   const axis = { x: price.x + price.width - 58, y: y - 5, width: 50, height: 10 }
-  await button('Horizontal line').click()
+  await pickTool('Horizontal line')
   await page.mouse.click(price.x + price.width * 0.4, y)
   await page.mouse.click(price.x + price.width * 0.15, y)
   await page.getByRole('toolbar', { name: 'Selected line' }).waitFor({ timeout: 2000 })
@@ -705,7 +725,7 @@ await step('una línea nueva sale con el último aspecto que se dio a una de su 
   const { price } = await panes()
   const levels = async () => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'hline')
   const y = price.y + price.height * 0.45
-  await button('Horizontal line').click()
+  await pickTool('Horizontal line')
   await page.mouse.click(price.x + price.width * 0.4, y)
   const [fresh] = await levels()
   check(
@@ -756,7 +776,7 @@ await step('una posición larga se pone con un clic, calcula las acciones y su o
   const { price } = await panes()
   const positions = async () => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'position')
   const [x, y] = at(price, 0.5, 0.5)
-  await button('Long position').click()
+  await pickTool('Long position')
   await page.mouse.click(x, y)
   const [placed] = await positions()
   check(placed?.kind === 'position' && placed.side === 'long', `la posición no se guardó: ${JSON.stringify(placed)}`)
@@ -937,10 +957,83 @@ await step('el modo repetición oculta el futuro, avanza vela a vela y sale sin 
   check(after.rev === before.rev && after.symbol === before.symbol, 'la repetición guardó algo')
 })
 
+await step('la línea vertical, el rayo, la zona, el texto y la flecha se dibujan desde sus menús', async () => {
+  const { price } = await panes()
+  const before = (await drawingsOf('AAPL')).map((drawing) => drawing.id)
+  const added = async () => (await drawingsOf('AAPL')).filter((drawing) => !before.includes(drawing.id))
+  await pickTool('Vertical line')
+  await page.mouse.click(...at(price, 0.3, 0.5))
+  await pickTool('Horizontal ray')
+  await page.mouse.click(...at(price, 0.4, 0.35))
+  await pickTool('Horizontal zone')
+  await page.mouse.click(...at(price, 0.5, 0.6))
+  await page.mouse.click(...at(price, 0.5, 0.7))
+  await pickTool('Text')
+  await page.mouse.click(...at(price, 0.6, 0.25))
+  const field = page.getByRole('textbox', { name: 'Text on the line' })
+  await field.fill('Resultados')
+  await field.press('Enter')
+  await pickTool('Trend line')
+  await page.mouse.click(...at(price, 0.2, 0.8))
+  await page.mouse.click(...at(price, 0.35, 0.65))
+  await button('Line style').click()
+  await button('Arrow').click()
+  await page.keyboard.press('Escape')
+  const drawn = await added()
+  const kinds = drawn.map((drawing) => (drawing.kind === 'hline' && drawing.from ? 'ray' : (drawing.kind ?? 'trend')))
+  check(JSON.stringify(kinds) === JSON.stringify(['vline', 'ray', 'zone', 'note', 'trend']), `no se dibujaron los cinco: ${JSON.stringify(kinds)}`)
+  const [, , zone, note, arrow] = drawn
+  check(zone?.kind === 'zone' && zone.top > zone.bottom, 'la zona no tiene su banda de precios')
+  check(note?.kind === 'note' && note.text === 'Resultados', `el texto no se guardó: ${JSON.stringify(note)}`)
+  check(arrow !== undefined && 'arrow' in arrow && arrow.arrow === true, 'la línea no se volvió flecha')
+  const latest = await savedState()
+  await fetch(`${url}/api/state`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...latest, lines: { ...latest.lines, AAPL: (latest.lines.AAPL ?? []).filter((drawing) => before.includes(drawing.id)) } }),
+  })
+  await page.reload()
+  await waitForChart()
+})
+
+await step('el ojo oculta los dibujos, el candado los fija y la lista oculta o borra cada uno', async () => {
+  const { price } = await panes()
+  const levels = async () => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'hline' && !drawing.from)
+  const before = (await levels()).length
+  const clean = await regionShot(price)
+  await pickTool('Horizontal line')
+  await page.mouse.click(...at(price, 0.5, 0.45))
+  await page.keyboard.press('Escape')
+  const drawn = (await levels()).at(-1)
+  check((await levels()).length === before + 1 && drawn !== undefined, 'la línea no se dibujó')
+  const withLine = await regionShot(price)
+  await button('Hide all drawings').click()
+  check((await savedState()).drawingsHidden, 'ocultar los dibujos no se guardó')
+  check((await regionShot(price)) === clean, 'la línea se sigue viendo con los dibujos ocultos')
+  await button('Show all drawings').click()
+  check((await regionShot(price)) === withLine, 'la línea no volvió al enseñar los dibujos')
+  await page.mouse.click(...at(price, 0.5, 0.45))
+  await page.getByRole('button', { name: 'Delete line' }).waitFor({ timeout: 5_000 })
+  await button('Lock drawings').click()
+  const unselected = await page.getByRole('button', { name: 'Delete line' }).waitFor({ state: 'detached', timeout: 5_000 }).then(() => true, () => false)
+  check(unselected, `el candado no quitó la selección de la línea (candado guardado: ${(await savedState()).drawingsLocked})`)
+  await page.mouse.click(...at(price, 0.5, 0.45))
+  check((await page.getByRole('button', { name: 'Delete line' }).count()) === 0, 'con el candado se pudo seleccionar la línea')
+  await button('Lock drawings').click()
+  check(!(await savedState()).drawingsLocked, 'el candado no se quitó')
+  await button('Drawings list').click()
+  const item = new RegExp(`^Hide Horizontal line ${drawn?.kind === 'hline' ? drawn.value.toFixed(2).replace('.', '\\.') : ''}`)
+  await page.getByRole('button', { name: item }).click()
+  check((await levels()).at(-1)?.hidden === true, 'la lista no ocultó la línea')
+  await page.getByRole('button', { name: /^Delete Horizontal line / }).last().click()
+  check((await levels()).length === before, 'la lista no borró la línea')
+  await page.keyboard.press('Escape')
+})
+
 await step('un rectángulo se dibuja con dos clics y se cambia por una esquina', async () => {
   const { price } = await panes()
   const boxes = async () => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'rect')
-  await button('Rectangle').click()
+  await pickTool('Rectangle')
   await page.mouse.click(...at(price, 0.3, 0.3))
   await page.mouse.click(...at(price, 0.5, 0.5))
   const [drawn] = await boxes()
@@ -959,7 +1052,7 @@ await step('un rectángulo se dibuja con dos clics y se cambia por una esquina',
 await step('un canal paralelo se dibuja con tres clics y se ensancha por su segunda línea', async () => {
   const { price } = await panes()
   const channels = async () => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'channel')
-  await button('Parallel channel').click()
+  await pickTool('Parallel channel')
   await page.mouse.click(...at(price, 0.3, 0.5))
   await page.mouse.click(...at(price, 0.6, 0.4))
   check((await channels()).length === 0, 'el canal se guardó antes de darle ancho')
@@ -985,7 +1078,7 @@ await step('cambia a mensual y vuelve a diario', async () => {
 await step('deshacer y rehacer devuelven y quitan un dibujo', async () => {
   const { price } = await panes()
   const levels = async (): Promise<number> => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'hline').length
-  await button('Horizontal line').click()
+  await pickTool('Horizontal line')
   await page.mouse.click(...at(price, 0.4, 0.35))
   check((await levels()) === 1, 'la línea horizontal de prueba no se guardó')
   await page.waitForTimeout(500)
@@ -1035,7 +1128,7 @@ await step('Telegram se conecta con la clave de un bot, enlaza el chat y manda u
 await step('una alerta la decide el servidor: avisa en pantalla y por Telegram y se desarma sola', async () => {
   const { price } = await panes()
   const levels = async () => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'hline')
-  await button('Horizontal line').click()
+  await pickTool('Horizontal line')
   await page.mouse.click(...at(price, 0.4, 0.3))
   const [placed] = await levels()
   check(placed !== undefined, 'la línea de la alerta no se guardó')
@@ -1072,6 +1165,45 @@ await step('una alerta la decide el servidor: avisa en pantalla y por Telegram y
   check((await levels()).length === 0, 'la línea de la alerta no se borró')
 })
 
+await step('una alerta sobre un indicador salta en el servidor cuando el día se mueve más de lo pedido', async () => {
+  const symbol = (await savedState()).symbol
+  await button('Alerts').click()
+  await page.getByRole('combobox', { name: 'Condition' }).selectOption('move')
+  await page.getByRole('spinbutton', { name: 'Value' }).fill('2')
+  await page.getByRole('button', { name: 'Add alert' }).click()
+  await page.keyboard.press('Escape')
+  const [alert] = (await savedState()).indicatorAlerts[symbol] ?? []
+  check(alert?.kind === 'move' && alert.value === 2 && alert.armed, `la alerta del indicador no se guardó: ${JSON.stringify(alert)}`)
+  check((await button(/^Alerts, 1 armed$/).count()) === 1, 'la campana no cuenta la alerta armada')
+  const history = (await page.evaluate(async (wanted) => (await fetch(`/api/history?symbol=${wanted}`)).json(), symbol)) as History
+  const bars = history.bars
+  const session = sessionDayOf(bars[bars.length - 1].time, history.timezone, Date.now(), tradesOnWeekends(bars.map((bar) => bar.time)))
+  const previous = bars[session === bars[bars.length - 1].time ? bars.length - 2 : bars.length - 1].close
+  const feed = (value: number) =>
+    page.evaluate(
+      async (prices) =>
+        (await fetch('/api/test/prices', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(prices) })).json(),
+      { [symbol]: value },
+    )
+  const firedAlready = async () => (await savedState()).indicatorAlerts[symbol]?.[0]?.armed === false
+  let answer = { fired: [] as unknown[] }
+  for (let attempt = 0; attempt < 3 && answer.fired.length === 0 && !(await firedAlready()); attempt += 1) {
+    await feed(previous * 1.001)
+    answer = (await feed(previous * 1.04)) as { fired: unknown[] }
+  }
+  check(answer.fired.length === 1 || (await firedAlready()), `el servidor no hizo saltar la alerta del indicador: ${JSON.stringify(answer)}`)
+  await page.getByRole('status').filter({ hasText: `${symbol}: Day move beyond 2%` }).first().waitFor({ timeout: 10_000 })
+  const deadline = Date.now() + 10_000
+  while (Date.now() < deadline && !telegramMessages.some((message) => String(message.text).includes('Day move beyond 2%'))) await page.waitForTimeout(200)
+  check(telegramMessages.some((message) => String(message.text).startsWith(`🔔 ${symbol}: Day move beyond 2%`)), 'la alerta del indicador no llegó por Telegram')
+  check((await savedState()).indicatorAlerts[symbol]?.[0]?.armed === false, 'la alerta del indicador no se desarmó al saltar')
+  await page.getByRole('button', { name: new RegExp(`^Dismiss ${symbol}: Day move`) }).first().click()
+  await button('Alerts').click()
+  await page.getByRole('button', { name: 'Remove alert Day move beyond 2%' }).click()
+  await page.keyboard.press('Escape')
+  check(!(symbol in (await savedState()).indicatorAlerts), 'la alerta del indicador no se quitó')
+})
+
 await step('dos gráficos a la vez con periodos distintos y los mismos dibujos', async () => {
   const charts = page.locator('.tv-lightweight-charts')
   const picker = page.getByRole('group', { name: 'Second chart timeframe' })
@@ -1086,12 +1218,12 @@ await step('dos gráficos a la vez con periodos distintos y los mismos dibujos',
   await page.getByText(/ · 1M · /).waitFor({ timeout: 10_000 })
   check((await savedState()).secondChart === 'M', 'el periodo del segundo gráfico no se guardó')
   const second = (await charts.nth(1).boundingBox()) as Box
-  await button('Horizontal line').click()
+  await pickTool('Horizontal line')
   await page.mouse.click(second.x + second.width * 0.4, second.y + second.height * 0.3)
   const [drawn] = await levels()
   check(drawn !== undefined && drawn.timeframe === 'M', 'la línea dibujada en el segundo gráfico no se guardó con su periodo')
   const first = (await charts.nth(0).boundingBox()) as Box
-  await button('Horizontal line').click()
+  await pickTool('Horizontal line')
   await page.mouse.click(first.x + first.width * 0.4, first.y + first.height * 0.2)
   check((await levels()).length === 2, 'la línea del primer gráfico no se guardó')
   check((await page.getByRole('toolbar', { name: 'Selected line' }).count()) === 1, 'quedó un dibujo seleccionado en cada gráfico')
@@ -1190,7 +1322,7 @@ await step('cada acción recuerda su vista al volver a ella, también tras recar
   await drag(start, [start[0], start[1] + 70])
   await button('Auto').waitFor({ timeout: 3000 })
   const existing = (await drawingsOf(symbol)).map((drawing) => drawing.id)
-  await button('Horizontal line').click()
+  await pickTool('Horizontal line')
   await page.mouse.click(...at(price, 0.5, 0.5))
   await settle()
   const reference = (await drawingsOf(symbol)).find((drawing) => !existing.includes(drawing.id))
@@ -1524,12 +1656,12 @@ await step('el gráfico se ve en euros con el cambio de cada día y sus dibujos 
   check(Math.abs(euros - dollars / rate) / euros < 0.02, `el cierre en euros no cuadra: ${dollars} / ${rate} ≠ ${euros}`)
   const existing = (await drawingsOf(symbol)).map((drawing) => drawing.id)
   const { price } = await panes()
-  await button('Horizontal line').click()
+  await pickTool('Horizontal line')
   await page.mouse.click(price.x + price.width * 0.5, price.y + price.height * 0.4)
   await page.waitForTimeout(500)
   const drawn = (await drawingsOf(symbol)).find((drawing) => !existing.includes(drawing.id))
   check(drawn?.currency === 'EUR', `la línea hecha en euros no quedó marcada: ${JSON.stringify(drawn)}`)
-  check((await page.getByRole('button', { name: 'Alert' }).count()) === 0, 'una línea en euros ofrece alerta')
+  check((await page.getByRole('button', { name: 'Alert', exact: true }).count()) === 0, 'una línea en euros ofrece alerta')
   await page.keyboard.press('Delete')
   await button('Chart').click()
   await page.getByRole('radio', { name: 'Symbol currency' }).check()
@@ -1978,7 +2110,7 @@ await step('una IA conectada por MCP añade una línea con alerta, una nota y un
   const level = Number((chart.price.close * 0.97).toFixed(2))
   const { price: seedArea } = await panes()
   const existing = (await drawingsOf(symbol)).map((drawing) => drawing.id)
-  await button('Horizontal line').click()
+  await pickTool('Horizontal line')
   await page.mouse.click(seedArea.x + seedArea.width * 0.4, seedArea.y + seedArea.height * 0.2)
   await page.waitForTimeout(600)
   const seeded = (await drawingsOf(symbol)).find((drawing) => !existing.includes(drawing.id))

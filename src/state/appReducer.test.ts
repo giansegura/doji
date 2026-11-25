@@ -439,3 +439,21 @@ test('Should share the positions with the AI only when switched on', () => {
   expect(shared.shareHoldings).toBe(true)
   expect(appReducer(shared, { type: 'setShareHoldings', on: true })).toBe(shared)
 })
+
+test('Should add an indicator alert to a symbol, arm or disarm it and remove it', () => {
+  const alert = { id: 'r', kind: 'rsi' as const, value: 30, armed: true }
+  const added = appReducer(base, { type: 'addIndicatorAlert', symbol: 'KO', alert })
+  expect(added.indicatorAlerts).toEqual({ KO: [alert] })
+  const quiet = appReducer(added, { type: 'armIndicatorAlert', symbol: 'KO', id: 'r', armed: false })
+  expect(quiet.indicatorAlerts.KO[0].armed).toBe(false)
+  expect(appReducer(quiet, { type: 'removeIndicatorAlert', symbol: 'KO', id: 'r' }).indicatorAlerts).toEqual({})
+})
+
+test('Should hide every drawing and lock them, and undo both', () => {
+  const hidden = appReducer(base, { type: 'setDrawingsHidden', on: true })
+  expect(hidden.drawingsHidden).toBe(true)
+  const locked = appReducer(hidden, { type: 'setDrawingsLocked', on: true })
+  expect(locked.drawingsLocked).toBe(true)
+  expect(appReducer(locked, { type: 'setDrawingsLocked', on: true })).toBe(locked)
+  expect(appReducer(locked, { type: 'setDrawingsHidden', on: false }).drawingsHidden).toBe(false)
+})

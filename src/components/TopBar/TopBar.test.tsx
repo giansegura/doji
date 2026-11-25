@@ -31,6 +31,8 @@ const setup = (indicators: Indicators = DEFAULT_STATE.indicators) => {
       notice={null}
       split={false}
       shareHoldings={false}
+      alerts={<div>Panel de alertas</div>}
+      armedAlerts={2}
       {...handlers}
     />,
   )
@@ -653,4 +655,12 @@ test('Should show the chart in euros or in the currency of the symbol from the c
   expect((screen.getByRole('radio', { name: 'Symbol currency' }) as HTMLInputElement).checked).toBe(true)
   await user.click(screen.getByRole('radio', { name: 'Euros' }))
   expect(handlers.onChart).toHaveBeenLastCalledWith({ ...DEFAULT_STATE.chart, currency: 'EUR' })
+})
+
+test('Should open the alerts of the symbol from the bell, which counts the armed ones', async () => {
+  const { user } = setup()
+  const bell = screen.getByRole('button', { name: 'Alerts, 2 armed' })
+  expect(screen.queryByText('Panel de alertas')).toBeNull()
+  await user.click(bell)
+  expect(screen.getByText('Panel de alertas')).toBeTruthy()
 })

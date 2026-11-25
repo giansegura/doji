@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
-import { bollinger, ema, macd } from './studies'
+import { ema } from '../../shared/rsi'
+import { bollinger, macd } from './studies'
 
 const close = (values: (number | null)[], expected: (number | null)[]): void => {
   expect(values).toHaveLength(expected.length)

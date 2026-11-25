@@ -16,6 +16,7 @@ export type MeasureView = { from: XY; to: XY; color: string; lines: [string, str
 
 type Size = { width: number; height: number }
 
+const NOTE_FILL = 0.18
 const HANDLE_BORDER = 1.5
 const FULL_CIRCLE = Math.PI * 2
 const FILL_ALPHA = 0.12
@@ -100,6 +101,13 @@ const drawBadges = (context: CanvasRenderingContext2D, view: ShapeView): void =>
 
 const writeText = (context: CanvasRenderingContext2D, view: ShapeView): void => {
   if (!view.text) return
+  const { box } = view.text
+  if (box) {
+    context.globalAlpha = NOTE_FILL
+    context.fillStyle = view.color
+    context.fillRect(box.x, box.y, box.width, box.height)
+    context.globalAlpha = 1
+  }
   context.font = TEXT_FONT
   context.textAlign = view.text.align
   context.textBaseline = 'bottom'

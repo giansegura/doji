@@ -616,3 +616,59 @@ test('Should show the chart in its own currency unless euros were chosen, and ke
   const out = normalizeState({ lines: { KO: [{ ...base, id: 'a', currency: 'EUR' }, { ...base, id: 'b', currency: 'USD' }] } })
   expect(out.lines.KO.map((drawing) => drawing.currency)).toEqual(['EUR', undefined])
 })
+
+test('Should keep the indicator alerts of each symbol and drop the ones it cannot read', () => {
+  expect(normalizeState({}).indicatorAlerts).toEqual({})
+  const out = normalizeState({
+    indicatorAlerts: {
+      KO: [
+        { id: 'r', kind: 'rsi', value: 30, armed: true },
+        { id: 'a', kind: 'average', value: 0, averageId: 's1', armed: false },
+        { id: 'm', kind: 'move', value: 3, armed: 'yes' },
+        { id: 'x', kind: 'volume', value: 3, armed: true },
+        { kind: 'rsi', value: 30, armed: true },
+        { id: 'n', kind: 'move', value: 'big', armed: true },
+      ],
+      PEP: [],
+    },
+  })
+  expect(out.indicatorAlerts).toEqual({
+    KO: [
+      { id: 'r', kind: 'rsi', value: 30, armed: true },
+      { id: 'a', kind: 'average', value: 0, averageId: 's1', armed: false },
+      { id: 'm', kind: 'move', value: 3, armed: false },
+    ],
+  })
+})
+
+test('Should keep vertical lines, rays, zones, text notes and arrows, and drop them when they lack what makes them', () => {
+  const base = { pane: 'price', timeframe: 'D', color: '#fff', width: 1, pricedAt: '2020-01-01' }
+  const out = normalizeState({
+    lines: {
+      KO: [
+        { ...base, id: 'v', kind: 'vline', date: '2026-11-20' },
+        { ...base, id: 'v2', kind: 'vline' },
+        { ...base, id: 'y', kind: 'hline', value: 60, from: '2026-11-02' },
+        { ...base, id: 'z', kind: 'zone', top: 62, bottom: 60 },
+        { ...base, id: 'z2', kind: 'zone', top: 62 },
+        { ...base, id: 'n', kind: 'note', p1: { date: '2026-11-20', value: 61 }, text: 'Earnings' },
+        { ...base, id: 'n2', kind: 'note', p1: { date: '2026-11-20', value: 61 }, text: '' },
+        { ...base, id: 'a', p1: { date: '2026-11-02', value: 58 }, p2: { date: '2026-11-20', value: 61 }, extendRight: false, arrow: true },
+      ],
+    },
+  })
+  expect(out.lines.KO.map((drawing) => drawing.id)).toEqual(['v', 'y', 'z', 'n', 'a'])
+  expect(out.lines.KO[1]).toMatchObject({ kind: 'hline', value: 60, from: '2026-11-02' })
+  expect(out.lines.KO[2]).toMatchObject({ kind: 'zone', top: 62, bottom: 60 })
+  expect(out.lines.KO[3]).toMatchObject({ kind: 'note', text: 'Earnings' })
+  expect(out.lines.KO[4]).toMatchObject({ arrow: true })
+})
+
+test('Should keep which drawings are hidden and whether all of them are hidden or locked', () => {
+  expect(normalizeState({}).drawingsHidden).toBe(false)
+  expect(normalizeState({}).drawingsLocked).toBe(false)
+  expect(normalizeState({ drawingsHidden: true, drawingsLocked: true })).toMatchObject({ drawingsHidden: true, drawingsLocked: true })
+  const base = { pane: 'price', timeframe: 'D', color: '#fff', width: 1, value: 10, kind: 'hline' }
+  const out = normalizeState({ lines: { KO: [{ ...base, id: 'a', hidden: true }, { ...base, id: 'b', hidden: 'yes' }] } })
+  expect(out.lines.KO.map((drawing) => drawing.hidden)).toEqual([true, undefined])
+})

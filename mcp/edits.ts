@@ -2,6 +2,7 @@ import { LINE_TEXT_MAX_LENGTH, LIST_NAME_MAX_LENGTH, MAX_LISTS, MIN_LINE_OPACITY
 import { toListIcon } from '../shared/listIcon'
 import { isSection } from '../shared/listItems'
 import type { AppState, Drawing, HorizontalLine, LinePoint, LineStyle, ListItem, Split, SymbolInfo, SymbolList, TrendLine } from '../shared/types'
+import { canAlert, withoutAlert } from '../shared/drawings'
 import { adjustLinesForSplits } from '../src/domain/splits'
 import { appReducer } from '../src/state/appReducer'
 
@@ -121,7 +122,9 @@ const restyled = (drawing: Drawing, request: UpdateRequest): Drawing => {
 }
 
 const retexted = (drawing: Drawing, text: string | undefined): Drawing => {
-  if (text === undefined || (drawing.kind !== 'hline' && drawing.kind !== undefined && drawing.kind !== 'trend')) return drawing
+  if (text === undefined) return drawing
+  if (drawing.kind === 'note') return { ...drawing, text: cleanText(text) }
+  if (drawing.kind !== 'hline' && drawing.kind !== undefined && drawing.kind !== 'trend') return drawing
   const { text: _old, ...rest } = drawing as TrendLine | HorizontalLine
   const clean = cleanText(text)
   return (clean ? { ...rest, text: clean } : rest) as Drawing
@@ -132,14 +135,16 @@ const changeError = (drawing: Drawing, request: UpdateRequest): string | null =>
   if (request.price !== undefined && drawing.kind !== 'hline') return 'Only horizontal lines have a single price; move a trend line with from and to.'
   if (request.price !== undefined && !(request.price > 0)) return 'The price must be a positive number.'
   if (request.extendRight !== undefined && !isTrend) return 'Only trend lines can be extended.'
-  if ((request.from || request.to) && (drawing.kind === 'hline' || drawing.kind === 'position')) return 'Move this drawing with price, or change it in doji.'
-  if (request.text !== undefined && !isTrend && drawing.kind !== 'hline') return 'Only trend lines and horizontal lines carry a text.'
+  const twoPoints = isTrend || drawing.kind === 'channel' || drawing.kind === 'rect'
+  if ((request.from || request.to) && !twoPoints) return 'Move this drawing with price, or change it in doji.'
+  if (request.text !== undefined && !isTrend && drawing.kind !== 'hline' && drawing.kind !== 'note') return 'Only trend lines, horizontal lines and text notes carry a text.'
+  if (request.text !== undefined && drawing.kind === 'note' && !cleanText(request.text)) return 'A text note needs some text.'
   return null
 }
 
 const moved = (drawing: Drawing, request: UpdateRequest): Drawing | string => {
   if (drawing.kind === 'hline') return request.price === undefined ? drawing : { ...drawing, value: request.price }
-  if (drawing.kind === 'position' || (!request.from && !request.to)) return drawing
+  if ((drawing.kind !== undefined && drawing.kind !== 'trend' && drawing.kind !== 'channel' && drawing.kind !== 'rect') || (!request.from && !request.to)) return drawing
   const from = request.from ?? { date: drawing.p1.date, price: drawing.p1.value }
   const to = request.to ?? { date: drawing.p2.date, price: drawing.p2.value }
   const error = pointError(from, to, drawing.kind !== 'rect')
@@ -172,9 +177,9 @@ export const deleteDrawing = (state: AppState, request: DeleteRequest): Edit<{ i
 }
 
 const switched = (drawing: Drawing, on: boolean): Drawing => {
-  if (drawing.kind === 'channel' || drawing.kind === 'rect') return drawing
-  const { alert: _alert, ...quiet } = drawing
-  return on ? { ...quiet, alert: true } : quiet
+  if (!canAlert(drawing)) return drawing
+  const quiet = withoutAlert(drawing)
+  return on ? ({ ...quiet, alert: true } as Drawing) : quiet
 }
 
 export const setAlert = (state: AppState, request: AlertRequest): Edit<Drawing> => {
@@ -182,7 +187,7 @@ export const setAlert = (state: AppState, request: AlertRequest): Edit<Drawing> 
   const drawings = drawingsOf(state, symbol)
   const target = drawings.find((drawing) => drawing.id === request.drawingId)
   if (!target) return { ok: false, error: `${symbol} has no drawing with id "${request.drawingId}".` }
-  if (target.pane !== 'price' || target.kind === 'channel' || target.kind === 'rect') return { ok: false, error: NOT_ALERTABLE }
+  if (target.pane !== 'price' || !canAlert(target)) return { ok: false, error: NOT_ALERTABLE }
   const updated = switched(target, request.on)
   const lines = drawings.map((drawing) => (drawing === target ? updated : drawing))
   return { ok: true, state: withDrawings(state, symbol, lines), detail: updated }

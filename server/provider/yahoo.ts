@@ -132,7 +132,8 @@ export const parseHistory = (json: unknown, fetchedAt: string): History => {
   const symbol = asString(meta.symbol)
   if (!symbol) throw providerError('not_found', 'Yahoo returned no data for the symbol')
 
-  const formatter = formatterFor(asString(meta.exchangeTimezoneName) ?? 'UTC')
+  const timezone = asString(meta.exchangeTimezoneName)
+  const formatter = formatterFor(timezone ?? 'UTC')
   const toDate = (seconds: number): string => formatter.format(new Date(seconds * 1000))
   const tradedAt = tradeTimeOf(meta)
   const currency = asString(meta.currency)
@@ -149,6 +150,7 @@ export const parseHistory = (json: unknown, fetchedAt: string): History => {
     stale: false,
     ...(tradedAt === null ? {} : { tradedAt }),
     ...(currency === null ? {} : { currency }),
+    ...(timezone === null ? {} : { timezone }),
   }
 }
 

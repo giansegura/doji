@@ -43,6 +43,7 @@ type Options = {
   noValues?: boolean
   looks?: Partial<Record<DrawingKind, LineLook>>
   levels?: number[]
+  locked?: boolean
 }
 
 const geometryFor = (options: Options): PaneGeometry | null => {
@@ -90,6 +91,7 @@ const harness = (options: Options = {}) => {
     lookFor: (kind) => options.looks?.[kind] ?? { color: '#2962FF', width: 2 },
     levels: () => options.levels ?? [],
     levelLook: () => ({ color: '#FFFFFF', width: 1, lineStyle: 'dashed', opacity: 0.5, hidePrice: true }),
+    isLocked: () => options.locked ?? false,
   })
   return { record, controller, options }
 }
@@ -868,4 +870,52 @@ test('Should place a short position the other way round and only on the price pa
   expect(controller.pointerDown('rsi', { x: 40, y: 50 })).toBe(false)
   controller.pointerDown('price', { x: 40, y: 100 })
   expect(record.lines[0]).toMatchObject({ kind: 'position', side: 'short', stop: 140, target: 20 })
+})
+
+const placed = { pane: 'price', timeframe: 'D', color: '#2962FF', width: 2, pricedAt: '2020-08-31' }
+
+test('Should place a vertical line, a horizontal ray and a text note with one click each', () => {
+  const { record, controller } = harness()
+  controller.setTool('vline')
+  controller.pointerDown('price', { x: 40, y: 90 })
+  controller.setTool('ray')
+  controller.pointerDown('price', { x: 60, y: 80 })
+  controller.setTool('note')
+  controller.pointerDown('price', { x: 70, y: 70 })
+  expect(record.lines).toEqual([
+    { ...placed, kind: 'vline', id: 'id1', date: 'd40' },
+    { ...placed, kind: 'hline', id: 'id2', value: 80, from: 'd60' },
+    { ...placed, kind: 'note', id: 'id3', p1: { date: 'd70', value: 70 }, text: 'Text' },
+  ])
+  expect(record.selected).toBe('id3')
+  expect(record.toolDone).toBe(3)
+})
+
+test('Should place a zone between the prices of two clicks, whichever comes first', () => {
+  const { record, controller } = harness()
+  controller.setTool('zone')
+  controller.pointerDown('price', { x: 40, y: 90 })
+  controller.pointerUp('price', { x: 40, y: 90 })
+  controller.pointerMove('price', { x: 80, y: 120 })
+  expect(record.draft).toEqual({ pane: 'price', kind: 'zone', p1: { date: 'd40', value: 90 }, p2: { date: 'd80', value: 120 } })
+  controller.pointerDown('price', { x: 80, y: 120 })
+  expect(record.lines).toEqual([{ ...placed, kind: 'zone', id: 'id1', top: 120, bottom: 90 }])
+})
+
+test('Should not place a zone with no height', () => {
+  const { record, controller } = harness()
+  controller.setTool('zone')
+  controller.pointerDown('price', { x: 40, y: 90 })
+  controller.pointerDown('price', { x: 80, y: 90 })
+  expect(record.lines).toEqual([])
+})
+
+test('Should neither select nor move a drawing while the drawings are locked, but still draw new ones', () => {
+  const { record, controller } = harness({ lines: [line({ p2: { date: 'd100', value: 100 } })], locked: true })
+  expect(controller.pointerDown('price', { x: 50, y: 50 })).toBe(false)
+  expect(record.selected).toBeNull()
+  expect(controller.pointerMove('price', { x: 50, y: 50 })).toBe('default')
+  controller.setTool('hline')
+  controller.pointerDown('price', { x: 40, y: 90 })
+  expect(record.lines).toHaveLength(2)
 })
