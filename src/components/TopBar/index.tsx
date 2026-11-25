@@ -36,6 +36,8 @@ type TopBarProps = {
   onChart: (chart: ChartSettings) => void
   onScreenshot: () => void
   onOpenCalendar?: () => void
+  onReplay?: () => void
+  replaying?: boolean
   onExportConfig: () => void
   onImportConfig: (config: AppState) => void
   split: boolean
@@ -86,6 +88,12 @@ const CameraIcon = () => (
   </svg>
 )
 
+const ReplayIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+    <path d="M8.5 5L4 9l4.5 4V5zM14 5L9.5 9l4.5 4V5z" strokeLinejoin="round" />
+  </svg>
+)
+
 const CalendarIcon = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
     <path d="M3 4.5h12v10.5H3zM3 7.5h12M6 3v3M12 3v3" strokeLinejoin="round" strokeLinecap="round" />
@@ -129,6 +137,8 @@ export const TopBar = ({
   onChart,
   onScreenshot,
   onOpenCalendar,
+  onReplay,
+  replaying = false,
   onExportConfig,
   onImportConfig,
   split,
@@ -431,6 +441,11 @@ export const TopBar = ({
       </Styles.Menus>
       <Styles.Spacer />
       {notice && <Styles.Warning role="status">{notice}</Styles.Warning>}
+      {onReplay && (
+        <Styles.Button type="button" title="Replay" aria-label="Replay" aria-pressed={replaying} onClick={onReplay}>
+          <ReplayIcon />
+        </Styles.Button>
+      )}
       {onOpenCalendar && (
         <Styles.Button type="button" title="Earnings calendar" aria-label="Earnings calendar" onClick={onOpenCalendar}>
           <CalendarIcon />

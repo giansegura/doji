@@ -1,8 +1,9 @@
-import { type RefObject, useEffect } from 'react'
+import { type RefObject, useEffect, useMemo } from 'react'
 import { useTheme } from 'styled-components'
 import type { ChartSettings, Drawing, DrawingKind, History, Indicators, LineLook, Timeframe } from '../../shared/types'
 import { changedLook, kindOf } from '../domain/lineLooks'
 import type { LivePrice } from '../domain/liveBar'
+import { earningsAsOf } from '../domain/replay'
 import { splitBasis } from '../domain/splits'
 import { askToNotify } from '../hooks/useAlerts'
 import { useEarnings } from '../hooks/useEarnings'
@@ -12,7 +13,10 @@ import { LiveLegend } from './LiveLegend'
 import { nextEarningsLabel } from './earningsMarks'
 import { imageName, saveChartImage } from './screenshot'
 import * as Styles from './styles'
+import { type ViewStore, sharedViewStore } from './savedViews'
 import { useAutoFit } from './useAutoFit'
+import { useBackToPresent } from './useBackToPresent'
+import { usePickBar } from './usePickBar'
 import { useChart } from './useChart'
 import { useDrawing } from './useDrawing'
 import { useEarningsMarks } from './useEarningsMarks'
@@ -27,6 +31,8 @@ type ChartViewProps = {
   settings: ChartSettings
   live?: LivePrice | null
   viewId?: string
+  asOf?: string | null
+  onPickBar?: (time: string, timeframe: Timeframe) => void
   screenshotRef?: RefObject<(() => void) | null>
   lines: Drawing[]
   tool: Tool
@@ -38,6 +44,8 @@ type ChartViewProps = {
 
 const NO_LOOKS: Partial<Record<DrawingKind, LineLook>> = {}
 
+const READ_ONLY_VIEWS: ViewStore = { get: (key) => sharedViewStore.get(key), set: () => undefined }
+
 const formatFetchedAt = (fetchedAt: string): string =>
   new Date(fetchedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
 
@@ -48,6 +56,8 @@ export const ChartView = ({
   settings,
   live = null,
   viewId = 'main',
+  asOf = null,
+  onPickBar,
   screenshotRef,
   lines,
   tool,
@@ -57,7 +67,16 @@ export const ChartView = ({
   onToolDone,
 }: ChartViewProps) => {
   const theme = useTheme()
-  const { containerRef, handles, data, rsiPaneTop, macdPaneTop, hover } = useChart({ history, timeframe, theme, indicators, settings, live, viewId })
+  const { containerRef, handles, data, rsiPaneTop, macdPaneTop, hover } = useChart({
+    history,
+    timeframe,
+    theme,
+    indicators,
+    settings,
+    live,
+    viewId,
+    views: asOf ? READ_ONLY_VIEWS : sharedViewStore,
+  })
   const { manual, release, fit } = useAutoFit(handles, history.info.symbol)
   const levels = useLevels({ handles, history, settings: indicators.levels, lines, color: theme.chart.levels })
   const { selectedLine, updateLine, deleteSelected } = useDrawing({
@@ -85,7 +104,10 @@ export const ChartView = ({
     settings: indicators.volumeProfile,
     colors: { up: theme.chart.up, down: theme.chart.down, poc: theme.ui.accent },
   })
-  const earnings = useEarnings(history.info.symbol)
+  const loadedEarnings = useEarnings(history.info.symbol)
+  const earnings = useMemo(() => (loadedEarnings ? earningsAsOf(loadedEarnings, asOf) : null), [loadedEarnings, asOf])
+  usePickBar(handles, data.bars, onPickBar ? (time) => onPickBar(time, timeframe) : undefined)
+  useBackToPresent(handles, asOf)
   useEarningsMarks({
     handles,
     earnings,

@@ -42,6 +42,11 @@ export const restoreView = (view: SavedView, timeIndex: TimeIndex, timeframe: Ti
   return { from: from + view.fromOffset, to: to + view.toOffset }
 }
 
+export const restoredWithin = (view: SavedView, timeIndex: TimeIndex, timeframe: Timeframe, count: number): VisibleRange | null => {
+  const range = restoreView(view, timeIndex, timeframe)
+  return range.from > count - 1 ? null : range
+}
+
 const isNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
 
 const isPrice = (value: unknown): value is PriceRange => {

@@ -873,6 +873,35 @@ await step('el calendario de resultados enseña la última presentación de una 
   await page.waitForFunction((wanted) => document.title.startsWith(`${wanted} `), onScreen, { timeout: 15_000 })
 })
 
+await step('el modo repetición oculta el futuro, avanza vela a vela y sale sin guardar nada', async () => {
+  const { price } = await panes()
+  const before = await savedState()
+  const replaying = async (): Promise<number> => {
+    const text = (await page.getByText(/^Replaying /).textContent()) ?? ''
+    return Date.parse(text.replace('Replaying ', ''))
+  }
+  await button('Replay').click()
+  await page.getByText('Click a bar on the chart to start the replay from it.').waitFor({ timeout: 3000 })
+  await page.mouse.click(...at(price, 0.5, 0.5))
+  await page.getByText(/^Replaying /).waitFor({ timeout: 3000 })
+  const first = await replaying()
+  check(Number.isFinite(first) && first < Date.now() - 86_400_000, `la repetición no empezó en el pasado: ${first}`)
+  await button('Step forward').click()
+  const second = await replaying()
+  check(second > first, 'avanzar no movió la repetición')
+  await page.mouse.move(700, 10)
+  await page.keyboard.press('ArrowRight')
+  check((await replaying()) > second, 'la flecha derecha no avanzó la repetición')
+  check((await button('Replay').getAttribute('aria-pressed')) === 'true', 'el botón no marca la repetición')
+  const replayed = await timeAxisPixels()
+  await page.keyboard.press('Escape')
+  check((await page.getByRole('toolbar', { name: 'Replay' }).count()) === 0, 'Esc no salió de la repetición')
+  const back = await timeAxisPixels()
+  check(back !== replayed, 'al salir de la repetición el gráfico no volvió a la última vela')
+  const after = await savedState()
+  check(after.rev === before.rev && after.symbol === before.symbol, 'la repetición guardó algo')
+})
+
 await step('un rectángulo se dibuja con dos clics y se cambia por una esquina', async () => {
   const { price } = await panes()
   const boxes = async () => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'rect')
@@ -1796,7 +1825,11 @@ await step('al cerrar con un estado grande se guarda el último cambio', async (
   check(new TextEncoder().encode(JSON.stringify(before)).length > 65_536, 'el estado de prueba no supera el límite del navegador')
   await flipTheme(before.theme)
   await page.goto('about:blank')
-  const after = await savedState()
+  let after = await savedState()
+  for (let attempt = 0; attempt < 25 && after.theme === before.theme; attempt += 1) {
+    await new Promise((done) => setTimeout(done, 200))
+    after = await savedState()
+  }
   check(after.theme !== before.theme, 'el último cambio se perdió al cerrar')
   check((after.lines.CARGA ?? []).length === 400, 'se perdieron líneas al guardar solo los cambios')
   const { CARGA: _load, ...lines } = after.lines

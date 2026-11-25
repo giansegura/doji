@@ -63,6 +63,10 @@ Para otro puerto: `PORT=4790 npm start`.
   - Se arrastran por sus agarres: el objetivo, el stop (cada uno siempre en su lado de la entrada), la entrada (los niveles se quedan) y el borde derecho (la duración). Desde dentro de la caja se mueve entera.
   - Con la posición seleccionada, "Account" y "Risk %" calculan cuántas acciones comprar para arriesgar ese porcentaje de la cuenta si salta el stop.
   - La campana arma una alerta que avisa al tocar el objetivo o el stop, a partir del día de entrada.
+- **Modo repetición:** el botón "Replay" de la barra superior. Haz clic en una vela y el gráfico oculta todo lo posterior, como si fuera ese día. Abajo, la barra de repetición avanza una vela (o la flecha `→`), reproduce sola a 1×, 3× o 10×, deja elegir otro punto de inicio ("Pick start") y sale ("Exit" o `Esc`).
+  - Avanza velas enteras del periodo que tengas en pantalla: días, semanas o meses.
+  - Los indicadores, el perfil de volumen y los soportes y resistencias solo ven las velas hasta ese día; tampoco se ven los resultados que aún no habían llegado ni el precio en vivo. La lista sigue con sus precios reales.
+  - No guarda nada: al salir, al cambiar de acción o al recargar vuelves al presente. Tus dibujos se quedan como están.
 - **Regla:** "Measure" en la barra izquierda (o `Alt+M`). Un clic marca el inicio y otro el final, o arrastra. Muestra el cambio de precio y en %, el número de velas y los días naturales. No se guarda: desaparece con el siguiente clic o con `Esc`.
 - **Deshacer:** `Cmd+Z` (o `Ctrl+Z`) deshace el último cambio en los dibujos de la acción que estás viendo; con `Shift`, lo rehace. Un arrastre entero cuenta como un solo cambio.
 - **Atajos:** las flechas arriba y abajo recorren la lista. `Alt+T` arma la línea de tendencia, `Alt+H` la horizontal, `Alt+C` el canal, `Alt+R` el rectángulo y `Alt+M` la regla; `Esc` vuelve al cursor.

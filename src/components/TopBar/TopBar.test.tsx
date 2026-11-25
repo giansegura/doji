@@ -15,6 +15,7 @@ const setup = (indicators: Indicators = DEFAULT_STATE.indicators) => {
     onChart: vi.fn(),
     onScreenshot: vi.fn(),
     onOpenCalendar: vi.fn(),
+    onReplay: vi.fn(),
     onExportConfig: vi.fn(),
     onImportConfig: vi.fn(),
     onSplit: vi.fn(),
@@ -616,4 +617,12 @@ test('Should open the earnings calendar from its button', async () => {
   const { handlers, user } = setup()
   await user.click(screen.getByRole('button', { name: 'Earnings calendar' }))
   expect(handlers.onOpenCalendar).toHaveBeenCalledTimes(1)
+})
+
+test('Should start a replay from its button and mark it while a replay is on', async () => {
+  const { handlers, user } = setup()
+  const replay = screen.getByRole('button', { name: 'Replay' })
+  expect(replay.getAttribute('aria-pressed')).toBe('false')
+  await user.click(replay)
+  expect(handlers.onReplay).toHaveBeenCalledTimes(1)
 })

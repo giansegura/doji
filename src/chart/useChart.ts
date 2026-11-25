@@ -34,7 +34,7 @@ import { type LivePrice, withLivePrice } from '../domain/liveBar'
 import { withAlpha } from '../theme/alpha'
 import type { Theme } from '../theme/tokens'
 import { formatWithPrecision, priceFormatOf } from './priceFormat'
-import { type PriceRange, type ViewStore, captureView, restoreView, sharedViewStore } from './savedViews'
+import { type PriceRange, type ViewStore, captureView, restoredWithin, sharedViewStore } from './savedViews'
 import { createBandPrimitive } from './bandPrimitive'
 import { type HoverStore, createHoverStore } from './hoverStore'
 import { type SeriesData, buildSeriesData } from './seriesData'
@@ -626,9 +626,10 @@ export const useChart = ({
     const timeIndex = count > 0 ? createTimeIndex(data.bars.map((bar) => bar.time), timeframe) : null
     const next = { count, timeIndex }
     if (timeIndex && (!previous || previous.symbol !== symbol)) {
-      const saved = views.get(`${viewId}:${symbol}`)
-      chart.timeScale().setVisibleLogicalRange(saved ? restoreView(saved, timeIndex, timeframe) : initialRange(count))
-      applyPriceRange(series, saved?.timeframe === timeframe ? saved.price : null)
+      const stored = views.get(`${viewId}:${symbol}`)
+      const restored = stored ? restoredWithin(stored, timeIndex, timeframe, count) : null
+      chart.timeScale().setVisibleLogicalRange(restored ?? initialRange(count))
+      applyPriceRange(series, restored && stored?.timeframe === timeframe ? stored.price : null)
     } else if (timeIndex && previous?.timeIndex && previousRange && previous.timeframe !== timeframe) {
       chart.timeScale().setVisibleLogicalRange(
         rangeAfterTimeframeChange(
