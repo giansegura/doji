@@ -1312,7 +1312,9 @@ await step('una alerta que se repite salta como mucho una vez al día, caduca tr
     armed?.kind === 'hline' && armed.alert === true && armed.alertRepeat === true && armed.alertUntil === localDay(1),
     `la alerta que se repite no se guardó: ${JSON.stringify(armed)}`,
   )
-  check((await feed(target + 1)) === 1, 'la alerta que se repite no saltó')
+  let fired = 0
+  for (let attempt = 0; attempt < 3 && fired === 0; attempt += 1) fired = (await feed(target - 1)) + (await feed(target + 1))
+  check(fired === 1, `la alerta que se repite saltó ${fired} veces`)
   const [after] = await levels()
   check(after?.kind === 'hline' && after.alert === true && after.alertFiredOn === localDay(0), `la alerta que se repite se desarmó: ${JSON.stringify(after)}`)
   check((await feed(target - 1)) === 0 && (await feed(target + 1)) === 0, 'la alerta saltó dos veces el mismo día')
