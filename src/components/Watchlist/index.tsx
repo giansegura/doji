@@ -21,6 +21,7 @@ type WatchlistProps = {
   live?: boolean
   onSort: (column: SortColumn) => void
   header?: ReactNode
+  earningsSoon?: Record<string, number>
 }
 
 type Editing = { kind: 'new' } | { kind: 'rename'; id: string } | null
@@ -76,6 +77,7 @@ export const Watchlist = ({
   live = false,
   onSort,
   header,
+  earningsSoon,
 }: WatchlistProps) => {
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [editing, setEditing] = useState<Editing>(null)
@@ -166,6 +168,7 @@ export const Watchlist = ({
                 item={item}
                 quote={quotes[item.symbol]}
                 active={item.symbol === activeSymbol}
+                earningsIn={earningsSoon?.[item.symbol.toUpperCase()]}
                 onSelect={() => onSelect(item.symbol)}
                 onRemove={() => onRemove(item.symbol)}
               />

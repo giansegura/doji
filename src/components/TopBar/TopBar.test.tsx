@@ -14,6 +14,7 @@ const setup = (indicators: Indicators = DEFAULT_STATE.indicators) => {
     onIndicators: vi.fn(),
     onChart: vi.fn(),
     onScreenshot: vi.fn(),
+    onOpenCalendar: vi.fn(),
     onExportConfig: vi.fn(),
     onImportConfig: vi.fn(),
     onSplit: vi.fn(),
@@ -609,4 +610,10 @@ test('Should close the list of themes with Escape or a click elsewhere', async (
   await user.click(screen.getByRole('button', { name: 'Theme' }))
   await user.click(document.body)
   expect(screen.queryByRole('menu', { name: 'Theme' })).toBeNull()
+})
+
+test('Should open the earnings calendar from its button', async () => {
+  const { handlers, user } = setup()
+  await user.click(screen.getByRole('button', { name: 'Earnings calendar' }))
+  expect(handlers.onOpenCalendar).toHaveBeenCalledTimes(1)
 })

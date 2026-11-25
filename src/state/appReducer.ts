@@ -46,6 +46,7 @@ export type Action =
   | { type: 'setSecondChart'; timeframe: Timeframe }
   | { type: 'setWatchlistSort'; sort: WatchlistSort | null }
   | { type: 'rememberLook'; kind: DrawingKind; look: LineLook }
+  | { type: 'setEarningsBadge'; on: boolean }
 
 const COPY_SUFFIXES = [' (copy)', ...Array.from({ length: MAX_LISTS }, (_, index) => ` (copy ${index + 2})`)]
 
@@ -234,5 +235,6 @@ export const appReducer = (state: AppState, action: Action): AppState => {
   if (action.type === 'setSecondChart') return setSecondChart(state, action.timeframe)
   if (action.type === 'setWatchlistSort') return { ...state, watchlistSort: action.sort }
   if (action.type === 'rememberLook') return rememberLook(state, action.kind, action.look)
+  if (action.type === 'setEarningsBadge') return state.earningsBadge === action.on ? state : { ...state, earningsBadge: action.on }
   return setLines(state, action.symbol, action.lines)
 }

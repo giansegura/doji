@@ -782,6 +782,41 @@ await step('la leyenda dice cuándo son los próximos resultados', async () => {
   check(Array.isArray(earnings.past) && earnings.past.length > 0, `no llegaron resultados pasados: ${JSON.stringify(earnings)}`)
 })
 
+await step('el calendario de resultados enseña la última presentación de una acción y abre su gráfico', async () => {
+  const onScreen = (await savedState()).symbol
+  const symbols = activeItems(await savedState()).map((item) => item.symbol)
+  await button('Earnings calendar').click()
+  const dialog = page.getByRole('dialog', { name: 'Earnings calendar' })
+  await dialog.waitFor({ timeout: 3000 })
+  await dialog.getByRole('status').waitFor({ state: 'detached', timeout: 180_000 })
+  const answer = await page.evaluate(
+    async (list) => (await fetch(`/api/earnings/calendar?symbols=${list.join(',')}`)).json(),
+    symbols,
+  )
+  const reports = Object.entries(answer.earnings as Record<string, { past: string[] }>).flatMap(([symbol, earnings]) =>
+    earnings.past.map((date) => ({ symbol, date })),
+  )
+  check(reports.length > 0, `no llegó ninguna fecha de resultados: ${JSON.stringify(answer)}`)
+  const latest = reports.sort((a, b) => b.date.localeCompare(a.date))[0]
+  const today = new Date().toISOString().slice(0, 10)
+  const weeksBack = Math.round((Date.parse(mondayOf(today)) - Date.parse(mondayOf(latest.date))) / (7 * 86_400_000))
+  for (let week = 0; week < weeksBack; week += 1) await dialog.getByRole('button', { name: 'Previous week' }).click()
+  const entry = dialog.getByRole('button', { name: new RegExp(`^${latest.symbol.replace(/[.^$]/g, '\\$&')},`) })
+  await entry.first().waitFor({ timeout: 3000 })
+  await entry.first().click()
+  check((await dialog.count()) === 0, 'el calendario no se cerró al elegir una acción')
+  check((await savedState()).symbol === latest.symbol, `el gráfico no cambió a ${latest.symbol}`)
+  await button('Earnings calendar').click()
+  await dialog.getByRole('checkbox', { name: 'Warn in the watchlist when earnings are less than a week away' }).click()
+  check((await savedState()).earningsBadge, 'el aviso de resultados no se guardó')
+  await dialog.getByRole('checkbox', { name: 'Warn in the watchlist when earnings are less than a week away' }).click()
+  check(!(await savedState()).earningsBadge, 'el aviso de resultados no se quitó')
+  await page.keyboard.press('Escape')
+  check((await dialog.count()) === 0, 'Esc no cerró el calendario')
+  await row(onScreen).click()
+  await page.waitForFunction((wanted) => document.title.startsWith(`${wanted} `), onScreen, { timeout: 15_000 })
+})
+
 await step('un rectángulo se dibuja con dos clics y se cambia por una esquina', async () => {
   const { price } = await panes()
   const boxes = async () => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'rect')

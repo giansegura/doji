@@ -349,3 +349,10 @@ test('Should keep the same state when the look to remember is the one already re
   const remembered = appReducer(base, { type: 'rememberLook', kind: 'hline', look })
   expect(appReducer(remembered, { type: 'rememberLook', kind: 'hline', look: { ...look } })).toBe(remembered)
 })
+
+test('Should switch the earnings warning of the watchlist on and off', () => {
+  const on = appReducer(base, { type: 'setEarningsBadge', on: true })
+  expect(on.earningsBadge).toBe(true)
+  expect(appReducer(on, { type: 'setEarningsBadge', on: true })).toBe(on)
+  expect(appReducer(on, { type: 'setEarningsBadge', on: false }).earningsBadge).toBe(false)
+})

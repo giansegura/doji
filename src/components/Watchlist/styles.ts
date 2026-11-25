@@ -206,6 +206,17 @@ export const SessionDot = styled.div<{ $session: 'pre' | 'post' }>`
   background: ${(props) => (props.$session === 'pre' ? props.theme.ui.preMarket : props.theme.ui.postMarket)};
 `
 
+export const EarningsSoon = styled.span`
+  flex-shrink: 0;
+  padding: 0 4px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 14px;
+  color: ${(props) => props.theme.ui.accent};
+  border: 1px solid ${(props) => props.theme.ui.accent};
+  border-radius: 7px;
+`
+
 export const HeaderActions = styled.div`
   display: flex;
   align-items: center;

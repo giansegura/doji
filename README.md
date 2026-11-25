@@ -31,6 +31,10 @@ Para otro puerto: `PORT=4790 npm start`.
   - La IA conectada por MCP también los ve: `get_chart` los incluye y `scan_watchlist` da la distancia al soporte y a la resistencia más cercanos.
 - **Perfil de volumen:** en el mismo menú, "Volume profile" muestra a la derecha del gráfico cuánto se negoció a cada precio en el tramo que estás viendo, y se recalcula al mover o acercar el gráfico. Cada fila separa el volumen de las velas alcistas y bajistas; las filas que reúnen el 70 % del volumen (el área de valor) se ven más intensas y una línea marca el precio con más volumen (POC). "Rows" elige en cuántas filas se reparte (24 por defecto). Se calcula con velas diarias, semanales o mensuales, así que es una aproximación.
 - **Resultados:** una marca "E" en la parte de abajo del gráfico señala las cuatro últimas presentaciones de resultados (rellena) y la próxima (hueca), y la leyenda dice la fecha de la próxima (con `~` si Yahoo solo la estima). Las fechas vienen de Yahoo y se guardan 12 horas; los ETF y las divisas no tienen.
+- **Calendario de resultados:** el botón del calendario, arriba a la derecha, abre una semana de lunes a viernes con las empresas de tus listas que presentan resultados cada día. Los fines de semana solo salen si alguien presenta. ☀ es antes de la apertura, ☾ tras el cierre y `~` una fecha que Yahoo solo estima; las ya pasadas se ven más tenues. Las flechas cambian de semana, "This week" vuelve a la actual y "Show" filtra por lista. Un clic en una empresa abre su gráfico.
+  - Las fechas se guardan en `data/cache/earnings.json` y se refrescan cada 12 horas. La primera vez tardan uno o dos minutos en llegar todas; mientras, el calendario dice cuántas faltan.
+  - Abajo, "Warn in the watchlist…" pone una marca `E 3d` en las filas de la lista activa cuyas empresas presentan en 7 días o menos (`E` si es hoy). Está apagado por defecto.
+  - La IA conectada por MCP tiene `get_earnings_calendar`: qué presenta entre dos fechas, en todas las listas o en una.
 - **Medias móviles:** en el mismo menú, "Add moving average" (hasta seis). Se calculan sobre el cierre y cada una puede ser simple o exponencial con el botón `SMA`/`EMA`. Cada una tiene su periodo; el círculo de color abre la paleta (16 colores, o cualquier otro con el selector) y el grosor; la `×` la quita.
 - **Gráfico:** el menú "Chart" cambia el tipo (velas, barras, línea, área, línea base), la escala de precios (normal, logarítmica, porcentaje, indexada a 100, invertida) y el cursor (libre o imán). El icono de la cámara guarda una imagen del gráfico.
 - **Configuración:** el menú "Settings" exporta todo (listas, líneas, indicadores, tema y ajustes del gráfico) a un archivo `doji-config-AAAA-MM-DD.json` y lo vuelve a importar. Importar reemplaza la configuración actual entera, por eso pide confirmación.
@@ -76,6 +80,7 @@ Herramientas que ofrece:
 | `get_watchlists` | Tus listas, con sus secciones, cuál está activa y qué hay en pantalla. |
 | `scan_watchlist` | Revisa una lista entera: precio, cambio, RSI, distancia a las SMA 50 y 200, rango de 52 semanas, MACD, volumen, alertas y notas. |
 | `get_chart` | Resumen de un gráfico con indicadores calculados por doji, máximos y mínimos recientes, últimas velas, tus dibujos y tu nota. |
+| `get_earnings_calendar` | Quién presenta resultados entre dos fechas, en todas tus listas o en una, con la hora (antes de abrir o tras el cierre) si se sabe. |
 | `add_horizontal_line` | Dibuja una línea horizontal, con alerta si se pide. |
 | `set_alert` | Arma o desarma la alerta de una línea existente. |
 | `write_note` | Escribe en la nota de una acción. |

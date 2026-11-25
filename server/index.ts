@@ -1,7 +1,9 @@
 import { existsSync } from 'node:fs'
+import { mkdir, readFile } from 'node:fs/promises'
 import { type IncomingMessage, type ServerResponse, createServer } from 'node:http'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import sirv from 'sirv'
+import { writeAtomic } from './atomicWrite'
 import { createHistoryCache } from './historyCache'
 import { createLiveHub } from './liveHub'
 import { withTimeout } from './net'
@@ -48,6 +50,8 @@ const offlineEarningsFetch: EarningsFetch = async () => {
   throw new Error('offline')
 }
 
+const earningsFile = join(dataDir, 'cache', 'earnings.json')
+
 const networkEarningsFetch: EarningsFetch = withTimeout((url, init) => fetch(url, init), REQUEST_TIMEOUT_MS)
 
 const api = createApi({
@@ -57,6 +61,13 @@ const api = createApi({
   earnings: createEarningsSource({
     fetch: process.env.DOJI_OFFLINE ? offlineEarningsFetch : networkEarningsFetch,
     now: () => new Date(),
+    store: {
+      load: async () => JSON.parse(await readFile(earningsFile, 'utf8')),
+      save: async (data) => {
+        await mkdir(dirname(earningsFile), { recursive: true })
+        await writeAtomic(earningsFile, JSON.stringify(data))
+      },
+    },
   }),
   logos: createLogoStore({
     sources: [finnhubLogoUrl, provider.logoUrl, fallbackLogoUrl],

@@ -4,6 +4,8 @@ import { z } from 'zod'
 import { isSection } from '../shared/listItems'
 import { SYMBOL_PATTERN } from '../shared/symbols'
 import type { AppState, Quote, SymbolInfo, SymbolList, Timeframe } from '../shared/types'
+import { addDays, todayIso } from '../shared/dates'
+import { calendarEntries, calendarItems } from '../src/domain/earningsCalendar'
 import { splitBasis } from '../src/domain/splits'
 import { scanRow, summarizeChart } from './chartSummary'
 import { type DojiApi, isMissingSymbol } from './dojiApi'
@@ -21,11 +23,11 @@ import {
   writeNote,
 } from './edits'
 
-type ServerDeps = { api: DojiApi; newId: () => string; version: string }
+type ServerDeps = { api: DojiApi; newId: () => string; version: string; today?: () => string }
 
 const INSTRUCTIONS = [
   "doji is the user's own stock charting app, running on their computer.",
-  'Use these tools to read the watchlists, charts, drawings and notes of the user, and to add horizontal lines, price alerts and notes.',
+  'Use these tools to read the watchlists, charts, earnings dates, drawings and notes of the user, and to add horizontal lines, price alerts and notes.',
   'Indicator values are computed by doji: quote them instead of estimating numbers.',
   'Prices come from Yahoo Finance and may be delayed.',
   'You can also create watchlists, add or remove their symbols, add sections and rename them, but not delete a watchlist or a drawing.',
@@ -40,6 +42,13 @@ const SCAN_BATCH = 4
 const MAX_SYMBOLS_PER_CALL = 50
 const LIST_NAME_LIMIT = 40
 const ADDED = 'Added. It shows in doji within a few seconds.'
+const CALENDAR_DAYS = 7
+const TIMING_WORDS = { pre: 'before the opening', post: 'after the close' } as const
+const isCalendarDay = (text: string): boolean => {
+  const date = new Date(`${text}T00:00:00Z`)
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === text
+}
+const dateField = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(isCalendarDay, 'Not a day of the calendar.')
 
 const symbolField = z.string().trim().regex(SYMBOL_PATTERN).describe('Ticker as Yahoo Finance writes it, for example AAPL, BRK-B or ^GSPC.')
 const timeframeField = z.enum(['D', 'W', 'M']).describe('D daily, W weekly, M monthly candles. Defaults to D.')
@@ -94,7 +103,7 @@ const update = async <T>(api: DojiApi, change: (state: AppState) => Edit<T>): Pr
   throw new Error('doji kept changing while saving. Try again.')
 }
 
-export const createDojiServer = ({ api, newId, version }: ServerDeps): McpServer => {
+export const createDojiServer = ({ api, newId, version, today = todayIso }: ServerDeps): McpServer => {
   const server = new McpServer({ name: 'doji', version }, { instructions: INSTRUCTIONS })
 
   const chartOf = async (state: AppState, symbol: string, timeframe: Timeframe, bars: number, quote: Quote | null) =>
@@ -172,6 +181,45 @@ export const createDojiServer = ({ api, newId, version }: ServerDeps): McpServer
         const key = keyOf(symbol)
         const [state, quotes] = await Promise.all([api.getState(), quotesFor(api, [key])])
         return chartOf(state, key, timeframe ?? 'D', bars ?? DEFAULT_BARS, quotes[key] ?? null)
+      }),
+  )
+
+  server.registerTool(
+    'get_earnings_calendar',
+    {
+      title: 'Earnings calendar',
+      description:
+        'Lists the earnings reports of the symbols in the watchlists between two dates: the past ones and the next one of each company, with whether they come before the opening or after the close when known, and whether the date is only an estimate. Defaults to the next seven days across every watchlist.',
+      inputSchema: {
+        watchlist: watchlistField,
+        from: dateField.optional().describe('First day, as YYYY-MM-DD. Defaults to today.'),
+        to: dateField.optional().describe('Last day, as YYYY-MM-DD. Defaults to seven days after the first.'),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    ({ watchlist, from, to }) =>
+      run(async () => {
+        const state = await api.getState()
+        const lists = watchlist ? [findList(state, watchlist)] : state.watchlists
+        const items = calendarItems(lists)
+        const first = from ?? today()
+        const last = to ?? addDays(first, CALENDAR_DAYS)
+        const { earnings, pending } = await api.getEarningsCalendar(items.map((item) => item.symbol))
+        const nameOf = (id: string) => state.watchlists.find((list) => list.id === id)?.name ?? id
+        const entries = calendarEntries(calendarItems(state.watchlists).filter((item) => items.some((kept) => kept.symbol === item.symbol)), earnings)
+          .filter((entry) => entry.date >= first && entry.date <= last)
+          .sort((a, b) => a.date.localeCompare(b.date) || a.symbol.localeCompare(b.symbol))
+          .map((entry) => ({
+            date: entry.date,
+            symbol: entry.symbol,
+            name: entry.name,
+            watchlists: entry.lists.map(nameOf),
+            kind: entry.kind,
+            estimatedDate: entry.estimate,
+            timing: entry.timing ? TIMING_WORDS[entry.timing] : null,
+          }))
+        const message = pending > 0 ? { message: `doji is still fetching ${pending} earnings dates. Ask again in a minute for the full list.` } : {}
+        return { from: first, to: last, entries, stillLoading: pending, ...message }
       }),
   )
 

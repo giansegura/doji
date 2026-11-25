@@ -467,3 +467,9 @@ test('Should keep the support and resistance levels hidden with three per side u
   expect(normalizeState({ indicators: { levels: { visible: 1, perSide: 9 } } }).indicators.levels).toEqual({ visible: false, perSide: 3 })
   expect(normalizeState({ indicators: { levels: { visible: true, perSide: 0 } } }).indicators.levels).toEqual({ visible: true, perSide: 3 })
 })
+
+test('Should keep the earnings warning of the watchlist off unless the configuration turned it on', () => {
+  expect(normalizeState({}).earningsBadge).toBe(false)
+  expect(normalizeState({ earningsBadge: true }).earningsBadge).toBe(true)
+  expect(normalizeState({ earningsBadge: 'sí' }).earningsBadge).toBe(false)
+})

@@ -1,4 +1,5 @@
-import type { AppState, History, Quote } from '../shared/types'
+import { askInBatches } from '../shared/earningsCalendarBatches'
+import type { AppState, Earnings, History, Quote } from '../shared/types'
 
 export type SaveOutcome = 'saved' | 'conflict'
 
@@ -7,6 +8,7 @@ export type DojiApi = {
   saveState: (state: AppState) => Promise<SaveOutcome>
   getHistory: (symbol: string) => Promise<History>
   getQuotes: (symbols: string[]) => Promise<Quote[]>
+  getEarningsCalendar: (symbols: string[]) => Promise<{ earnings: Record<string, Earnings>; pending: number }>
 }
 
 type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
@@ -56,5 +58,6 @@ export const createDojiApi = ({ baseUrl, fetch = globalThis.fetch }: ApiDeps): D
     saveState,
     getHistory: (symbol) => read(`/api/history?symbol=${encodeURIComponent(symbol)}`, `doji has no data for ${symbol}.`),
     getQuotes: (symbols) => read(`/api/quotes?symbols=${symbols.map(encodeURIComponent).join(',')}`),
+    getEarningsCalendar: (symbols) => askInBatches(symbols, (batch) => read(`/api/earnings/calendar?symbols=${batch.map(encodeURIComponent).join(',')}`)),
   }
 }
