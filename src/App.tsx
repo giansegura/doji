@@ -13,6 +13,7 @@ import { AlertToasts } from './components/AlertToasts'
 import { ListResizer } from './components/ListResizer'
 import { ReplayBar } from './components/ReplayBar'
 import { NotesPanel } from './components/NotesPanel'
+import { PositionPanel } from './components/PositionPanel'
 import { SymbolSearch } from './components/SymbolSearch'
 import { TimeframePicker } from './components/TimeframePicker'
 import { TopBar } from './components/TopBar'
@@ -93,7 +94,12 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   const quotes = useMemo(() => freshQuotes(tracked, history), [tracked, history])
   const livePrice = useLivePrice(history, quotes[state.symbol])
   const { fired, dismiss } = useAlerts()
-  const sortedItems = sortItems(filteredItems, quotes, state.watchlistSort, { metrics, earnings: viewEarnings, flags: state.flags })
+  const sortedItems = sortItems(filteredItems, quotes, state.watchlistSort, {
+    metrics,
+    earnings: viewEarnings,
+    flags: state.flags,
+    holdings: state.holdings,
+  })
   const shownItems = state.onlyFlagged ? onlyFlagged(sortedItems, state.flags) : sortedItems
   const shownSymbols = symbolsOf(shownItems).map((item) => item.symbol)
   const soon = useMemo(() => earningsSoon(listEarnings.earnings, today), [listEarnings.earnings, today])
@@ -139,6 +145,8 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
     onLook: (kind: DrawingKind, look: LineLook) => dispatch({ type: 'rememberLook', kind, look }),
     onToolDone: () => setTool('cursor'),
     onRetry: retry,
+    holding: state.holdings[state.symbol],
+    currency: quotes[state.symbol]?.currency,
   }
 
   const handlePick = (info: SymbolInfo) => {
@@ -176,6 +184,8 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
           }}
           split={state.secondChart !== null}
           onSplit={() => dispatch({ type: 'toggleSecondChart' })}
+          shareHoldings={state.shareHoldings}
+          onShareHoldings={(on) => dispatch({ type: 'setShareHoldings', on })}
         />
       </Styles.Top>
       <Styles.Tools>
@@ -247,6 +257,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
           metrics={metrics}
           earnings={viewEarnings}
           filtered={filter ? filter.scope : null}
+          holdings={state.holdings}
           toolbar={
             <FilterBar
               filters={state.filters}
@@ -267,6 +278,13 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
           onFlag={(symbol, color) => dispatch({ type: 'setFlag', symbol, color })}
           onlyFlagged={state.onlyFlagged}
           onOnlyFlagged={(on) => dispatch({ type: 'setOnlyFlagged', on })}
+        />
+        <PositionPanel
+          symbol={state.symbol}
+          holding={state.holdings[state.symbol]}
+          price={quotes[state.symbol]?.price ?? null}
+          currency={quotes[state.symbol]?.currency}
+          onChange={(holding) => dispatch({ type: 'setHolding', symbol: state.symbol, holding })}
         />
         <NotesPanel
           symbol={state.symbol}

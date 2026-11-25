@@ -1,7 +1,10 @@
 import { type DragEvent, type ReactNode, useEffect, useRef, useState } from 'react'
+import { useTheme } from 'styled-components'
 import { isSection } from '../../../shared/listItems'
 import type { SymbolMetrics } from '../../../shared/symbolMetrics'
-import type { Earnings, FlagColor, ListItem, Quote, SortColumn, WatchColumn, WatchlistSort } from '../../../shared/types'
+import type { Earnings, FlagColor, Holding, ListItem, Quote, SortColumn, WatchColumn, WatchlistSort } from '../../../shared/types'
+import { formatPercent } from '../../chart/format'
+import { formatMoney, totalsByCurrency } from '../../domain/holdings'
 import { WATCH_COLUMN_NAMES } from '../../domain/watchColumns'
 import { ColumnsPicker } from './ColumnsPicker'
 import { FlagIcon } from './FlagPicker'
@@ -36,6 +39,7 @@ type WatchlistProps = {
   onOnlyFlagged?: (on: boolean) => void
   toolbar?: ReactNode
   filtered?: 'list' | 'all' | null
+  holdings?: Record<string, Holding>
 }
 
 type Editing = { kind: 'new' } | { kind: 'rename'; id: string } | null
@@ -58,6 +62,7 @@ const NO_COLUMNS: WatchColumn[] = []
 const NO_METRICS: Record<string, SymbolMetrics> = {}
 const NO_EARNINGS: Record<string, Earnings> = {}
 const NO_FLAGS: Record<string, FlagColor> = {}
+const NO_HOLDINGS: Record<string, Holding> = {}
 
 const LIVE = 'Live prices'
 
@@ -107,7 +112,9 @@ export const Watchlist = ({
   onOnlyFlagged,
   toolbar,
   filtered = null,
+  holdings = NO_HOLDINGS,
 }: WatchlistProps) => {
+  const theme = useTheme()
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [editing, setEditing] = useState<Editing>(null)
   const activeRef = useRef<HTMLLIElement>(null)
@@ -140,6 +147,15 @@ export const Watchlist = ({
 
   const fixed = sort !== null || onlyFlagged || filtered !== null
   const emptyText = filtered ? 'No symbols match this filter' : onlyFlagged ? 'No flagged symbols in this watchlist' : 'This watchlist is empty'
+
+  const showsGain = columns.includes('gain') || columns.includes('gainValue')
+  const totals = showsGain
+    ? totalsByCurrency(
+        items.flatMap((item) => (isSection(item) ? [] : [item.symbol])),
+        holdings,
+        quotes,
+      )
+    : []
 
   const specs: ColumnSpec[] = [
     ...COLUMNS,
@@ -224,6 +240,7 @@ export const Watchlist = ({
                 metrics={metrics[item.symbol.toUpperCase()]}
                 earnings={earnings[item.symbol.toUpperCase()]}
                 flag={flags[item.symbol] ?? null}
+                holding={holdings[item.symbol]}
                 onFlag={onFlag ? (color) => onFlag(item.symbol, color) : undefined}
                 onSelect={() => onSelect(item.symbol)}
                 onRemove={filtered === 'all' ? undefined : () => onRemove(item.symbol)}
@@ -239,6 +256,16 @@ export const Watchlist = ({
           </Styles.Row>
         )}
       </Styles.Rows>
+      {totals.length > 0 && (
+        <Styles.Total role="status" aria-label="Total gain">
+          <Styles.TotalLabel>Total P/L</Styles.TotalLabel>
+          {totals.map((total) => (
+            <Styles.Number key={total.currency} $color={total.value < 0 ? theme.ui.down : theme.ui.up}>
+              {`${formatMoney(total.value, total.currency || undefined)} (${formatPercent(total.percent)})`}
+            </Styles.Number>
+          ))}
+        </Styles.Total>
+      )}
     </Styles.Panel>
   )
 }

@@ -263,6 +263,17 @@ test('Should compute change from the previous close and skip incomplete quotes',
   expect(parseQuotes({}, new Date(0))).toEqual([])
 })
 
+test('Should read the currency each symbol trades in', () => {
+  const json = {
+    spark: {
+      result: [
+        { symbol: 'SAN.MC', response: [{ meta: { symbol: 'SAN.MC', regularMarketPrice: 11, chartPreviousClose: 10, currency: 'EUR' } }] },
+      ],
+    },
+  }
+  expect(parseQuotes(json, new Date(0))[0].currency).toBe('EUR')
+})
+
 test('Should parse real batch quotes including a dashed symbol', () => {
   const out = parseQuotes(spark, new Date(0))
   expect(out.map((quote) => quote.symbol).sort()).toEqual(['AAPL', 'BRK-B', 'MSFT'])

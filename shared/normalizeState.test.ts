@@ -579,3 +579,18 @@ test('Should keep the saved filters with their conditions and drop what it canno
   expect(out.activeFilterId).toBe('f1')
   expect(normalizeState({ filters: [], activeFilterId: 'f9' }).activeFilterId).toBeNull()
 })
+
+test('Should keep the position of each symbol only with a positive quantity and price', () => {
+  expect(normalizeState({}).holdings).toEqual({})
+  expect(
+    normalizeState({
+      holdings: { KO: { quantity: 100, price: 58.2 }, PEP: { quantity: 0, price: 10 }, MSFT: { quantity: 5 }, NVDA: { quantity: 2, price: -1 } },
+    }).holdings,
+  ).toEqual({ KO: { quantity: 100, price: 58.2 } })
+})
+
+test('Should keep the positions away from the AI unless the user shares them', () => {
+  expect(normalizeState({}).shareHoldings).toBe(false)
+  expect(normalizeState({ shareHoldings: true }).shareHoldings).toBe(true)
+  expect(normalizeState({ watchlistColumns: ['gain', 'gainValue'] }).watchlistColumns).toEqual(['gain', 'gainValue'])
+})

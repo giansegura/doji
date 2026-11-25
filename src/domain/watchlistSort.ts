@@ -2,7 +2,8 @@ import { isSection } from '../../shared/listItems'
 import { displaySymbol } from '../../shared/symbols'
 import type { SymbolMetrics } from '../../shared/symbolMetrics'
 import { FLAG_COLORS } from '../../shared/flags'
-import type { Earnings, FlagColor, ListItem, Quote, SortColumn, SymbolInfo, WatchlistSort } from '../../shared/types'
+import type { Earnings, FlagColor, Holding, ListItem, Quote, SortColumn, SymbolInfo, WatchlistSort } from '../../shared/types'
+import { holdingGain } from './holdings'
 
 type Value = number | string | null
 
@@ -10,6 +11,7 @@ export type SortExtras = {
   metrics: Record<string, SymbolMetrics>
   earnings: Record<string, Earnings>
   flags?: Record<string, FlagColor>
+  holdings?: Record<string, Holding>
 }
 
 const NO_EXTRAS: SortExtras = { metrics: {}, earnings: {} }
@@ -24,6 +26,12 @@ const valueOf = (item: SymbolInfo, quote: Quote | undefined, column: SortColumn,
   if (column === 'flag') {
     const flag = extras.flags?.[item.symbol]
     return flag ? FLAG_COLORS.indexOf(flag) : null
+  }
+  if (column === 'gain' || column === 'gainValue') {
+    const holding = extras.holdings?.[item.symbol]
+    if (!holding || !quote) return null
+    const gain = holdingGain(holding, quote.price)
+    return column === 'gain' ? gain.percent : gain.value
   }
   if (column === 'rsi') return metrics?.rsi ?? null
   if (column === 'fromHigh') return metrics?.fromHighPercent ?? null

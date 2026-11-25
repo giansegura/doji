@@ -21,6 +21,7 @@ import { toListWidth } from './listWidth'
 import { WATCH_COLUMNS, toWatchColumns } from './watchColumns'
 import { toFlags } from './flags'
 import { toFilters } from './filters'
+import { toHoldings } from './holdings'
 import {
   type AppState,
   type ChartSettings,
@@ -405,6 +406,8 @@ export const normalizeState = (raw: unknown): AppState => {
     onlyFlagged: source.onlyFlagged === true,
     filters,
     activeFilterId: filters.some((filter) => filter.id === activeFilterId) ? activeFilterId : null,
+    holdings: toHoldings(source.holdings),
+    shareHoldings: source.shareHoldings === true,
     lineLooks: toLineLooks(source.lineLooks),
     earningsBadge: source.earningsBadge === true,
   }

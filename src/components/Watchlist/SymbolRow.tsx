@@ -1,7 +1,7 @@
 import { useTheme } from 'styled-components'
 import { displaySymbol } from '../../../shared/symbols'
 import type { SymbolMetrics } from '../../../shared/symbolMetrics'
-import type { Earnings, ExtendedQuote, ExtendedSession, FlagColor, Quote, SymbolInfo, WatchColumn } from '../../../shared/types'
+import type { Earnings, ExtendedQuote, ExtendedSession, FlagColor, Holding, Quote, SymbolInfo, WatchColumn } from '../../../shared/types'
 import { formatPercent, formatPrice } from '../../chart/format'
 import { columnCell } from '../../domain/watchColumns'
 import { SymbolLogo } from '../SymbolLogo'
@@ -18,6 +18,7 @@ type SymbolRowProps = {
   metrics?: SymbolMetrics
   earnings?: Earnings
   flag?: FlagColor | null
+  holding?: Holding
   onFlag?: (color: FlagColor | null) => void
   onSelect: () => void
   onRemove?: () => void
@@ -41,6 +42,7 @@ export const SymbolRow = ({
   metrics,
   earnings,
   flag = null,
+  holding,
   onFlag,
   onSelect,
   onRemove,
@@ -89,7 +91,7 @@ export const SymbolRow = ({
           </Styles.Number>
         )}
         {columns.map((column) => {
-          const cell = columnCell(column, item.symbol, metrics, earnings)
+          const cell = columnCell(column, { symbol: item.symbol, metrics, earnings, holding, quote })
           return (
             <Styles.Number key={column} title={cell.title}>
               {cell.text}

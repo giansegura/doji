@@ -1,6 +1,6 @@
 import type { WatchColumn } from './types'
 
-export const WATCH_COLUMNS: WatchColumn[] = ['rsi', 'fromHigh', 'relVolume', 'earnings', 'level']
+export const WATCH_COLUMNS: WatchColumn[] = ['rsi', 'fromHigh', 'relVolume', 'earnings', 'level', 'gain', 'gainValue']
 
 export const isWatchColumn = (value: unknown): value is WatchColumn => WATCH_COLUMNS.some((column) => column === value)
 

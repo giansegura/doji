@@ -426,3 +426,16 @@ test('Should save the symbols a filter shows as a new list and open it', () => {
   expect(out.watchlists.at(-1)).toEqual({ id: 'new', name: 'Sobrevendidas', items })
   expect(out.activeWatchlistId).toBe('new')
 })
+
+test('Should set, change and remove the position of a symbol', () => {
+  const held = appReducer(base, { type: 'setHolding', symbol: 'KO', holding: { quantity: 100, price: 58.2 } })
+  expect(held.holdings).toEqual({ KO: { quantity: 100, price: 58.2 } })
+  expect(appReducer(held, { type: 'setHolding', symbol: 'KO', holding: { quantity: 0, price: 58.2 } })).toBe(held)
+  expect(appReducer(held, { type: 'setHolding', symbol: 'KO', holding: null }).holdings).toEqual({})
+})
+
+test('Should share the positions with the AI only when switched on', () => {
+  const shared = appReducer(base, { type: 'setShareHoldings', on: true })
+  expect(shared.shareHoldings).toBe(true)
+  expect(appReducer(shared, { type: 'setShareHoldings', on: true })).toBe(shared)
+})

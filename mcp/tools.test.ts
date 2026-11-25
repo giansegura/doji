@@ -481,3 +481,20 @@ test('Should say how many dates doji is still fetching', async () => {
   expect(data.stillLoading).toBe(40)
   expect(data.message).toBe('doji is still fetching 40 earnings dates. Ask again in a minute for the full list.')
 })
+
+test('Should keep the positions of the user out of the charts until the user shares them', async () => {
+  const held = { ...initial, holdings: { KO: { quantity: 10, price: 50 } } }
+  const hidden = await connect(fakeApi({ state: held }).api)
+  expect((await hidden.call('get_chart', { symbol: 'KO' })).data.position).toBeUndefined()
+  expect((await hidden.call('scan_watchlist')).data.rows[1].positionGainPercent).toBeUndefined()
+  const shared = await connect(fakeApi({ state: { ...held, shareHoldings: true } }).api)
+  const { data } = await shared.call('get_chart', { symbol: 'KO' })
+  const close = data.price.close
+  expect(data.position).toEqual({
+    shares: 10,
+    averagePrice: 50,
+    gainPercent: Number((((close - 50) / 50) * 100).toFixed(2)),
+    gain: Number(((close - 50) * 10).toFixed(2)),
+  })
+  expect((await shared.call('scan_watchlist')).data.rows[1].positionGainPercent).toBe(data.position.gainPercent)
+})

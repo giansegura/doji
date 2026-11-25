@@ -3,6 +3,7 @@ import { toListIcon } from '../../shared/listIcon'
 import { isSection } from '../../shared/listItems'
 import { clampListWidth } from '../../shared/listWidth'
 import { isWatchColumn, toWatchColumns } from '../../shared/watchColumns'
+import { isHolding } from '../../shared/holdings'
 import { sameLook } from '../domain/lineLooks'
 import type {
   AppState,
@@ -20,6 +21,7 @@ import type {
   WatchColumn,
   FlagColor,
   SavedFilter,
+  Holding,
 } from '../../shared/types'
 
 export type Tool = 'cursor' | 'trendline' | 'hline' | 'channel' | 'rect' | 'measure' | 'long' | 'short'
@@ -53,6 +55,8 @@ export type Action =
   | { type: 'setFlag'; symbol: string; color: FlagColor | null }
   | { type: 'setOnlyFlagged'; on: boolean }
   | { type: 'saveFilter'; filter: SavedFilter }
+  | { type: 'setHolding'; symbol: string; holding: Holding | null }
+  | { type: 'setShareHoldings'; on: boolean }
   | { type: 'deleteFilter'; id: string }
   | { type: 'applyFilter'; id: string | null }
   | { type: 'createWatchlistWith'; id: string; name: string; items: SymbolInfo[] }
@@ -195,6 +199,13 @@ const createWatchlistWith = (state: AppState, id: string, name: string, items: S
   return created === state ? state : withActiveItems(created, items)
 }
 
+const setHolding = (state: AppState, symbol: string, holding: Holding | null): AppState => {
+  if (holding !== null && !isHolding(holding)) return state
+  const { [symbol]: previous, ...others } = state.holdings
+  if (!previous && !holding) return state
+  return { ...state, holdings: holding ? { ...others, [symbol]: holding } : others }
+}
+
 const setFlag = (state: AppState, symbol: string, color: FlagColor | null): AppState => {
   const { [symbol]: previous, ...others } = state.flags
   if ((previous ?? null) === color) return state
@@ -290,6 +301,8 @@ export const appReducer = (state: AppState, action: Action): AppState => {
   if (action.type === 'setWatchlistColumns') return setWatchlistColumns(state, action.columns)
   if (action.type === 'setFlag') return setFlag(state, action.symbol, action.color)
   if (action.type === 'saveFilter') return saveFilter(state, action.filter)
+  if (action.type === 'setHolding') return setHolding(state, action.symbol, action.holding)
+  if (action.type === 'setShareHoldings') return state.shareHoldings === action.on ? state : { ...state, shareHoldings: action.on }
   if (action.type === 'deleteFilter') return deleteFilter(state, action.id)
   if (action.type === 'applyFilter') return applyFilter(state, action.id)
   if (action.type === 'createWatchlistWith') return createWatchlistWith(state, action.id, action.name, action.items)

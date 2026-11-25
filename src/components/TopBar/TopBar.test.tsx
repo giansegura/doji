@@ -19,6 +19,7 @@ const setup = (indicators: Indicators = DEFAULT_STATE.indicators) => {
     onExportConfig: vi.fn(),
     onImportConfig: vi.fn(),
     onSplit: vi.fn(),
+    onShareHoldings: vi.fn(),
   }
   renderWithTheme(
     <TopBar
@@ -29,6 +30,7 @@ const setup = (indicators: Indicators = DEFAULT_STATE.indicators) => {
       chart={DEFAULT_STATE.chart}
       notice={null}
       split={false}
+      shareHoldings={false}
       {...handlers}
     />,
   )
@@ -334,6 +336,15 @@ test('Should keep the configuration menu closed until asked', async () => {
   await openConfigMenu(user)
   expect(screen.getByRole('button', { name: 'Export settings' })).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Import settings…' })).toBeTruthy()
+})
+
+test('Should keep the positions away from the AI until the user shares them', async () => {
+  const { handlers, user } = setup()
+  await openConfigMenu(user)
+  const share = screen.getByRole('checkbox', { name: 'Share positions with the AI' }) as HTMLInputElement
+  expect(share.checked).toBe(false)
+  await user.click(share)
+  expect(handlers.onShareHoldings).toHaveBeenCalledWith(true)
 })
 
 test('Should ask for the configuration to be exported', async () => {

@@ -25,7 +25,9 @@ export type ListItem = SymbolInfo | ListSection
 
 export type SymbolList = { id: string; name: string; items: ListItem[]; icon?: string }
 
-export type WatchColumn = 'rsi' | 'fromHigh' | 'relVolume' | 'earnings' | 'level'
+export type WatchColumn = 'rsi' | 'fromHigh' | 'relVolume' | 'earnings' | 'level' | 'gain' | 'gainValue'
+
+export type Holding = { quantity: number; price: number }
 
 export type FlagColor = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple'
 
@@ -62,6 +64,7 @@ export type Quote = {
   time?: number
   timezone?: string
   volume?: number
+  currency?: string
 }
 
 export type TickSession = ExtendedSession | 'regular'
@@ -184,6 +187,8 @@ export type AppState = {
   onlyFlagged: boolean
   filters: SavedFilter[]
   activeFilterId: string | null
+  holdings: Record<string, Holding>
+  shareHoldings: boolean
   lineLooks: Partial<Record<DrawingKind, LineLook>>
   earningsBadge: boolean
 }
@@ -233,6 +238,8 @@ export const DEFAULT_STATE: AppState = {
   onlyFlagged: false,
   filters: [],
   activeFilterId: null,
+  holdings: {},
+  shareHoldings: false,
   lineLooks: {},
   earningsBadge: false,
 }

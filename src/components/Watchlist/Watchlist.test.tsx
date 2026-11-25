@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import type { SymbolMetrics } from '../../../shared/symbolMetrics'
-import type { Earnings, FlagColor, ListItem, Quote, SymbolInfo, WatchColumn, WatchlistSort } from '../../../shared/types'
+import type { Earnings, FlagColor, Holding, ListItem, Quote, SymbolInfo, WatchColumn, WatchlistSort } from '../../../shared/types'
 import { ThemeProvider } from 'styled-components'
 import { renderWithTheme } from '../../test/render'
 import { themes } from '../../theme/tokens'
@@ -30,6 +30,7 @@ type Over = {
   flags?: Record<string, FlagColor>
   onlyFlagged?: boolean
   filtered?: 'list' | 'all' | null
+  holdings?: Record<string, Holding>
 }
 
 const setup = (over: Over = {}) => {
@@ -59,6 +60,7 @@ const setup = (over: Over = {}) => {
       flags={over.flags ?? {}}
       onlyFlagged={over.onlyFlagged ?? false}
       filtered={over.filtered ?? null}
+      holdings={over.holdings ?? {}}
       toolbar={<div>Barra de filtro</div>}
       {...handlers}
     />,
@@ -573,4 +575,25 @@ test('Should not offer to remove a symbol while the filter shows every watchlist
 test('Should say when no symbol matches the filter', () => {
   setup({ items: [], filtered: 'list' })
   expect(screen.getByText('No symbols match this filter')).toBeTruthy()
+})
+
+test('Should show the gain of each position and the total of each currency at the bottom', () => {
+  setup({
+    columns: ['gain', 'gainValue'],
+    holdings: { AAPL: { quantity: 10, price: 200 }, MSFT: { quantity: 2, price: 400 } },
+    quotes: {
+      AAPL: { symbol: 'AAPL', price: 220, change: 0, changePercent: 0, currency: 'USD' },
+      MSFT: { symbol: 'MSFT', price: 380, change: 0, changePercent: 0, currency: 'EUR' },
+    },
+  })
+  expect(within(row('AAPL')).getByText('+10.00%')).toBeTruthy()
+  expect(within(row('AAPL')).getByText('+$200')).toBeTruthy()
+  const total = screen.getByRole('status', { name: 'Total gain' })
+  expect(total.textContent).toContain('+$200 (+10.00%)')
+  expect(total.textContent).toContain('−€40 (−5.00%)')
+})
+
+test('Should not show a total without the gain columns', () => {
+  setup({ holdings: { AAPL: { quantity: 10, price: 200 } } })
+  expect(screen.queryByRole('status', { name: 'Total gain' })).toBeNull()
 })

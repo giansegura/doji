@@ -136,3 +136,10 @@ test('Should sort by flag in the order of the palette, with the symbols without 
   expect(symbols(sortItems(plain, quotes, { column: 'flag', direction: 'desc' }, { ...extras, flags }))).toEqual(['KO', 'MSFT', 'PEP', 'AAPL'])
   expect(nextSort(null, 'flag')).toEqual({ column: 'flag', direction: 'asc' })
 })
+
+test('Should sort by the gain of each position, in percent or in money', () => {
+  const holdings = { KO: { quantity: 10, price: 50 }, PEP: { quantity: 1, price: 100 }, AAPL: { quantity: 100, price: 340 } }
+  const withHoldings = { ...extras, holdings }
+  expect(symbols(sortItems(plain, quotes, { column: 'gain', direction: 'desc' }, withHoldings))).toEqual(['PEP', 'KO', 'AAPL', 'MSFT'])
+  expect(symbols(sortItems(plain, quotes, { column: 'gainValue', direction: 'desc' }, withHoldings))).toEqual(['AAPL', 'KO', 'PEP', 'MSFT'])
+})

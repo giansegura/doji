@@ -1,8 +1,11 @@
 import type { SymbolMetrics } from '../../shared/symbolMetrics'
-import type { Earnings, WatchColumn } from '../../shared/types'
+import type { Earnings, Holding, Quote, WatchColumn } from '../../shared/types'
 import { formatPercent, formatPrice } from '../chart/format'
+import { formatMoney, holdingGain } from './holdings'
 
 export type ColumnCell = { text: string; title?: string }
+
+export type CellSource = { symbol: string; metrics?: SymbolMetrics; earnings?: Earnings; holding?: Holding; quote?: Quote }
 
 export const WATCH_COLUMN_NAMES: Record<WatchColumn, { header: string; name: string }> = {
   rsi: { header: 'RSI', name: 'RSI 14' },
@@ -10,6 +13,8 @@ export const WATCH_COLUMN_NAMES: Record<WatchColumn, { header: string; name: str
   relVolume: { header: 'Rel Vol', name: 'Volume vs average' },
   earnings: { header: 'Earn', name: 'Next earnings' },
   level: { header: 'Level', name: 'Nearest level' },
+  gain: { header: 'P/L %', name: 'Position gain %' },
+  gainValue: { header: 'P/L', name: 'Position gain' },
 }
 
 const MISSING: ColumnCell = { text: '—' }
@@ -24,12 +29,17 @@ const earningsCell = (earnings: Earnings | undefined): ColumnCell => {
   return { text: `${mark}${SHORT_DAY.format(day)}`, title: `Earnings ${mark}${LONG_DAY.format(day)}` }
 }
 
-export const columnCell = (
-  column: WatchColumn,
-  symbol: string,
-  metrics: SymbolMetrics | undefined,
-  earnings: Earnings | undefined,
-): ColumnCell => {
+const gainCell = (column: 'gain' | 'gainValue', source: CellSource): ColumnCell => {
+  const { holding, quote, symbol } = source
+  if (!holding || !quote) return MISSING
+  const gain = holdingGain(holding, quote.price)
+  const title = `${holding.quantity} shares at ${formatPrice(holding.price, symbol)}`
+  return { text: column === 'gain' ? formatPercent(gain.percent) : formatMoney(gain.value, quote.currency), title }
+}
+
+export const columnCell = (column: WatchColumn, source: CellSource): ColumnCell => {
+  const { symbol, metrics, earnings } = source
+  if (column === 'gain' || column === 'gainValue') return gainCell(column, source)
   if (column === 'earnings') return earningsCell(earnings)
   if (column === 'rsi') return metrics?.rsi == null ? MISSING : { text: metrics.rsi.toFixed(1) }
   if (column === 'fromHigh') {

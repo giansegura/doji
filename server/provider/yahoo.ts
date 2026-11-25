@@ -206,6 +206,7 @@ export const parseQuotes = (json: unknown, now: Date): Quote[] =>
       const change = price - previousClose
       const time = tradeTimeOf(meta)
       const timezone = asString(meta.exchangeTimezoneName)
+      const currency = asString(meta.currency)
       return {
         symbol,
         price,
@@ -214,6 +215,7 @@ export const parseQuotes = (json: unknown, now: Date): Quote[] =>
         extended: toExtended(meta, price, now),
         ...(time === null ? {} : { time }),
         ...(timezone === null ? {} : { timezone }),
+        ...(currency === null ? {} : { currency }),
       }
     })
     .filter((quote): quote is Quote => quote !== null)

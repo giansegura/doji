@@ -425,3 +425,19 @@ export const NoFlag = styled.button`
     color: ${(props) => props.theme.ui.text};
   }
 `
+
+export const Total = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 12px;
+  padding: 6px 30px 6px 14px;
+  border-top: 1px solid ${(props) => props.theme.ui.separator};
+  font-size: 12px;
+`
+
+export const TotalLabel = styled.span`
+  margin-right: auto;
+  color: ${(props) => props.theme.ui.textMuted};
+`

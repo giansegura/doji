@@ -1,4 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { holdingGain } from '../src/domain/holdings'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import { isSection } from '../shared/listItems'
@@ -92,6 +93,15 @@ const findList = (state: AppState, wanted: string | undefined): SymbolList => {
   throw new Error(`There is no watchlist called "${wanted}". The watchlists are: ${names}.`)
 }
 
+const roundMoney = (value: number): number => Number(value.toFixed(2))
+
+const sharedPosition = (state: AppState, symbol: string, close: number | null) => {
+  const holding = state.holdings[symbol]
+  if (!state.shareHoldings || !holding || close === null) return null
+  const gain = holdingGain(holding, close)
+  return { shares: holding.quantity, averagePrice: holding.price, gainPercent: roundMoney(gain.percent), gain: roundMoney(gain.value) }
+}
+
 const quotesFor = async (api: DojiApi, symbols: string[]): Promise<Record<string, Quote>> => {
   const quotes = await api.getQuotes(symbols).catch(() => [])
   return Object.fromEntries(quotes.map((quote) => [quote.symbol.toUpperCase(), quote]))
@@ -110,8 +120,8 @@ const update = async <T>(api: DojiApi, change: (state: AppState) => Edit<T>): Pr
 export const createDojiServer = ({ api, newId, version, today = todayIso }: ServerDeps): McpServer => {
   const server = new McpServer({ name: 'doji', version }, { instructions: INSTRUCTIONS })
 
-  const chartOf = async (state: AppState, symbol: string, timeframe: Timeframe, bars: number, quote: Quote | null) =>
-    summarizeChart({
+  const chartOf = async (state: AppState, symbol: string, timeframe: Timeframe, bars: number, quote: Quote | null) => {
+    const summary = summarizeChart({
       history: await api.getHistory(symbol),
       timeframe,
       bars,
@@ -120,6 +130,9 @@ export const createDojiServer = ({ api, newId, version, today = todayIso }: Serv
       note: state.notes[symbol] ?? null,
       quote,
     })
+    const position = sharedPosition(state, symbol, summary.price.close)
+    return position ? { ...summary, position } : summary
+  }
 
   const scan = async (wanted: string | undefined, timeframe: Timeframe) => {
     const state = await api.getState()
@@ -130,7 +143,9 @@ export const createDojiServer = ({ api, newId, version, today = todayIso }: Serv
     const rowFor = async (symbol: string) => {
       try {
         const flag = state.flags[symbol]
-        return { ...scanRow(await chartOf(state, symbol, timeframe, 0, quotes[symbol.toUpperCase()] ?? null)), ...(flag ? { flag } : {}) }
+        const chart = await chartOf(state, symbol, timeframe, 0, quotes[symbol.toUpperCase()] ?? null)
+        const gain = 'position' in chart ? { positionGainPercent: chart.position.gainPercent } : {}
+        return { ...scanRow(chart), ...(flag ? { flag } : {}), ...gain }
       } catch (error) {
         return { symbol, error: error instanceof Error ? error.message : String(error) }
       }
@@ -159,7 +174,7 @@ export const createDojiServer = ({ api, newId, version, today = todayIso }: Serv
     {
       title: 'Scan a watchlist',
       description:
-        'Reads every symbol of a watchlist in one go: close, change, extended-hours change, RSI 14, distance to SMA 50 and SMA 200, position in the 52-week range and distance below its high, MACD histogram, volume against its average, armed alerts, whether it has a note, the distance to the nearest support and resistance, and the colour flag when the user flagged it. Use it to compare symbols or find the ones that meet a condition.',
+        'Reads every symbol of a watchlist in one go: close, change, extended-hours change, RSI 14, distance to SMA 50 and SMA 200, position in the 52-week range and distance below its high, MACD histogram, volume against its average, armed alerts, whether it has a note, the distance to the nearest support and resistance, the colour flag when the user flagged it, and the gain of the position when the user shares positions with the AI. Use it to compare symbols or find the ones that meet a condition.',
       inputSchema: {
         watchlist: z.string().optional().describe('Name or id of the watchlist. Defaults to the active one.'),
         timeframe: timeframeField.optional(),
@@ -174,7 +189,7 @@ export const createDojiServer = ({ api, newId, version, today = todayIso }: Serv
     {
       title: 'Chart summary',
       description:
-        'Summarizes the chart of one symbol: last price and change, extended hours, 52-week range, SMA 20/50/200 and EMA 21 plus the averages the user set, RSI 14, MACD 12/26/9, Bollinger Bands 20/2, volume, recent swing highs and lows, the support and resistance levels around the price (found by doji from the weekly turns and how often the price bounced there), the last four dividends with their ex-dates and the dividend yield of the last twelve months, recent candles, the drawings of the user with their ids, and the note of the user for that symbol.',
+        'Summarizes the chart of one symbol: last price and change, extended hours, 52-week range, SMA 20/50/200 and EMA 21 plus the averages the user set, RSI 14, MACD 12/26/9, Bollinger Bands 20/2, volume, recent swing highs and lows, the support and resistance levels around the price (found by doji from the weekly turns and how often the price bounced there), the last four dividends with their ex-dates and the dividend yield of the last twelve months, recent candles, the drawings of the user with their ids, the note of the user for that symbol and, only if the user chose to share positions with the AI, the position held (shares, average price and gain).',
       inputSchema: {
         symbol: symbolField,
         timeframe: timeframeField.optional(),

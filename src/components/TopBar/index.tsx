@@ -40,6 +40,8 @@ type TopBarProps = {
   replaying?: boolean
   onExportConfig: () => void
   onImportConfig: (config: AppState) => void
+  shareHoldings?: boolean
+  onShareHoldings?: (on: boolean) => void
   split: boolean
   onSplit: () => void
 }
@@ -141,6 +143,8 @@ export const TopBar = ({
   replaying = false,
   onExportConfig,
   onImportConfig,
+  shareHoldings = false,
+  onShareHoldings,
   split,
   onSplit,
 }: TopBarProps) => {
@@ -434,6 +438,12 @@ export const TopBar = ({
         {openMenu === 'config' && (
           <Styles.Menu>
             <ConfigPanel onExport={onExportConfig} onImport={onImportConfig} />
+            {onShareHoldings && (
+              <Styles.MenuRow>
+                <input type="checkbox" checked={shareHoldings} onChange={(event) => onShareHoldings(event.target.checked)} />
+                <Styles.RowLabel>Share positions with the AI</Styles.RowLabel>
+              </Styles.MenuRow>
+            )}
             <TelegramPanel />
           </Styles.Menu>
         )}
