@@ -1051,8 +1051,9 @@ await step('una alerta la decide el servidor: avisa en pantalla y por Telegram y
     )
   let answer = { fired: [] as unknown[] }
   for (let attempt = 0; attempt < 3 && answer.fired.length === 0; attempt += 1) {
-    await feed(target - 1)
-    answer = (await feed(target + 1)) as { fired: unknown[] }
+    const down = (await feed(target - 1)) as { fired: unknown[] }
+    const up = (await feed(target + 1)) as { fired: unknown[] }
+    answer = down.fired.length > 0 ? down : up
   }
   check(answer.fired.length === 1, `el servidor no hizo saltar la alerta: ${JSON.stringify(answer)}`)
   await page.getByRole('status').filter({ hasText: 'AAPL crossed' }).first().waitFor({ timeout: 10_000 })
@@ -1500,13 +1501,18 @@ await step('las noticias de la acción se abren en otra pestaña', async () => {
 await step('el gráfico se ve en euros con el cambio de cada día y sus dibujos son aparte', async () => {
   const before = await savedState()
   const symbol = before.symbol
-  const closeShown = async (): Promise<number> => {
-    await page.mouse.move(700, 10)
+  const closeShown = async (at?: { x: number; y: number }): Promise<number> => {
+    await page.mouse.move(at?.x ?? 700, at?.y ?? 10)
     await page.waitForTimeout(400)
     const row = (await page.getByText(/ · 1[DWM] · /).first().locator('..').innerText()).replace(/\s+/g, '')
     return Number((row.match(/C([\d,.]+)/)?.[1] ?? 'NaN').replace(/,/g, ''))
   }
+  const pastBar = await (async () => {
+    const { price } = await panes()
+    return { x: price.x + price.width * 0.3, y: price.y + price.height * 0.5 }
+  })()
   const dollars = await closeShown()
+  const pastDollars = await closeShown(pastBar)
   await button('Chart').click()
   await page.getByRole('radio', { name: 'Euros' }).check()
   await page.keyboard.press('Escape')
@@ -1529,7 +1535,7 @@ await step('el gráfico se ve en euros con el cambio de cada día y sus dibujos 
   await page.getByRole('radio', { name: 'Symbol currency' }).check()
   await page.keyboard.press('Escape')
   check((await page.getByText(/ · in EUR$/).count()) === 0, 'la leyenda sigue diciendo euros')
-  check(Math.abs((await closeShown()) - dollars) < 0.01, 'el gráfico no volvió a la moneda de la acción')
+  check(Math.abs((await closeShown(pastBar)) - pastDollars) < 0.01, 'el gráfico no volvió a la moneda de la acción')
   const after = await savedState()
   check(after.chart.currency === 'original' && (after.lines[symbol] ?? []).length === existing.length, 'no quedó todo como estaba')
 })

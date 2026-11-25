@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { addWeekdays } from '../../shared/dates'
-import { type SavedView, type StorageLike, captureView, createViewStore, restoreView, restoredWithin } from './savedViews'
+import { type SavedView, type StorageLike, captureView, createViewStore, restoreView, restoredWithin, viewKey } from './savedViews'
 import { createTimeIndex } from './timeIndex'
 
 const START = '2020-01-06'
@@ -118,4 +118,9 @@ test('Should give up a saved view that starts after the last bar there is, as in
   const replayed = createTimeIndex(days(300), 'D')
   expect(restoredWithin(view(), replayed, 'D', 300)).toBeNull()
   expect(restoredWithin(view({ from: '2020-06-01' }), replayed, 'D', 300)).toEqual(restoreView(view({ from: '2020-06-01' }), replayed, 'D'))
+})
+
+test('Should keep apart the views of a symbol seen in euros', () => {
+  expect(viewKey('main', 'AAPL', false)).toBe('main:AAPL')
+  expect(viewKey('main', 'AAPL', true)).toBe('main:AAPL:EUR')
 })

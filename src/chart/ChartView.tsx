@@ -90,6 +90,7 @@ export const ChartView = ({
     live,
     viewId,
     views: asOf ? READ_ONLY_VIEWS : sharedViewStore,
+    inEuros,
   })
   const { manual, release, fit } = useAutoFit(handles, history.info.symbol)
   const levels = useLevels({ handles, history, settings: indicators.levels, lines, color: theme.chart.levels })

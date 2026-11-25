@@ -137,7 +137,9 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   }, [history, state.symbol, state.lines, dispatch])
 
   const fx = state.chart.currency === 'EUR' && history?.info.symbol === state.symbol ? fxPairOf(history.currency) : null
-  const fxBars = useFxBars(fx?.pair ?? null)
+  const fxRates = useFxBars(fx?.pair ?? null)
+  const fxBars = fxRates.bars
+  const fxNotice = fx && fxRates.failed ? 'Could not load the euro exchange rate, so the chart shows the symbol currency' : null
   const viewed = useMemo(() => (history && fx && fxBars ? convertHistory(history, fxBars, fx.factor) : history), [history, fx?.pair, fx?.factor, fxBars])
   const inEuros = viewed !== history
   const viewCurrency = inEuros ? 'EUR' : 'original'
@@ -189,7 +191,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
           timeframe={state.timeframe}
           theme={state.theme}
           indicators={state.indicators}
-          notice={notice}
+          notice={notice ?? fxNotice}
           onOpenSearch={() => setSearchMode('chart')}
           onTimeframe={(timeframe) => dispatch({ type: 'setTimeframe', timeframe })}
           onTheme={(theme) => dispatch({ type: 'setTheme', theme })}

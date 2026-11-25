@@ -34,7 +34,7 @@ import { type LivePrice, withLivePrice } from '../domain/liveBar'
 import { withAlpha } from '../theme/alpha'
 import type { Theme } from '../theme/tokens'
 import { formatWithPrecision, priceFormatOf } from './priceFormat'
-import { type PriceRange, type ViewStore, captureView, restoredWithin, sharedViewStore } from './savedViews'
+import { type PriceRange, type ViewStore, captureView, restoredWithin, sharedViewStore, viewKey } from './savedViews'
 import { createBandPrimitive } from './bandPrimitive'
 import { type HoverStore, createHoverStore } from './hoverStore'
 import { type SeriesData, buildSeriesData } from './seriesData'
@@ -74,7 +74,7 @@ type SeriesSet = {
 
 type PaneTops = { rsi: number | null; macd: number | null }
 
-type View = { symbol: string; timeframe: Timeframe; count: number; timeIndex: TimeIndex | null }
+type View = { symbol: string; inEuros: boolean; timeframe: Timeframe; count: number; timeIndex: TimeIndex | null }
 
 type UseChartArgs = {
   history: History
@@ -85,6 +85,7 @@ type UseChartArgs = {
   live?: LivePrice | null
   viewId?: string
   views?: ViewStore
+  inEuros?: boolean
 }
 
 const RSI_UPPER = 70
@@ -433,6 +434,7 @@ export const useChart = ({
   live = null,
   viewId = 'main',
   views = sharedViewStore,
+  inEuros = false,
 }: UseChartArgs) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -517,7 +519,7 @@ export const useChart = ({
       const view = viewRef.current
       const range = chart?.timeScale().getVisibleLogicalRange()
       if (chart && series && view?.timeIndex && range) {
-        views.set(`${viewId}:${view.symbol}`, captureView(range, view.timeIndex, view.timeframe, manualPriceRange(series)))
+        views.set(viewKey(viewId, view.symbol, view.inEuros), captureView(range, view.timeIndex, view.timeframe, manualPriceRange(series)))
       }
     }
     window.addEventListener('pagehide', save)
@@ -579,8 +581,9 @@ export const useChart = ({
     const data = dataRef.current
     const previous = viewRef.current
     const previousRange = chart.timeScale().getVisibleLogicalRange()
-    if (previous?.timeIndex && previousRange && previous.symbol !== symbol) {
-      views.set(`${viewId}:${previous.symbol}`, captureView(previousRange, previous.timeIndex, previous.timeframe, manualPriceRange(series)))
+    const otherCurrency = previous !== null && previous.symbol === symbol && previous.inEuros !== inEuros
+    if (previous?.timeIndex && previousRange && (previous.symbol !== symbol || otherCurrency)) {
+      views.set(viewKey(viewId, previous.symbol, previous.inEuros), captureView(previousRange, previous.timeIndex, previous.timeframe, manualPriceRange(series)))
     }
 
     chart.applyOptions(chartOptions(theme, cursorMode))
@@ -626,7 +629,7 @@ export const useChart = ({
     const timeIndex = count > 0 ? createTimeIndex(data.bars.map((bar) => bar.time), timeframe) : null
     const next = { count, timeIndex }
     if (timeIndex && (!previous || previous.symbol !== symbol)) {
-      const stored = views.get(`${viewId}:${symbol}`)
+      const stored = views.get(viewKey(viewId, symbol, inEuros))
       const restored = stored ? restoredWithin(stored, timeIndex, timeframe, count) : null
       chart.timeScale().setVisibleLogicalRange(restored ?? initialRange(count))
       applyPriceRange(series, restored && stored?.timeframe === timeframe ? stored.price : null)
@@ -638,8 +641,10 @@ export const useChart = ({
         ),
       )
       applyPriceRange(series, null)
+    } else if (otherCurrency) {
+      applyPriceRange(series, null)
     }
-    viewRef.current = { symbol, timeframe, ...next }
+    viewRef.current = { symbol, inEuros, timeframe, ...next }
     setHandles(
       timeIndex
         ? {
@@ -659,6 +664,7 @@ export const useChart = ({
     hover,
     baseData,
     symbol,
+    inEuros,
     timeframe,
     theme,
     volumeVisible,
