@@ -15,7 +15,7 @@ const MAX_APART = 80
 const pairsOf = (turns: Turn[]): [Turn, Turn][] =>
   turns.slice(1).flatMap((turn, index): [Turn, Turn][] => {
     const before = turns[index]
-    return turn.index - before.index <= MAX_APART ? [[before, turn]] : []
+    return turn.index - before.index < MAX_APART ? [[before, turn]] : []
   })
 
 export const findDivergences = (bars: { high: number; low: number }[], rsi: (number | null)[], reach: number): Divergence[] => {

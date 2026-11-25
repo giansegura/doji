@@ -25,3 +25,12 @@ test('Should find nothing when the RSI agrees with the price or is not known the
   expect(findDivergences(bars(lows, highs), lows.map((_, index) => (index === 15 ? 20 : 30)), 5)).toEqual([])
   expect(findDivergences(bars(lows, highs), lows.map(() => null), 5)).toEqual([])
 })
+
+test('Should join only lows less than 80 candles apart', () => {
+  const apart = (distance: number) => {
+    const lows = Array.from({ length: distance + 11 }, (_, index) => (index === 5 ? 10 : index === 5 + distance ? 8 : 20))
+    const rsi = lows.map((_, index) => (index === 5 ? 25 : index === 5 + distance ? 32 : 50))
+    return findDivergences(bars(lows, lows.map((low) => low + 5)), rsi, 5).length
+  }
+  expect([apart(79), apart(80), apart(81)]).toEqual([1, 0, 0])
+})

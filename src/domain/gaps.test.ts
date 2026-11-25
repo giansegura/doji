@@ -33,3 +33,9 @@ test('Should skip the gaps smaller than the size asked for', () => {
   expect(findOpenGaps(bars, 1)).toEqual([])
   expect(findOpenGaps(bars, 0.2)).toEqual([{ index: 1, top: 100.5, bottom: 100, direction: 'up' }])
 })
+
+test('Should count a gap exactly as big as the minimum', () => {
+  expect(findOpenGaps([bar(98, 100, 0), bar(101, 103, 1)], 1)).toEqual([{ index: 1, top: 101, bottom: 100, direction: 'up' }])
+  expect(findOpenGaps([bar(100, 102, 0), bar(97, 99, 1)], 1)).toEqual([{ index: 1, top: 100, bottom: 99, direction: 'down' }])
+  expect(findOpenGaps([bar(98, 100, 0), bar(100.9, 103, 1)], 1)).toEqual([])
+})

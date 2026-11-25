@@ -16,9 +16,8 @@ const narrowed = (gap: OpenGap, bar: Bar): OpenGap | null => {
 const gapAt = (bars: Bar[], index: number, minPercent: number): OpenGap | null => {
   const bar = bars[index]
   const previous = bars[index - 1]
-  const share = minPercent / PERCENT
-  if (bar.low > previous.high * (1 + share)) return { index, top: bar.low, bottom: previous.high, direction: 'up' }
-  if (bar.high < previous.low * (1 - share)) return { index, top: previous.low, bottom: bar.high, direction: 'down' }
+  if (bar.low > previous.high && ((bar.low - previous.high) / previous.high) * PERCENT >= minPercent) return { index, top: bar.low, bottom: previous.high, direction: 'up' }
+  if (bar.high < previous.low && ((previous.low - bar.high) / previous.low) * PERCENT >= minPercent) return { index, top: previous.low, bottom: bar.high, direction: 'down' }
   return null
 }
 

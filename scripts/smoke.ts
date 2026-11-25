@@ -7,6 +7,7 @@ import { chromium } from 'playwright-core'
 import { dayInZone, mondayOf } from '../shared/dates'
 import { sessionDayOf, tradesOnWeekends } from '../shared/indicatorAlerts'
 import { symbolsOf } from '../shared/listItems'
+import { findOpenGaps } from '../src/domain/gaps'
 import type { AppState, Drawing, History, LiveTick, Quote, ThemeName, TrendLine } from '../shared/types'
 
 type Box = { x: number; y: number; width: number; height: number }
@@ -879,7 +880,10 @@ await step('los huecos sin cerrar se sombrean al encenderlos y se quitan al apag
   await page.keyboard.press('Escape')
   const gaps = (await savedState()).indicators.gaps
   check(gaps.visible && gaps.minPercent === 0.5, `los huecos no se guardaron: ${JSON.stringify(gaps)}`)
-  check((await regionShot(price)) !== clean, 'no se sombreó ningún hueco en toda la historia')
+  const { symbol } = await savedState()
+  const history = (await page.evaluate(async (wanted) => (await fetch(`/api/history?symbol=${wanted}`)).json(), symbol)) as History
+  const expected = findOpenGaps(history.bars, 0.5).length > 0
+  check(((await regionShot(price)) !== clean) === expected, expected ? 'no se sombreó ningún hueco en toda la historia' : 'se sombreó un hueco que no existe')
   await button('Indicators').click()
   await page.getByRole('checkbox', { name: 'Open gaps' }).click()
   await page.keyboard.press('Escape')
