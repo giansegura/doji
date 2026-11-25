@@ -120,6 +120,7 @@ export type DrawingBase = {
   opacity?: number
   by?: 'ai'
   currency?: 'EUR'
+  hidden?: true
 }
 
 export type TrendLine = DrawingBase & {
@@ -239,6 +240,8 @@ export type AppState = {
   holdings: Record<string, Holding>
   shareHoldings: boolean
   indicatorAlerts: Record<string, IndicatorAlert[]>
+  drawingsHidden: boolean
+  drawingsLocked: boolean
   lineLooks: Partial<Record<DrawingKind, LineLook>>
   earningsBadge: boolean
 }
@@ -291,6 +294,8 @@ export const DEFAULT_STATE: AppState = {
   holdings: {},
   shareHoldings: false,
   indicatorAlerts: {},
+  drawingsHidden: false,
+  drawingsLocked: false,
   lineLooks: {},
   earningsBadge: false,
 }

@@ -333,3 +333,9 @@ test('Should describe the vertical lines, rays, zones, text notes and arrows', (
   ])
   expect(described[4]).toMatchObject({ id: 'a', kind: 'trend', arrow: true })
 })
+
+test('Should say which drawings the user hid', () => {
+  const base = { pane: 'price' as const, timeframe: 'D' as const, color: '#2962FF', width: 2, pricedAt: '2020-01-01' }
+  const drawings: Drawing[] = [{ ...base, id: 'h', kind: 'hline', value: 230, hidden: true }]
+  expect(summarizeChart(input({ drawings })).drawings).toEqual([{ id: 'h', kind: 'horizontal', pane: 'price', level: 230, alert: false, hidden: true }])
+})

@@ -27,6 +27,7 @@ export type ControllerDeps = {
   lookFor: (kind: DrawingKind) => LineLook
   levels?: () => number[]
   levelLook?: () => LineLook
+  isLocked?: () => boolean
 }
 
 export type DrawingController = {
@@ -96,6 +97,7 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
   const pointAt = (pane: PaneId, xy: XY): LinePoint | null => deps.geometry(pane)?.toPoint(xy) ?? null
 
   const hitAt = (pane: PaneId, xy: XY): { line: Drawing; part: string } | null => {
+    if (deps.isLocked?.()) return null
     const geometry = deps.geometry(pane)
     if (!geometry) return null
     const candidates = deps

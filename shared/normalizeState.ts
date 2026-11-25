@@ -219,6 +219,7 @@ const toBase = (item: Raw): DrawingBase | null => {
     ...toOpacity(item.opacity),
     ...(item.by === 'ai' ? { by: 'ai' as const } : {}),
     ...(item.currency === 'EUR' ? { currency: 'EUR' as const } : {}),
+    ...(item.hidden === true ? { hidden: true as const } : {}),
   }
 }
 
@@ -426,6 +427,8 @@ export const normalizeState = (raw: unknown): AppState => {
     holdings: toHoldings(source.holdings),
     shareHoldings: source.shareHoldings === true,
     indicatorAlerts: toIndicatorAlerts(source.indicatorAlerts),
+    drawingsHidden: source.drawingsHidden === true,
+    drawingsLocked: source.drawingsLocked === true,
     lineLooks: toLineLooks(source.lineLooks),
     earningsBadge: source.earningsBadge === true,
   }

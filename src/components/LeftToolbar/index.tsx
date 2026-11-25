@@ -2,7 +2,17 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import type { Tool } from '../../state/appReducer'
 import * as Styles from './styles'
 
-type LeftToolbarProps = { tool: Tool; onTool: (tool: Tool) => void }
+type LeftToolbarProps = {
+  tool: Tool
+  onTool: (tool: Tool) => void
+  hidden?: boolean
+  onHidden?: (on: boolean) => void
+  locked?: boolean
+  onLocked?: (on: boolean) => void
+  drawingsList?: ReactNode
+}
+
+const LIST = 'list'
 
 const CursorIcon = () => (
   <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">
@@ -132,7 +142,31 @@ const GROUPS: Group[] = [
   { id: 'measure', tools: [{ tool: 'measure', label: 'Measure', icon: <RulerIcon /> }] },
 ]
 
-export const LeftToolbar = ({ tool, onTool }: LeftToolbarProps) => {
+const EyeIcon = ({ closed }: { closed: boolean }) => (
+  <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">
+    <path d="M3 11s3-5.5 8-5.5 8 5.5 8 5.5-3 5.5-8 5.5S3 11 3 11z" />
+    <circle cx="11" cy="11" r="2.3" />
+    {closed && <path d="M4.5 17.5l13-13" strokeLinecap="round" />}
+  </svg>
+)
+
+const LockIcon = ({ shut }: { shut: boolean }) => (
+  <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">
+    <path d="M6 10.5h10v8H6z" strokeLinejoin="round" />
+    <path d={shut ? 'M8 10.5V8a3 3 0 0 1 6 0v2.5' : 'M8 10.5V8a3 3 0 0 1 5.8-1.1'} strokeLinecap="round" />
+  </svg>
+)
+
+const ListIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">
+    <path d="M8 6.5h10M8 11h10M8 15.5h10" strokeLinecap="round" />
+    <circle cx="4.8" cy="6.5" r="1" />
+    <circle cx="4.8" cy="11" r="1" />
+    <circle cx="4.8" cy="15.5" r="1" />
+  </svg>
+)
+
+export const LeftToolbar = ({ tool, onTool, hidden = false, onHidden, locked = false, onLocked, drawingsList }: LeftToolbarProps) => {
   const [chosen, setChosen] = useState<Record<string, Tool>>({})
   const [open, setOpen] = useState<string | null>(null)
   const barRef = useRef<HTMLElement>(null)
@@ -207,6 +241,39 @@ export const LeftToolbar = ({ tool, onTool }: LeftToolbarProps) => {
           </Styles.Group>
         )
       })}
+      <Styles.Spacer />
+      {onHidden && (
+        <Styles.ToolButton
+          type="button"
+          title={hidden ? 'Show all drawings' : 'Hide all drawings'}
+          aria-label={hidden ? 'Show all drawings' : 'Hide all drawings'}
+          aria-pressed={hidden}
+          $active={hidden}
+          onClick={() => onHidden(!hidden)}
+        >
+          <EyeIcon closed={hidden} />
+        </Styles.ToolButton>
+      )}
+      {onLocked && (
+        <Styles.ToolButton type="button" title="Lock drawings" aria-label="Lock drawings" aria-pressed={locked} $active={locked} onClick={() => onLocked(!locked)}>
+          <LockIcon shut={locked} />
+        </Styles.ToolButton>
+      )}
+      {drawingsList && (
+        <Styles.Group>
+          <Styles.ToolButton
+            type="button"
+            title="Drawings list"
+            aria-label="Drawings list"
+            aria-expanded={open === LIST}
+            $active={open === LIST}
+            onClick={() => setOpen((current) => (current === LIST ? null : LIST))}
+          >
+            <ListIcon />
+          </Styles.ToolButton>
+          {open === LIST && <Styles.Flyout $bottom>{drawingsList}</Styles.Flyout>}
+        </Styles.Group>
+      )}
     </Styles.Bar>
   )
 }

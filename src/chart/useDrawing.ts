@@ -37,6 +37,7 @@ type UseDrawingArgs = {
   levelLook: LineLook
   handleFill: string
   priceBasis: string
+  locked?: boolean
 }
 
 const PANES: PaneId[] = ['price', 'rsi']
@@ -146,6 +147,7 @@ export const useDrawing = (args: UseDrawingArgs) => {
       lookFor,
       levels: () => latest.current.levels,
       levelLook: () => latest.current.levelLook,
+      isLocked: () => latest.current.locked === true,
     })
 
     return { controller, redraw, viewsFor, measureFor, measure }

@@ -57,6 +57,8 @@ export type Action =
   | { type: 'setOnlyFlagged'; on: boolean }
   | { type: 'saveFilter'; filter: SavedFilter }
   | { type: 'setHolding'; symbol: string; holding: Holding | null }
+  | { type: 'setDrawingsHidden'; on: boolean }
+  | { type: 'setDrawingsLocked'; on: boolean }
   | { type: 'addIndicatorAlert'; symbol: string; alert: IndicatorAlert }
   | { type: 'armIndicatorAlert'; symbol: string; id: string; armed: boolean }
   | { type: 'removeIndicatorAlert'; symbol: string; id: string }
@@ -313,6 +315,8 @@ export const appReducer = (state: AppState, action: Action): AppState => {
   if (action.type === 'setFlag') return setFlag(state, action.symbol, action.color)
   if (action.type === 'saveFilter') return saveFilter(state, action.filter)
   if (action.type === 'setHolding') return setHolding(state, action.symbol, action.holding)
+  if (action.type === 'setDrawingsHidden') return state.drawingsHidden === action.on ? state : { ...state, drawingsHidden: action.on }
+  if (action.type === 'setDrawingsLocked') return state.drawingsLocked === action.on ? state : { ...state, drawingsLocked: action.on }
   if (action.type === 'addIndicatorAlert') return withSymbolAlerts(state, action.symbol, [...alertsOf(state, action.symbol), action.alert])
   if (action.type === 'armIndicatorAlert') {
     const alerts = alertsOf(state, action.symbol).map((alert) => (alert.id === action.id ? { ...alert, armed: action.armed } : alert))

@@ -47,6 +47,7 @@ type ChartViewProps = {
   holding?: Holding
   currency?: string
   inEuros?: boolean
+  locked?: boolean
 }
 
 const NO_LOOKS: Partial<Record<DrawingKind, LineLook>> = {}
@@ -79,6 +80,7 @@ export const ChartView = ({
   holding,
   currency,
   inEuros = false,
+  locked = false,
 }: ChartViewProps) => {
   const theme = useTheme()
   const { containerRef, handles, data, rsiPaneTop, macdPaneTop, hover } = useChart({
@@ -112,6 +114,7 @@ export const ChartView = ({
     levelLook: { ...LEVEL_LOOK, color: theme.chart.levels },
     handleFill: theme.chart.bg,
     priceBasis: splitBasis(history.splits),
+    locked,
   })
   useVolumeProfile({
     handles,

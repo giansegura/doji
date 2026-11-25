@@ -45,9 +45,9 @@ export const More = styled.button`
   }
 `
 
-export const Flyout = styled.div`
+export const Flyout = styled.div<{ $bottom?: boolean }>`
   position: absolute;
-  top: 0;
+  ${(props) => (props.$bottom ? 'bottom: 0;' : 'top: 0;')}
   left: 42px;
   z-index: 40;
   display: flex;
@@ -76,4 +76,8 @@ export const FlyoutItem = styled.button<{ $active: boolean }>`
   &:hover {
     background: ${(props) => props.theme.ui.hover};
   }
+`
+
+export const Spacer = styled.div`
+  flex: 1;
 `

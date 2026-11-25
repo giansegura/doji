@@ -43,6 +43,7 @@ type Options = {
   noValues?: boolean
   looks?: Partial<Record<DrawingKind, LineLook>>
   levels?: number[]
+  locked?: boolean
 }
 
 const geometryFor = (options: Options): PaneGeometry | null => {
@@ -90,6 +91,7 @@ const harness = (options: Options = {}) => {
     lookFor: (kind) => options.looks?.[kind] ?? { color: '#2962FF', width: 2 },
     levels: () => options.levels ?? [],
     levelLook: () => ({ color: '#FFFFFF', width: 1, lineStyle: 'dashed', opacity: 0.5, hidePrice: true }),
+    isLocked: () => options.locked ?? false,
   })
   return { record, controller, options }
 }
@@ -906,4 +908,14 @@ test('Should not place a zone with no height', () => {
   controller.pointerDown('price', { x: 40, y: 90 })
   controller.pointerDown('price', { x: 80, y: 90 })
   expect(record.lines).toEqual([])
+})
+
+test('Should neither select nor move a drawing while the drawings are locked, but still draw new ones', () => {
+  const { record, controller } = harness({ lines: [line({ p2: { date: 'd100', value: 100 } })], locked: true })
+  expect(controller.pointerDown('price', { x: 50, y: 50 })).toBe(false)
+  expect(record.selected).toBeNull()
+  expect(controller.pointerMove('price', { x: 50, y: 50 })).toBe('default')
+  controller.setTool('hline')
+  controller.pointerDown('price', { x: 40, y: 90 })
+  expect(record.lines).toHaveLength(2)
 })

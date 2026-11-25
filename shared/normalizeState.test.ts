@@ -663,3 +663,12 @@ test('Should keep vertical lines, rays, zones, text notes and arrows, and drop t
   expect(out.lines.KO[3]).toMatchObject({ kind: 'note', text: 'Earnings' })
   expect(out.lines.KO[4]).toMatchObject({ arrow: true })
 })
+
+test('Should keep which drawings are hidden and whether all of them are hidden or locked', () => {
+  expect(normalizeState({}).drawingsHidden).toBe(false)
+  expect(normalizeState({}).drawingsLocked).toBe(false)
+  expect(normalizeState({ drawingsHidden: true, drawingsLocked: true })).toMatchObject({ drawingsHidden: true, drawingsLocked: true })
+  const base = { pane: 'price', timeframe: 'D', color: '#fff', width: 1, value: 10, kind: 'hline' }
+  const out = normalizeState({ lines: { KO: [{ ...base, id: 'a', hidden: true }, { ...base, id: 'b', hidden: 'yes' }] } })
+  expect(out.lines.KO.map((drawing) => drawing.hidden)).toEqual([true, undefined])
+})

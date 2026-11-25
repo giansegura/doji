@@ -238,6 +238,7 @@ export const summarizeChart = ({ history, timeframe, bars: count, averages, draw
       ...describeDrawing(drawing, last.time, digits),
       ...(drawing.by === 'ai' ? { madeByAi: true } : {}),
       ...(drawing.currency ? { currency: drawing.currency } : {}),
+      ...(drawing.hidden ? { hidden: true } : {}),
     })),
     note,
   }

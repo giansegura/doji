@@ -64,6 +64,7 @@ Para otro puerto: `PORT=4790 npm start`.
   - "Horizontal zone": dos clics en dos precios; marca la banda entre ellos de lado a lado, por ejemplo un soporte como zona y no como línea. Cada borde se arrastra por su punto central y la zona entera desde cualquiera de sus bordes. Puede llevar texto.
   - "Text": un clic pone una nota en ese día y ese precio, con el texto "Text" listo para cambiarlo en el campo de su barra. Se arrastra desde cualquier punto de la nota.
   - Flecha: en el panel "Line style" de una línea de tendencia, "Arrow" le pone punta en su segundo extremo.
+- **Ojo, candado y lista de dibujos:** al pie de la barra izquierda, el ojo oculta o enseña todos los dibujos sin borrarlos (las alertas siguen armadas), el candado los fija para no moverlos ni seleccionarlos por accidente (se pueden seguir dibujando otros nuevos) y "Drawings list" abre la lista de los dibujos de la acción: tipo, nivel y texto, con un ojo para ocultar o enseñar cada uno y una `×` para borrarlo. La IA ve en `get_chart` cuáles están ocultos.
   - "Parallel channel": tres clics. Los dos primeros trazan la línea base y el tercero da el ancho. El punto central de la segunda línea cambia el ancho; cualquiera de las dos líneas mueve el canal entero.
   - "Rectangle": dos clics en esquinas opuestas. Cada esquina lo redimensiona y los lados lo mueven.
   - Canales y rectángulos solo se agarran por sus bordes: un clic dentro mueve el gráfico, no el dibujo.

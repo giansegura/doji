@@ -76,3 +76,18 @@ test('Should offer a long and a short position', async () => {
   await user.click(screen.getByRole('menuitem', { name: 'Short position' }))
   expect(onTool.mock.calls.map(([tool]) => tool)).toEqual(['long', 'short'])
 })
+
+test('Should hide every drawing, lock them and open their list from the bottom of the bar', async () => {
+  const handlers = { onTool: vi.fn(), onHidden: vi.fn(), onLocked: vi.fn() }
+  renderWithTheme(<LeftToolbar tool="cursor" hidden={false} locked={true} drawingsList={<div>Lista</div>} {...handlers} />)
+  const user = userEvent.setup()
+  await user.click(screen.getByRole('button', { name: 'Hide all drawings' }))
+  expect(handlers.onHidden).toHaveBeenCalledWith(true)
+  const lock = screen.getByRole('button', { name: 'Lock drawings' })
+  expect(lock.getAttribute('aria-pressed')).toBe('true')
+  await user.click(lock)
+  expect(handlers.onLocked).toHaveBeenCalledWith(false)
+  expect(screen.queryByText('Lista')).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Drawings list' }))
+  expect(screen.getByText('Lista')).toBeTruthy()
+})

@@ -4,6 +4,7 @@ import { todayIso } from '../shared/dates'
 import { symbolsOf } from '../shared/listItems'
 import type { AppState, Bar, Drawing, DrawingKind, IndicatorAlert, LineLook, SavedFilter, SymbolInfo } from '../shared/types'
 import { ChartArea } from './components/ChartArea'
+import { DrawingsList } from './components/DrawingsList'
 import { EarningsCalendar } from './components/EarningsCalendar'
 import { FilterBar } from './components/FilterBar'
 import { IndicatorAlerts } from './components/IndicatorAlerts'
@@ -28,7 +29,7 @@ import { calendarItems, earningsSoon } from './domain/earningsCalendar'
 import { freshQuotes } from './domain/liveBar'
 import { newId } from './domain/newId'
 import { replayBars } from './domain/replay'
-import { linesIn, mergeLinesIn } from './domain/currencyLines'
+import { mergeShown, visibleLines } from './domain/visibleLines'
 import { euroLive } from './domain/euroView'
 import { convertHistory, fxPairOf } from '../shared/currency'
 import { tabTitle } from './domain/tabTitle'
@@ -147,7 +148,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   const viewed = useMemo(() => (history && fx && fxBars ? convertHistory(history, fxBars, fx.factor) : history), [history, fx?.pair, fx?.factor, fxBars])
   const inEuros = viewed !== history
   const viewCurrency = inEuros ? 'EUR' : 'original'
-  const shownLines = useMemo(() => linesIn(drawings, viewCurrency), [drawings, viewCurrency])
+  const shownLines = useMemo(() => visibleLines(drawings, viewCurrency, state.drawingsHidden), [drawings, viewCurrency, state.drawingsHidden])
   const replayer = useReplay({ bars: viewed?.bars ?? NO_BARS, timeframe: state.timeframe, symbol: state.symbol })
   const { replay } = replayer
   const replayAt = replay.status === 'on' ? replay.cutoff : null
@@ -168,7 +169,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
     onPickBar: replay.status === 'picking' ? replayer.pick : undefined,
     lines: shownLines,
     tool,
-    onLinesChange: (shown: Drawing[]) => changeDrawings(mergeLinesIn(drawings, shown, viewCurrency)),
+    onLinesChange: (shown: Drawing[]) => changeDrawings(mergeShown(drawings, shownLines, shown, viewCurrency)),
     looks: state.lineLooks,
     onLook: (kind: DrawingKind, look: LineLook) => dispatch({ type: 'rememberLook', kind, look }),
     onToolDone: () => setTool('cursor'),
@@ -176,6 +177,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
     holding: inEuros ? undefined : state.holdings[state.symbol],
     currency: quotes[state.symbol]?.currency,
     inEuros,
+    locked: state.drawingsLocked,
   }
 
   const handlePick = (info: SymbolInfo) => {
@@ -235,7 +237,15 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
         />
       </Styles.Top>
       <Styles.Tools>
-        <LeftToolbar tool={tool} onTool={setTool} />
+        <LeftToolbar
+          tool={tool}
+          onTool={setTool}
+          hidden={state.drawingsHidden}
+          onHidden={(on) => dispatch({ type: 'setDrawingsHidden', on })}
+          locked={state.drawingsLocked}
+          onLocked={(on) => dispatch({ type: 'setDrawingsLocked', on })}
+          drawingsList={<DrawingsList symbol={state.symbol} drawings={drawings} onChange={changeDrawings} />}
+        />
       </Styles.Tools>
       <Styles.Chart>
         <Styles.Panes>
