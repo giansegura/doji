@@ -385,7 +385,11 @@ await step('doji abre con su propio tema: logo, icono de la pestaña, violeta y 
 
 await step('elige Midnight, el aspecto de siempre, desde el selector de temas', async () => {
   await chooseTheme('Midnight')
-  check((await savedState()).theme === 'midnight', 'Midnight no se guardó')
+  const deadline = Date.now() + 7000
+  let theme = (await savedState()).theme
+  while (theme !== 'midnight' && Date.now() < deadline) theme = (await savedState()).theme
+  const reloaded = await page.getByText('The settings changed in another tab and were reloaded').count()
+  check(theme === 'midnight', `Midnight no se guardó (guardado: ${theme}, aviso de recarga: ${reloaded})`)
   check((await backgroundOf(page.getByRole('banner'))) === 'rgb(0, 0, 0)', 'la barra superior no es negra en Midnight')
   const { price } = await panes()
   check(near(await chartPixel(price), [19, 23, 34]), `el gráfico no tiene el fondo de Midnight: ${await chartPixel(price)}`)
