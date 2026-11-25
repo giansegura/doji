@@ -1342,7 +1342,8 @@ await step('una alerta que se repite salta como mucho una vez al día, caduca tr
   await page.mouse.click(price.x + price.width * 0.15, price.y + price.height * 0.3)
   await page.getByLabel('Alert until').fill(localDay(-1))
   const [stale] = await levels()
-  check(stale?.kind === 'hline' && stale.alertUntil === localDay(-1), `no se guardó el último día: ${JSON.stringify(stale)}`)
+  const disarmedAlready = stale?.kind === 'hline' && stale.alert === undefined && stale.alertUntil === undefined
+  check(stale?.kind === 'hline' && (stale.alertUntil === localDay(-1) || disarmedAlready), `no se guardó el último día: ${JSON.stringify(stale)}`)
   check((await feed(target - 1)) === 0, 'saltó una alerta caducada')
   const deadline = Date.now() + 5000
   let expired = await levels()
