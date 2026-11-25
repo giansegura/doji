@@ -1,7 +1,7 @@
 import type { SeriesAttachedParameter, Time } from 'lightweight-charts'
 import { expect, test } from 'vitest'
 import type { ShapeView } from './drawingViews'
-import { createDrawingsPrimitive } from './drawingsPrimitive'
+import { type MeasureView, createDrawingsPrimitive } from './drawingsPrimitive'
 
 const view = (over: Partial<ShapeView> = {}): ShapeView => ({
   segments: [[{ x: 10, y: 20 }, { x: 110, y: 70 }]],
@@ -12,15 +12,23 @@ const view = (over: Partial<ShapeView> = {}): ShapeView => ({
   ],
   color: '#2962FF',
   width: 2,
+  lineStyle: 'solid',
+  opacity: 1,
+  text: null,
   selected: false,
   label: null,
   alert: null,
   ...over,
 })
 
-const draw = (views: ShapeView[]) => {
+const draw = (views: ShapeView[], measure: MeasureView | null = null) => {
   const calls: string[] = []
+  const strokes: string[] = []
   const context = {
+    lineDash: [] as number[],
+    setLineDash: (pattern: number[]) => {
+      context.lineDash = pattern
+    },
     strokeStyle: '',
     fillStyle: '',
     lineWidth: 0,
@@ -33,8 +41,19 @@ const draw = (views: ShapeView[]) => {
     moveTo: (x: number, y: number) => calls.push(`moveTo ${x},${y}`),
     lineTo: (x: number, y: number) => calls.push(`lineTo ${x},${y}`),
     arc: (x: number, y: number, radius: number) => calls.push(`arc ${x},${y} r${radius}`),
-    stroke: () => calls.push(`stroke ${context.strokeStyle} ${context.lineWidth}`),
+    stroke: () => {
+      calls.push(`stroke ${context.strokeStyle} ${context.lineWidth}`)
+      strokes.push(`${context.strokeStyle} alpha ${context.globalAlpha} dash ${context.lineDash.join(',') || 'none'}`)
+    },
     fill: () => calls.push(`fill ${context.fillStyle} ${context.globalAlpha}`),
+    font: '',
+    textAlign: '',
+    textBaseline: '',
+    measureText: (value: string) => ({ width: value.length * 6 }),
+    fillRect: (x: number, y: number, width: number, height: number) =>
+      calls.push(`fillRect ${x},${y} ${width}x${height} ${context.fillStyle} ${context.globalAlpha}`),
+    fillText: (value: string, x: number, y: number) =>
+      calls.push(`text ${value} ${x},${y} ${context.textAlign} ${context.fillStyle} ${context.globalAlpha}`),
   }
   const target = {
     useMediaCoordinateSpace: (callback: (scope: unknown) => void) =>
@@ -43,10 +62,11 @@ const draw = (views: ShapeView[]) => {
   const primitive = createDrawingsPrimitive(
     () => views,
     () => '#131722',
+    () => measure,
   )
   const paneView = primitive.paneViews?.()[0]
   paneView?.renderer()?.draw(target as never)
-  return { calls, primitive, zOrder: paneView?.zOrder?.() }
+  return { calls, strokes, primitive, zOrder: paneView?.zOrder?.() }
 }
 
 test('Should stroke every segment of each drawing with its own style', () => {
@@ -89,6 +109,66 @@ test('Should draw handles only on the selected drawing', () => {
   expect(selected).toContain('fill #131722 1')
 })
 
+test('Should dash or dot a line in step with its width and keep the others solid', () => {
+  const { strokes } = draw([
+    view({ color: '#A', width: 1, lineStyle: 'dashed' }),
+    view({ color: '#B', width: 2, lineStyle: 'dotted' }),
+    view({ color: '#C', width: 2 }),
+  ])
+  expect(strokes).toEqual(['#A alpha 1 dash 5,4', '#B alpha 1 dash 2,4', '#C alpha 1 dash none'])
+})
+
+test('Should paint a translucent line and its fill with its opacity and keep the handles opaque', () => {
+  const { calls, strokes } = draw([
+    view({
+      color: '#FFFFFF',
+      opacity: 0.5,
+      selected: true,
+      fill: [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+        { x: 10, y: 10 },
+      ],
+    }),
+  ])
+  expect(calls).toContain('fill #FFFFFF 0.06')
+  expect(strokes[0]).toBe('#FFFFFF alpha 0.5 dash none')
+  expect(strokes.slice(1).every((stroke) => stroke.includes('alpha 1 dash none'))).toBe(true)
+})
+
+test('Should write the text of a line in its colour even when the line is faint', () => {
+  const { calls } = draw([
+    view({ color: '#FFFFFF', opacity: 0.5, text: { x: 380, y: 40, value: 'Soporte', align: 'right' } }),
+  ])
+  expect(calls).toContain('text Soporte 380,40 right #FFFFFF 1')
+})
+
+test('Should shade a measure, point its arrows to where it ends and write its reading below it', () => {
+  const { calls } = draw([], {
+    from: { x: 100, y: 200 },
+    to: { x: 200, y: 120 },
+    color: '#3CC68A',
+    lines: ['+30.00 (+15.00%)', '22 bars, 32d'],
+  })
+  expect(calls).toContain('fillRect 100,120 100x80 #3CC68A 0.15')
+  expect(calls).toContain('moveTo 150,200')
+  expect(calls).toContain('lineTo 150,120')
+  expect(calls).toContain('moveTo 100,160')
+  expect(calls).toContain('lineTo 200,160')
+  expect(calls.filter((call) => call.startsWith('text +30.00 (+15.00%) 150,') || call.startsWith('text 22 bars, 32d 150,'))).toHaveLength(2)
+  expect(calls.find((call) => call.startsWith('fillRect') && call.includes('#3CC68A 1'))).toMatch(/fillRect 94,208 112x40 /)
+})
+
+test('Should write the reading of a measure above it when there is no room below', () => {
+  const { calls } = draw([], { from: { x: 100, y: 200 }, to: { x: 200, y: 290 }, color: '#F25C69', lines: ['−9.00 (−4.50%)', '3 bars, 3d'] })
+  expect(calls.find((call) => call.startsWith('fillRect') && call.includes('#F25C69 1'))).toMatch(/fillRect \d+,152 /)
+})
+
+test('Should keep the reading of a measure inside the pane when it fits neither below nor above', () => {
+  const { calls } = draw([], { from: { x: 100, y: 10 }, to: { x: 200, y: 290 }, color: '#3CC68A', lines: ['+50.00 (+20.00%)', '30 bars, 42d'] })
+  expect(calls.find((call) => call.startsWith('fillRect') && call.includes('#3CC68A 1'))).toMatch(/fillRect \d+,242 /)
+})
+
 test('Should draw above the series', () => {
   expect(draw([view()]).zOrder).toBe('top')
 })
@@ -98,6 +178,19 @@ test('Should label on the price axis the drawings that carry a level', () => {
   const labels = primitive.priceAxisViews?.() ?? []
   expect(labels.map((label) => [label.coordinate(), label.text(), label.backColor(), label.textColor()])).toEqual([
     [120, '210.50', '#F23645', '#FFFFFF'],
+  ])
+})
+
+test('Should write the axis label in a dark colour on light lines so it can be read', () => {
+  const { primitive } = draw([
+    view({ color: '#FFFFFF', label: { y: 80, text: '197.63' } }),
+    view({ color: '#FDD835', label: { y: 90, text: '180.00' } }),
+    view({ color: '#2962FF', label: { y: 100, text: '150.00' } }),
+  ])
+  expect((primitive.priceAxisViews?.() ?? []).map((label) => [label.backColor(), label.textColor()])).toEqual([
+    ['#FFFFFF', '#0E0D0C'],
+    ['#FDD835', '#0E0D0C'],
+    ['#2962FF', '#FFFFFF'],
   ])
 })
 

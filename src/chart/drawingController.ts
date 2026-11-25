@@ -1,7 +1,9 @@
-import type { Drawing, DrawingBase, LinePoint, PaneId, Timeframe } from '../../shared/types'
+import type { Drawing, DrawingBase, DrawingKind, LineLook, LinePoint, PaneId, Timeframe } from '../../shared/types'
+import { withLook } from '../domain/lineLooks'
 import type { Tool } from '../state/appReducer'
 import { type ShapeGeometry, hitTestOutline, moveDrawing, offsetAt, outlineOf } from './drawingShapes'
 import type { XY } from './lineGeometry'
+import type { Measure } from './measure'
 
 export type PaneGeometry = ShapeGeometry
 
@@ -17,10 +19,11 @@ export type ControllerDeps = {
   onLinesChange: (lines: Drawing[]) => void
   onSelect: (id: string | null) => void
   onDraft: (draft: Draft | null) => void
+  onMeasure: (measure: Measure | null) => void
   onToolDone: () => void
   newId: () => string
   priceBasis: () => string
-  defaults: { color: string; width: number }
+  lookFor: (kind: DrawingKind) => LineLook
 }
 
 export type DrawingController = {
@@ -31,6 +34,7 @@ export type DrawingController = {
   key: (key: 'Escape' | 'Delete') => void
   cancel: () => void
   select: (id: string | null) => void
+  clearMeasure: () => void
   syncVisibility: () => void
   getSelectedId: () => string | null
 }
@@ -41,7 +45,11 @@ type Placing = { kind: 'placing'; tool: ShapeTool; pane: PaneId; p1: LinePoint; 
 
 type Dragging = { kind: 'dragging'; part: string; original: Drawing; start: XY }
 
-type Mode = { kind: 'idle' } | Placing | Dragging
+type Measuring = { kind: 'measuring'; p1: LinePoint; start: XY }
+
+type Mode = { kind: 'idle' } | Placing | Dragging | Measuring
+
+const MEASURE_PANE: PaneId = 'price'
 
 const RELEASE_DISTANCE = 5
 const IDLE: Mode = { kind: 'idle' }
@@ -69,6 +77,7 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
   let tool: Tool = 'cursor'
   let mode: Mode = IDLE
   let selectedId: string | null = null
+  let measured = false
 
   const select = (id: string | null): void => {
     if (id === selectedId) return
@@ -113,14 +122,19 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
     deps.onDraft(null)
   }
 
-  const baseOf = (pane: PaneId): DrawingBase => ({
+  const baseOf = (pane: PaneId, look: LineLook): DrawingBase => ({
     id: deps.newId(),
     pane,
     timeframe: deps.getTimeframe(),
-    color: deps.defaults.color,
-    width: deps.defaults.width,
+    color: look.color,
+    width: look.width,
     pricedAt: deps.priceBasis(),
   })
+
+  const styled = <Shape extends Drawing>(kind: DrawingKind, pane: PaneId, shape: (base: DrawingBase) => Shape): Drawing => {
+    const look = deps.lookFor(kind)
+    return withLook(shape(baseOf(pane, look)), look)
+  }
 
   const add = (drawing: Drawing): void => {
     cancelDraft()
@@ -131,9 +145,9 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
 
   const shapeOf = (placing: Placing, p2: LinePoint, offset: number): Drawing => {
     const { pane, p1 } = placing
-    if (placing.tool === 'rect') return { ...baseOf(pane), kind: 'rect', p1, p2 }
-    if (placing.tool === 'channel') return { ...baseOf(pane), kind: 'channel', p1, p2, offset }
-    return { ...baseOf(pane), p1, p2, extendRight: false }
+    if (placing.tool === 'rect') return styled('rect', pane, (base) => ({ ...base, kind: 'rect', p1, p2 }))
+    if (placing.tool === 'channel') return styled('channel', pane, (base) => ({ ...base, kind: 'channel', p1, p2, offset }))
+    return styled('trend', pane, (base) => ({ ...base, p1, p2, extendRight: false }))
   }
 
   const widthAt = (placing: Placing, p2: LinePoint, xy: XY): number | null => {
@@ -181,7 +195,7 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
   const placeLevel = (pane: PaneId, xy: XY): boolean => {
     const at = pointAt(pane, xy)
     if (!at) return false
-    add({ ...baseOf(pane), kind: 'hline', value: at.value })
+    add(styled('hline', pane, (base) => ({ ...base, kind: 'hline', value: at.value })))
     return true
   }
 
@@ -191,16 +205,53 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
     if (moved) replace(withAlertOf({ ...moved, pricedAt: deps.priceBasis() }, storedOf(dragging.original)))
   }
 
+  const clearMeasure = (): void => {
+    if (mode.kind === 'measuring') mode = IDLE
+    if (!measured) return
+    measured = false
+    deps.onMeasure(null)
+  }
+
+  const showMeasure = (p1: LinePoint, xy: XY): void => {
+    const p2 = pointAt(MEASURE_PANE, xy)
+    if (!p2) return
+    measured = true
+    deps.onMeasure({ pane: MEASURE_PANE, p1, p2 })
+  }
+
+  const startMeasuring = (pane: PaneId, xy: XY): boolean => {
+    const p1 = pointAt(pane, xy)
+    if (pane !== MEASURE_PANE || !p1) return false
+    select(null)
+    mode = { kind: 'measuring', p1, start: xy }
+    showMeasure(p1, xy)
+    return true
+  }
+
+  const finishMeasuring = (measuring: Measuring, xy: XY): void => {
+    showMeasure(measuring.p1, xy)
+    mode = IDLE
+    tool = 'cursor'
+    deps.onToolDone()
+  }
+
   const setTool = (next: Tool): void => {
     if (mode.kind === 'placing') cancelDraft()
+    if (mode.kind === 'measuring') clearMeasure()
     tool = next
   }
 
   const pointerDown = (pane: PaneId, xy: XY): boolean => {
+    if (mode.kind === 'measuring') {
+      if (pane === MEASURE_PANE) finishMeasuring(mode, xy)
+      return true
+    }
     if (mode.kind === 'placing') {
       if (mode.pane === pane) advance(mode, xy)
       return true
     }
+    clearMeasure()
+    if (tool === 'measure') return startMeasuring(pane, xy)
     if (tool === 'hline') return placeLevel(pane, xy)
     if (tool !== 'cursor') return startPlacing(tool, pane, xy)
     const hit = hitAt(pane, xy)
@@ -214,6 +265,10 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
   }
 
   const pointerMove = (pane: PaneId, xy: XY): CursorKind => {
+    if (mode.kind === 'measuring') {
+      if (pane === MEASURE_PANE) showMeasure(mode.p1, xy)
+      return 'crosshair'
+    }
     if (mode.kind === 'dragging') {
       dragTo(mode, xy)
       return 'grabbing'
@@ -231,6 +286,10 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
       mode = IDLE
       return
     }
+    if (mode.kind === 'measuring') {
+      if (pane === MEASURE_PANE && Math.hypot(xy.x - mode.start.x, xy.y - mode.start.y) > RELEASE_DISTANCE) finishMeasuring(mode, xy)
+      return
+    }
     if (mode.kind !== 'placing' || mode.pane !== pane) return
     const moved = Math.hypot(xy.x - mode.start.x, xy.y - mode.start.y)
     if (moved > RELEASE_DISTANCE) advance(mode, xy)
@@ -244,6 +303,12 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
   }
 
   const key = (pressed: 'Escape' | 'Delete'): void => {
+    if (pressed === 'Escape' && (mode.kind === 'measuring' || measured)) {
+      clearMeasure()
+      tool = 'cursor'
+      deps.onToolDone()
+      return
+    }
     if (pressed === 'Escape' && (mode.kind === 'placing' || tool !== 'cursor')) {
       cancelDraft()
       deps.onToolDone()
@@ -267,6 +332,7 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
     key,
     cancel,
     select,
+    clearMeasure,
     syncVisibility,
     getSelectedId: () => selectedId,
   }

@@ -200,4 +200,4 @@ export const THEME_OPTIONS: { name: ThemeName; label: string }[] = [
   { name: 'light', label: 'Light' },
 ]
 
-export const LINE_COLORS = ['#2962FF', '#F23645', '#089981', '#FF9800', '#9C27B0', '#00BCD4', '#FDD835', '#787B86']
+export const LINE_COLORS = ['#2962FF', '#F23645', '#089981', '#FF9800', '#9C27B0', '#00BCD4', '#FDD835', '#787B86', '#FFFFFF']

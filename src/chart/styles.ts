@@ -123,10 +123,68 @@ export const Swatch = styled.button<{ $color: string }>`
   border-radius: 50%;
   background: ${(props) => props.$color};
   border: 2px solid ${(props) => props.theme.ui.popup};
+  box-shadow: inset 0 0 0 1px ${(props) => props.theme.ui.border};
 
   &[aria-pressed='true'] {
-    box-shadow: 0 0 0 2px ${(props) => props.theme.ui.text};
+    box-shadow:
+      0 0 0 2px ${(props) => props.theme.ui.text},
+      inset 0 0 0 1px ${(props) => props.theme.ui.border};
   }
+`
+
+export const OpacitySlider = styled.input`
+  width: 72px;
+  accent-color: ${(props) => props.theme.ui.accent};
+  cursor: pointer;
+`
+
+export const StyleAnchor = styled.div`
+  position: relative;
+`
+
+export const StylePanel = styled.div`
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  transform: translateX(-50%);
+  background: ${(props) => props.theme.ui.popup};
+  border: 1px solid ${(props) => props.theme.ui.border};
+  border-radius: 6px;
+  box-shadow: 0 2px 8px ${(props) => props.theme.ui.shadow};
+`
+
+export const StyleRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+`
+
+export const LineText = styled.input`
+  width: 110px;
+  height: 26px;
+  padding: 0 8px;
+  font-size: 12px;
+  color: ${(props) => props.theme.ui.text};
+  background: ${(props) => props.theme.ui.panel};
+  border: 1px solid ${(props) => props.theme.ui.border};
+  border-radius: 4px;
+
+  &:focus {
+    outline: none;
+    border-color: ${(props) => props.theme.ui.accent};
+  }
+`
+
+export const OpacityValue = styled.span`
+  min-width: 32px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: ${(props) => props.theme.ui.textMuted};
 `
 
 export const ToolbarButton = styled.button`

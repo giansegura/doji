@@ -2,6 +2,7 @@ import { LIST_NAME_MAX_LENGTH, MAX_LISTS, NOTE_MAX_LENGTH } from '../../shared/l
 import { toListIcon } from '../../shared/listIcon'
 import { isSection } from '../../shared/listItems'
 import { clampListWidth } from '../../shared/listWidth'
+import { sameLook } from '../domain/lineLooks'
 import type {
   AppState,
   ChartSettings,
@@ -12,10 +13,12 @@ import type {
   ThemeName,
   Timeframe,
   Drawing,
+  DrawingKind,
+  LineLook,
   WatchlistSort,
 } from '../../shared/types'
 
-export type Tool = 'cursor' | 'trendline' | 'hline' | 'channel' | 'rect'
+export type Tool = 'cursor' | 'trendline' | 'hline' | 'channel' | 'rect' | 'measure'
 
 export type Action =
   | { type: 'setTheme'; theme: ThemeName }
@@ -42,6 +45,7 @@ export type Action =
   | { type: 'toggleSecondChart' }
   | { type: 'setSecondChart'; timeframe: Timeframe }
   | { type: 'setWatchlistSort'; sort: WatchlistSort | null }
+  | { type: 'rememberLook'; kind: DrawingKind; look: LineLook }
 
 const COPY_SUFFIXES = [' (copy)', ...Array.from({ length: MAX_LISTS }, (_, index) => ` (copy ${index + 2})`)]
 
@@ -200,6 +204,9 @@ const setLines = (state: AppState, symbol: string, lines: Drawing[]): AppState =
   return { ...state, lines: lines.length > 0 ? { ...others, [symbol]: lines } : others }
 }
 
+const rememberLook = (state: AppState, kind: DrawingKind, look: LineLook): AppState =>
+  sameLook(state.lineLooks[kind], look) ? state : { ...state, lineLooks: { ...state.lineLooks, [kind]: look } }
+
 export const appReducer = (state: AppState, action: Action): AppState => {
   if (action.type === 'setTheme') return action.theme === state.theme ? state : { ...state, theme: action.theme }
   if (action.type === 'setTimeframe') {
@@ -226,5 +233,6 @@ export const appReducer = (state: AppState, action: Action): AppState => {
   if (action.type === 'toggleSecondChart') return toggleSecondChart(state)
   if (action.type === 'setSecondChart') return setSecondChart(state, action.timeframe)
   if (action.type === 'setWatchlistSort') return { ...state, watchlistSort: action.sort }
+  if (action.type === 'rememberLook') return rememberLook(state, action.kind, action.look)
   return setLines(state, action.symbol, action.lines)
 }

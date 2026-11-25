@@ -57,6 +57,8 @@ const setup = (initial: Props = {}) => {
         lines={[line]}
         tool={props.tool ?? 'trendline'}
         onLinesChange={onLinesChange}
+        looks={{}}
+        onLook={() => undefined}
         onToolDone={() => undefined}
         onRetry={onRetry}
       />

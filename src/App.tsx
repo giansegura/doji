@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ThemeProvider } from 'styled-components'
 import { todayIso } from '../shared/dates'
 import { symbolsOf } from '../shared/listItems'
-import type { AppState, Drawing, SymbolInfo } from '../shared/types'
+import type { AppState, Drawing, DrawingKind, LineLook, SymbolInfo } from '../shared/types'
 import { ChartArea } from './components/ChartArea'
 import { LeftToolbar } from './components/LeftToolbar'
 import { ListPicker } from './components/ListPicker'
@@ -83,6 +83,8 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
     lines: drawings,
     tool,
     onLinesChange: changeDrawings,
+    looks: state.lineLooks,
+    onLook: (kind: DrawingKind, look: LineLook) => dispatch({ type: 'rememberLook', kind, look }),
     onToolDone: () => setTool('cursor'),
     onRetry: retry,
   }

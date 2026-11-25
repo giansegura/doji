@@ -1,4 +1,6 @@
-import { screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { ThemeProvider } from 'styled-components'
+import { themes } from '../theme/tokens'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import type { Drawing, TrendLine } from '../../shared/types'
@@ -25,6 +27,8 @@ const setup = (over: Partial<TrendLine> = {}) => {
 
 const pressed = (name: string): string | null => screen.getByRole('button', { name }).getAttribute('aria-pressed')
 
+const openStyle = (user: ReturnType<typeof userEvent.setup>) => user.click(screen.getByRole('button', { name: 'Line style' }))
+
 test('Should mark the current colour and report a new one', async () => {
   const { handlers, user } = setup()
   expect(pressed('Color #2962FF')).toBe('true')
@@ -35,6 +39,7 @@ test('Should mark the current colour and report a new one', async () => {
 
 test('Should mark the current width and report a new one', async () => {
   const { handlers, user } = setup()
+  await openStyle(user)
   expect(pressed('Width 2')).toBe('true')
   expect(pressed('Width 4')).toBe('false')
   await user.click(screen.getByRole('button', { name: 'Width 4' }))
@@ -83,6 +88,7 @@ test('Should change the colour and the width of any kind of drawing and keep the
   const onChange = vi.fn()
   renderWithTheme(<LineToolbar line={others[1]} onChange={onChange} onDelete={vi.fn()} />)
   const user = userEvent.setup()
+  await openStyle(user)
   await user.click(screen.getByRole('button', { name: 'Width 4' }))
   expect(onChange).toHaveBeenCalledWith({ ...others[1], width: 4 })
 })
@@ -128,4 +134,151 @@ test('Should say that an alert has just been armed, and not when it is disarmed'
 test('Should not offer an alert on a drawing of the RSI pane', () => {
   setup({ pane: 'rsi' })
   expect(screen.queryByRole('button', { name: 'Alert' })).toBeNull()
+})
+
+test('Should offer white among the colours', async () => {
+  const { handlers, user } = setup()
+  await user.click(screen.getByRole('button', { name: 'Color #FFFFFF' }))
+  expect(handlers.onChange).toHaveBeenCalledWith({ ...line, color: '#FFFFFF' })
+})
+
+test('Should mark the current stroke and switch it to dashed, dotted or back to solid', async () => {
+  const { handlers, user } = setup()
+  await openStyle(user)
+  expect(pressed('Solid line')).toBe('true')
+  expect(pressed('Dashed line')).toBe('false')
+  await user.click(screen.getByRole('button', { name: 'Dashed line' }))
+  expect(handlers.onChange).toHaveBeenLastCalledWith({ ...line, lineStyle: 'dashed' })
+  await user.click(screen.getByRole('button', { name: 'Dotted line' }))
+  expect(handlers.onChange).toHaveBeenLastCalledWith({ ...line, lineStyle: 'dotted' })
+})
+
+test('Should turn a dashed line back to solid without leaving the setting behind', async () => {
+  const { handlers, user } = setup({ lineStyle: 'dashed' })
+  await openStyle(user)
+  expect(pressed('Dashed line')).toBe('true')
+  await user.click(screen.getByRole('button', { name: 'Solid line' }))
+  expect(handlers.onChange).toHaveBeenCalledWith(line)
+})
+
+test('Should show the opacity in percent and change it from the slider', async () => {
+  const { handlers, user } = setup({ opacity: 0.4 })
+  await openStyle(user)
+  const slider = screen.getByRole('slider', { name: 'Opacity' })
+  expect(slider.getAttribute('value')).toBe('40')
+  expect(screen.getByText('40%')).toBeTruthy()
+  fireEvent.change(slider, { target: { value: '55' } })
+  expect(handlers.onChange).toHaveBeenLastCalledWith({ ...line, opacity: 0.55 })
+  fireEvent.change(slider, { target: { value: '100' } })
+  expect(handlers.onChange).toHaveBeenLastCalledWith(line)
+})
+
+test('Should show a line fully opaque when it has no opacity of its own', async () => {
+  const { user } = setup()
+  await openStyle(user)
+  expect(screen.getByRole('slider', { name: 'Opacity' }).getAttribute('value')).toBe('100')
+})
+
+test('Should hide and show again the price of a horizontal line on the axis', async () => {
+  const hline = others[0]
+  const onChange = vi.fn()
+  const first = renderWithTheme(<LineToolbar line={hline} onChange={onChange} onDelete={vi.fn()} />)
+  const user = userEvent.setup()
+  expect(pressed('Price on the axis')).toBe('true')
+  await user.click(screen.getByRole('button', { name: 'Price on the axis' }))
+  expect(onChange).toHaveBeenLastCalledWith({ ...hline, hidePrice: true })
+  first.unmount()
+  renderWithTheme(<LineToolbar line={{ ...hline, hidePrice: true } as Drawing} onChange={onChange} onDelete={vi.fn()} />)
+  expect(pressed('Price on the axis')).toBe('false')
+  await user.click(screen.getByRole('button', { name: 'Price on the axis' }))
+  expect(onChange).toHaveBeenLastCalledWith(hline)
+})
+
+test('Should offer to hide the price only on a horizontal line', () => {
+  setup()
+  expect(screen.queryByRole('button', { name: 'Price on the axis' })).toBeNull()
+})
+
+test('Should write a text on a line and save it when leaving the field or pressing Enter', async () => {
+  const { handlers, user } = setup()
+  const field = screen.getByRole('textbox', { name: 'Text on the line' })
+  await user.type(field, 'Soporte semanal')
+  expect(handlers.onChange).not.toHaveBeenCalled()
+  await user.keyboard('{Enter}')
+  expect(handlers.onChange).toHaveBeenLastCalledWith({ ...line, text: 'Soporte semanal' })
+  expect(handlers.onChange).toHaveBeenCalledTimes(1)
+  expect(document.activeElement).not.toBe(field)
+})
+
+test('Should take the text away when the field is emptied', async () => {
+  const { handlers, user } = setup({ text: 'R1' })
+  const field = screen.getByRole('textbox', { name: 'Text on the line' })
+  expect((field as HTMLInputElement).value).toBe('R1')
+  await user.clear(field)
+  await user.tab()
+  expect(handlers.onChange).toHaveBeenLastCalledWith(line)
+})
+
+test('Should offer a text only on trend lines and horizontal lines', () => {
+  const offered = others.map((drawing) => {
+    const { unmount } = renderWithTheme(<LineToolbar line={drawing} onChange={vi.fn()} onDelete={vi.fn()} />)
+    const found = screen.queryByRole('textbox', { name: 'Text on the line' }) !== null
+    unmount()
+    return found
+  })
+  expect(offered).toEqual([true, false, false])
+})
+
+test('Should keep the width, the stroke and the opacity in a panel that opens from the line style button', async () => {
+  const { user } = setup({ lineStyle: 'dotted' })
+  const button = screen.getByRole('button', { name: 'Line style' })
+  expect(button.getAttribute('aria-expanded')).toBe('false')
+  expect(screen.queryByRole('group', { name: 'Line style' })).toBeNull()
+  await user.click(button)
+  expect(button.getAttribute('aria-expanded')).toBe('true')
+  expect(screen.getByRole('group', { name: 'Line style' })).toBeTruthy()
+  await user.click(button)
+  expect(screen.queryByRole('group', { name: 'Line style' })).toBeNull()
+})
+
+test('Should save a text typed without pressing Enter as soon as something else is pressed, and only once', async () => {
+  const onChange = vi.fn()
+  const { unmount } = renderWithTheme(<LineToolbar line={line} onChange={onChange} onDelete={vi.fn()} />)
+  await userEvent.setup().type(screen.getByRole('textbox', { name: 'Text on the line' }), 'Techo')
+  fireEvent.pointerDown(document.body)
+  expect(onChange).toHaveBeenCalledWith({ ...line, text: 'Techo' })
+  fireEvent.pointerDown(document.body)
+  unmount()
+  expect(onChange).toHaveBeenCalledTimes(1)
+})
+
+test('Should leave the drawings alone when the bar goes away with a text half typed', async () => {
+  const onChange = vi.fn()
+  const { unmount } = renderWithTheme(<LineToolbar line={line} onChange={onChange} onDelete={vi.fn()} />)
+  await userEvent.setup().type(screen.getByRole('textbox', { name: 'Text on the line' }), 'Techo')
+  unmount()
+  expect(onChange).not.toHaveBeenCalled()
+})
+
+test('Should not leave the text field on Enter while a character is still being composed', async () => {
+  const { handlers, user } = setup()
+  const field = screen.getByRole('textbox', { name: 'Text on the line' })
+  await user.type(field, 'R1')
+  fireEvent.keyDown(field, { key: 'Enter', isComposing: true })
+  expect(document.activeElement).toBe(field)
+  expect(handlers.onChange).not.toHaveBeenCalled()
+})
+
+test('Should follow a text changed elsewhere while the field is untouched, and never send it back', () => {
+  const onChange = vi.fn()
+  const ui = (text: string) => (
+    <ThemeProvider theme={themes.midnight}>
+      <LineToolbar line={{ ...line, text }} onChange={onChange} onDelete={vi.fn()} />
+    </ThemeProvider>
+  )
+  const view = render(ui('R1'))
+  view.rerender(ui('R2'))
+  expect((screen.getByRole('textbox', { name: 'Text on the line' }) as HTMLInputElement).value).toBe('R2')
+  fireEvent.pointerDown(document.body)
+  expect(onChange).not.toHaveBeenCalled()
 })

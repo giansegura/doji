@@ -24,6 +24,7 @@ test('Should arm each drawing tool with Alt and its letter', () => {
   expect(shortcutFor(key({ code: 'KeyH', altKey: true }), false)).toEqual({ kind: 'tool', tool: 'hline' })
   expect(shortcutFor(key({ code: 'KeyC', altKey: true }), false)).toEqual({ kind: 'tool', tool: 'channel' })
   expect(shortcutFor(key({ code: 'KeyR', altKey: true }), false)).toEqual({ kind: 'tool', tool: 'rect' })
+  expect(shortcutFor(key({ code: 'KeyM', altKey: true }), false)).toEqual({ kind: 'tool', tool: 'measure' })
   expect(shortcutFor(key({ code: 'KeyT' }), false)).toBeNull()
   expect(shortcutFor(key({ code: 'KeyT', altKey: true, metaKey: true }), false)).toBeNull()
 })

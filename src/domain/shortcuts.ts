@@ -15,7 +15,7 @@ export type Shortcut =
   | { kind: 'tool'; tool: Tool }
   | { kind: 'step'; by: 1 | -1 }
 
-const TOOL_KEYS: Record<string, Tool> = { KeyT: 'trendline', KeyH: 'hline', KeyC: 'channel', KeyR: 'rect' }
+const TOOL_KEYS: Record<string, Tool> = { KeyT: 'trendline', KeyH: 'hline', KeyC: 'channel', KeyR: 'rect', KeyM: 'measure' }
 const STEPS: Record<string, 1 | -1> = { ArrowDown: 1, ArrowUp: -1 }
 
 const editShortcut = (event: KeyLike): Shortcut | null => {
