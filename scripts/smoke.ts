@@ -1301,6 +1301,61 @@ await step('con la clave de reserva, Twelve Data entra cuando Yahoo falla tres v
   await page.keyboard.press('Escape')
 })
 
+await step('la cinta de mercados da precio y cambio del día, abre su gráfico, se edita y se oculta', async () => {
+  const before = await savedState()
+  const strip = page.getByRole('region', { name: 'Market ticker' })
+  await strip.waitFor({ timeout: 5000 })
+  const names = await strip.getByRole('button').evaluateAll((buttons) => buttons.map((item) => item.getAttribute('aria-label') ?? ''))
+  check(
+    JSON.stringify(names.map((name) => name.split(' ')[0])) === JSON.stringify(['S&P', 'Nasdaq', 'VIX', 'EUR/USD', 'Gold', 'Bitcoin', 'Edit']),
+    `la cinta no trae los seis mercados: ${JSON.stringify(names)}`,
+  )
+  await strip.getByRole('button', { name: /^S&P 500 [\d,]+\.\d{2} [+−]?\d+\.\d{2}%$/ }).waitFor({ timeout: 20_000 })
+  await strip.getByRole('button', { name: /^Bitcoin [\d,]+\.\d{2} [+−]?\d+\.\d{2}%$/ }).waitFor({ timeout: 20_000 })
+  await strip.getByRole('button', { name: /^Bitcoin / }).click()
+  await strip.locator('button[aria-current="true"]', { hasText: 'Bitcoin' }).waitFor({ timeout: 5000 })
+  await page.waitForFunction(() => document.title.startsWith('BTC-USD '), undefined, { timeout: 15_000 })
+  await button('Edit ticker').click()
+  await button('Remove VIX from the ticker').click()
+  await button('Add to ticker').click()
+  await page.getByPlaceholder('Search symbol or company').fill('NFLX')
+  await page.getByRole('option').filter({ hasText: 'Netflix' }).first().click()
+  await button('Done').click()
+  await strip.getByRole('button', { name: /^NFLX / }).waitFor({ timeout: 5000 })
+  const savedTicker = async (done: (ticker: AppState['ticker']) => boolean): Promise<AppState['ticker']> => {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const { ticker } = await savedState()
+      if (done(ticker)) return ticker
+      await page.waitForTimeout(250)
+    }
+    return (await savedState()).ticker
+  }
+  const edited = await savedTicker((ticker) => ticker.items.some((item) => item.symbol === 'NFLX'))
+  check(
+    JSON.stringify(edited.items.map((item) => item.symbol)) === JSON.stringify(['^GSPC', '^IXIC', 'EURUSD=X', 'GC=F', 'BTC-USD', 'NFLX']),
+    `la cinta editada no se guardó: ${JSON.stringify(edited.items)}`,
+  )
+  await button('Edit ticker').click()
+  await button('Hide ticker').click()
+  await strip.waitFor({ state: 'detached', timeout: 5000 })
+  check((await savedTicker((ticker) => !ticker.visible)).visible === false, 'la cinta oculta no se guardó')
+  await page.reload()
+  await waitForChart()
+  check((await page.getByRole('region', { name: 'Market ticker' }).count()) === 0, 'la cinta oculta volvió al recargar')
+  await button('Settings').click()
+  await page.getByRole('checkbox', { name: 'Market ticker' }).check()
+  await page.keyboard.press('Escape')
+  await strip.getByRole('button', { name: /^NFLX / }).waitFor({ timeout: 5000 })
+  const latest = await savedState()
+  await fetch(`${url}/api/state`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...latest, symbol: before.symbol, ticker: before.ticker }),
+  })
+  await page.reload()
+  await waitForChart()
+})
+
 await step('dos gráficos a la vez con periodos distintos y los mismos dibujos', async () => {
   const charts = page.locator('.tv-lightweight-charts')
   const picker = page.getByRole('group', { name: 'Second chart timeframe' })

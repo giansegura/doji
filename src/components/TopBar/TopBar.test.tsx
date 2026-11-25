@@ -20,6 +20,7 @@ const setup = (indicators: Indicators = DEFAULT_STATE.indicators) => {
     onImportConfig: vi.fn(),
     onSplit: vi.fn(),
     onShareHoldings: vi.fn(),
+    onTicker: vi.fn(),
   }
   renderWithTheme(
     <TopBar
@@ -31,6 +32,7 @@ const setup = (indicators: Indicators = DEFAULT_STATE.indicators) => {
       notice={null}
       split={false}
       shareHoldings={false}
+      ticker={false}
       alerts={<div>Panel de alertas</div>}
       armedAlerts={2}
       {...handlers}
@@ -347,6 +349,15 @@ test('Should keep the positions away from the AI until the user shares them', as
   expect(share.checked).toBe(false)
   await user.click(share)
   expect(handlers.onShareHoldings).toHaveBeenCalledWith(true)
+})
+
+test('Should bring back the hidden market ticker from the settings', async () => {
+  const { handlers, user } = setup()
+  await openConfigMenu(user)
+  const ticker = screen.getByRole('checkbox', { name: 'Market ticker' }) as HTMLInputElement
+  expect(ticker.checked).toBe(false)
+  await user.click(ticker)
+  expect(handlers.onTicker).toHaveBeenCalledWith(true)
 })
 
 test('Should ask for the configuration to be exported', async () => {

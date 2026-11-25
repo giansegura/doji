@@ -25,6 +25,7 @@ import { toFlags } from './flags'
 import { toFilters } from './filters'
 import { toHoldings } from './holdings'
 import { toIndicatorAlerts } from './indicatorAlerts'
+import { toTicker } from './ticker'
 import {
   type AppState,
   type ChartSettings,
@@ -445,5 +446,6 @@ export const normalizeState = (raw: unknown): AppState => {
     drawingsLocked: source.drawingsLocked === true,
     lineLooks: toLineLooks(source.lineLooks),
     earningsBadge: source.earningsBadge === true,
+    ticker: toTicker(source.ticker),
   }
 }

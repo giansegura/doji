@@ -44,6 +44,8 @@ type TopBarProps = {
   onImportConfig: (config: AppState) => void
   shareHoldings?: boolean
   onShareHoldings?: (on: boolean) => void
+  ticker?: boolean
+  onTicker?: (on: boolean) => void
   alerts?: ReactNode
   armedAlerts?: number
   split: boolean
@@ -161,6 +163,8 @@ export const TopBar = ({
   onImportConfig,
   shareHoldings = false,
   onShareHoldings,
+  ticker = true,
+  onTicker,
   alerts,
   armedAlerts = 0,
   split,
@@ -469,6 +473,12 @@ export const TopBar = ({
               <Styles.MenuRow>
                 <input type="checkbox" checked={shareHoldings} onChange={(event) => onShareHoldings(event.target.checked)} />
                 <Styles.RowLabel>Share positions with the AI</Styles.RowLabel>
+              </Styles.MenuRow>
+            )}
+            {onTicker && (
+              <Styles.MenuRow>
+                <input type="checkbox" checked={ticker} onChange={(event) => onTicker(event.target.checked)} />
+                <Styles.RowLabel>Market ticker</Styles.RowLabel>
               </Styles.MenuRow>
             )}
             <TelegramPanel />

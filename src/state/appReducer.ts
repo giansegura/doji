@@ -4,6 +4,7 @@ import { isSection } from '../../shared/listItems'
 import { clampListWidth } from '../../shared/listWidth'
 import { isWatchColumn, toWatchColumns } from '../../shared/watchColumns'
 import { isHolding } from '../../shared/holdings'
+import { addToTicker, removeFromTicker } from '../../shared/ticker'
 import { sameLook } from '../domain/lineLooks'
 import type {
   AppState,
@@ -68,6 +69,9 @@ export type Action =
   | { type: 'createWatchlistWith'; id: string; name: string; items: SymbolInfo[] }
   | { type: 'rememberLook'; kind: DrawingKind; look: LineLook }
   | { type: 'setEarningsBadge'; on: boolean }
+  | { type: 'setTickerVisible'; on: boolean }
+  | { type: 'addToTicker'; symbol: string }
+  | { type: 'removeFromTicker'; symbol: string }
 
 const COPY_SUFFIXES = [' (copy)', ...Array.from({ length: MAX_LISTS }, (_, index) => ` (copy ${index + 2})`)]
 
@@ -332,5 +336,10 @@ export const appReducer = (state: AppState, action: Action): AppState => {
   if (action.type === 'setOnlyFlagged') return state.onlyFlagged === action.on ? state : { ...state, onlyFlagged: action.on }
   if (action.type === 'rememberLook') return rememberLook(state, action.kind, action.look)
   if (action.type === 'setEarningsBadge') return state.earningsBadge === action.on ? state : { ...state, earningsBadge: action.on }
+  if (action.type === 'setTickerVisible') return state.ticker.visible === action.on ? state : { ...state, ticker: { ...state.ticker, visible: action.on } }
+  if (action.type === 'addToTicker' || action.type === 'removeFromTicker') {
+    const ticker = action.type === 'addToTicker' ? addToTicker(state.ticker, action.symbol) : removeFromTicker(state.ticker, action.symbol)
+    return ticker === state.ticker ? state : { ...state, ticker }
+  }
   return setLines(state, action.symbol, action.lines)
 }

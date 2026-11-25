@@ -10,6 +10,7 @@ import { FilterBar } from './components/FilterBar'
 import { IndicatorAlerts } from './components/IndicatorAlerts'
 import { FilterEditor } from './components/FilterEditor'
 import { LeftToolbar } from './components/LeftToolbar'
+import { MarketTicker } from './components/MarketTicker'
 import { ListPicker } from './components/ListPicker'
 import { AlertToasts } from './components/AlertToasts'
 import { ListResizer } from './components/ListResizer'
@@ -60,7 +61,7 @@ type WorkspaceProps = { state: AppState; dispatch: (action: Action) => void; not
 
 const NO_BARS: Bar[] = []
 
-type SearchMode = 'chart' | 'watchlist' | null
+type SearchMode = 'chart' | 'watchlist' | 'ticker' | null
 
 const NO_DRAWINGS: Drawing[] = []
 
@@ -107,6 +108,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   const filteredItems = filter ? filterItems(scopeItems, filter, { metrics, earnings: viewEarnings, today }) : list.items
   const extraSymbols = everywhere ? symbolsOf(filteredItems).slice(0, MAX_EXTRA_QUOTES).map((item) => item.symbol) : NO_FIELDS
   const { quotes: tracked, live } = useQuotes([...new Set([...listSymbols, ...extraSymbols, state.symbol])])
+  const { quotes: tickerQuotes } = useQuotes(state.ticker.visible ? state.ticker.items.map((item) => item.symbol) : NO_FIELDS)
   const quotes = useMemo(() => freshQuotes(tracked, history), [tracked, history])
   const livePrice = useLivePrice(history, quotes[state.symbol])
   const { fired, dismiss } = useAlerts()
@@ -185,12 +187,17 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
       dispatch({ type: 'addToWatchlist', info })
       return
     }
+    if (searchMode === 'ticker') {
+      dispatch({ type: 'addToTicker', symbol: info.symbol })
+      setSearchMode(null)
+      return
+    }
     dispatch({ type: 'setSymbol', symbol: info.symbol })
     setSearchMode(null)
   }
 
   return (
-    <Styles.Layout $listWidth={state.listWidth}>
+    <Styles.Layout $listWidth={state.listWidth} $ticker={state.ticker.visible}>
       <Styles.Top>
         <TopBar
           symbol={state.symbol}
@@ -217,6 +224,8 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
           onSplit={() => dispatch({ type: 'toggleSecondChart' })}
           shareHoldings={state.shareHoldings}
           onShareHoldings={(on) => dispatch({ type: 'setShareHoldings', on })}
+          ticker={state.ticker.visible}
+          onTicker={(on) => dispatch({ type: 'setTickerVisible', on })}
           armedAlerts={symbolAlerts.filter((alert) => alert.armed).length}
           alerts={
             <IndicatorAlerts
@@ -236,6 +245,19 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
           }
         />
       </Styles.Top>
+      {state.ticker.visible && (
+        <Styles.Ticker>
+          <MarketTicker
+            items={state.ticker.items}
+            quotes={tickerQuotes}
+            active={state.symbol}
+            onPick={(symbol) => dispatch({ type: 'setSymbol', symbol })}
+            onAdd={() => setSearchMode('ticker')}
+            onRemove={(symbol) => dispatch({ type: 'removeFromTicker', symbol })}
+            onHide={() => dispatch({ type: 'setTickerVisible', on: false })}
+          />
+        </Styles.Ticker>
+      )}
       <Styles.Tools>
         <LeftToolbar
           tool={tool}

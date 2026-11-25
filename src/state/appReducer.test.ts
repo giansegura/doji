@@ -357,6 +357,23 @@ test('Should switch the earnings warning of the watchlist on and off', () => {
   expect(appReducer(on, { type: 'setEarningsBadge', on: false }).earningsBadge).toBe(false)
 })
 
+test('Should hide and show the market ticker', () => {
+  const hidden = appReducer(base, { type: 'setTickerVisible', on: false })
+  expect(hidden.ticker.visible).toBe(false)
+  expect(hidden.ticker.items).toBe(base.ticker.items)
+  expect(appReducer(hidden, { type: 'setTickerVisible', on: false })).toBe(hidden)
+  expect(appReducer(hidden, { type: 'setTickerVisible', on: true }).ticker.visible).toBe(true)
+})
+
+test('Should add a symbol to the market ticker once and remove it again', () => {
+  const added = appReducer(base, { type: 'addToTicker', symbol: 'AAPL' })
+  expect(added.ticker.items.at(-1)).toEqual({ symbol: 'AAPL', name: 'AAPL' })
+  expect(appReducer(added, { type: 'addToTicker', symbol: 'AAPL' })).toBe(added)
+  const removed = appReducer(added, { type: 'removeFromTicker', symbol: 'AAPL' })
+  expect(removed.ticker.items).toEqual(base.ticker.items)
+  expect(appReducer(removed, { type: 'removeFromTicker', symbol: 'AAPL' })).toBe(removed)
+})
+
 test('Should add a column to the watchlist and widen the list to make room for it', () => {
   const one = appReducer({ ...base, listWidth: 400 }, { type: 'setWatchlistColumns', columns: ['rsi'] })
   expect(one.watchlistColumns).toEqual(['rsi'])

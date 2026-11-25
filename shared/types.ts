@@ -1,4 +1,5 @@
 import { LIST_DEFAULT_WIDTH } from './limits'
+import { DEFAULT_TICKER, type Ticker } from './ticker'
 
 export type Timeframe = 'D' | 'W' | 'M'
 
@@ -251,6 +252,7 @@ export type AppState = {
   drawingsLocked: boolean
   lineLooks: Partial<Record<DrawingKind, LineLook>>
   earningsBadge: boolean
+  ticker: Ticker
 }
 
 export const DEFAULT_STATE: AppState = {
@@ -308,4 +310,5 @@ export const DEFAULT_STATE: AppState = {
   drawingsLocked: false,
   lineLooks: {},
   earningsBadge: false,
+  ticker: DEFAULT_TICKER,
 }
