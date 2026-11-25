@@ -38,3 +38,20 @@ export const sma = (values: (number | null)[], length: number): (number | null)[
     return index + 1 < length || gaps > 0 ? null : sum / length
   })
 }
+
+export const ema = (values: (number | null)[], length: number): (number | null)[] => {
+  const weight = 2 / (length + 1)
+  const seed: number[] = []
+  let current: number | null = null
+  return values.map((value) => {
+    if (value === null) return null
+    if (current !== null) {
+      current = value * weight + current * (1 - weight)
+      return current
+    }
+    seed.push(value)
+    if (seed.length < length) return null
+    current = seed.reduce((sum, item) => sum + item, 0) / length
+    return current
+  })
+}

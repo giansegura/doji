@@ -1,4 +1,4 @@
-import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react'
+import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState, type ReactNode } from 'react'
 import { MAX_SMAS, SMA_COLORS, SMA_MAX_LENGTH, SMA_MIN_LENGTH } from '../../../shared/limits'
 import { displaySymbol } from '../../../shared/symbols'
 import type {
@@ -43,6 +43,8 @@ type TopBarProps = {
   onImportConfig: (config: AppState) => void
   shareHoldings?: boolean
   onShareHoldings?: (on: boolean) => void
+  alerts?: ReactNode
+  armedAlerts?: number
   split: boolean
   onSplit: () => void
 }
@@ -80,7 +82,7 @@ const CURSOR_MODES: [CursorMode, string][] = [
   ['magnetOhlc', 'Magnet to OHLC'],
 ]
 
-type MenuName = 'indicators' | 'chart' | 'config' | 'theme'
+type MenuName = 'indicators' | 'chart' | 'config' | 'theme' | 'alerts'
 
 const MENU_KEYS: Record<string, (at: number, count: number) => number> = {
   ArrowDown: (at) => at + 1,
@@ -99,6 +101,13 @@ const CameraIcon = () => (
 const ReplayIcon = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
     <path d="M8.5 5L4 9l4.5 4V5zM14 5L9.5 9l4.5 4V5z" strokeLinejoin="round" />
+  </svg>
+)
+
+const BellIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+    <path d="M5 12.5V8.5a4 4 0 0 1 8 0v4l1.2 1.5H3.8z" strokeLinejoin="round" />
+    <path d="M7.5 15.5a1.6 1.6 0 0 0 3 0" strokeLinecap="round" />
   </svg>
 )
 
@@ -151,6 +160,8 @@ export const TopBar = ({
   onImportConfig,
   shareHoldings = false,
   onShareHoldings,
+  alerts,
+  armedAlerts = 0,
   split,
   onSplit,
 }: TopBarProps) => {
@@ -158,6 +169,7 @@ export const TopBar = ({
   const [styleOpenId, setStyleOpenId] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const themeRef = useRef<HTMLDivElement>(null)
+  const alertsRef = useRef<HTMLDivElement>(null)
   const themeButtonRef = useRef<HTMLButtonElement>(null)
   const themeOptionsRef = useRef<(HTMLButtonElement | null)[]>([])
 
@@ -168,7 +180,8 @@ export const TopBar = ({
     }
     const closeOnOutside = (event: PointerEvent) => {
       const target = event.target as Node
-      if (!menuRef.current?.contains(target) && !themeRef.current?.contains(target)) setOpenMenu(null)
+      const inside = [menuRef, themeRef, alertsRef].some((ref) => ref.current?.contains(target))
+      if (!inside) setOpenMenu(null)
     }
     window.addEventListener('keydown', closeOnEscape)
     window.addEventListener('pointerdown', closeOnOutside)
@@ -468,6 +481,21 @@ export const TopBar = ({
         <Styles.Button type="button" title="Replay" aria-label="Replay" aria-pressed={replaying} onClick={onReplay}>
           <ReplayIcon />
         </Styles.Button>
+      )}
+      {alerts && (
+        <Styles.MenuAnchor ref={alertsRef}>
+          <Styles.Button
+            type="button"
+            title="Alerts"
+            aria-label={armedAlerts > 0 ? `Alerts, ${armedAlerts} armed` : 'Alerts'}
+            aria-expanded={openMenu === 'alerts'}
+            onClick={() => toggleMenu('alerts')}
+          >
+            <BellIcon />
+            {armedAlerts > 0 && <Styles.Count>{armedAlerts}</Styles.Count>}
+          </Styles.Button>
+          {openMenu === 'alerts' && <Styles.Menu $right>{alerts}</Styles.Menu>}
+        </Styles.MenuAnchor>
       )}
       {onOpenCalendar && (
         <Styles.Button type="button" title="Earnings calendar" aria-label="Earnings calendar" onClick={onOpenCalendar}>

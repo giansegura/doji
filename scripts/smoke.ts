@@ -1072,6 +1072,39 @@ await step('una alerta la decide el servidor: avisa en pantalla y por Telegram y
   check((await levels()).length === 0, 'la línea de la alerta no se borró')
 })
 
+await step('una alerta sobre un indicador salta en el servidor cuando el día se mueve más de lo pedido', async () => {
+  const symbol = (await savedState()).symbol
+  await button('Alerts').click()
+  await page.getByRole('combobox', { name: 'Condition' }).selectOption('move')
+  await page.getByRole('spinbutton', { name: 'Value' }).fill('2')
+  await page.getByRole('button', { name: 'Add alert' }).click()
+  await page.keyboard.press('Escape')
+  const [alert] = (await savedState()).indicatorAlerts[symbol] ?? []
+  check(alert?.kind === 'move' && alert.value === 2 && alert.armed, `la alerta del indicador no se guardó: ${JSON.stringify(alert)}`)
+  check((await button(/^Alerts, 1 armed$/).count()) === 1, 'la campana no cuenta la alerta armada')
+  const history = await page.evaluate(async (wanted) => (await fetch(`/api/history?symbol=${wanted}`)).json(), symbol)
+  const previous = history.bars.at(-2).close as number
+  const feed = (value: number) =>
+    page.evaluate(
+      async (prices) =>
+        (await fetch('/api/test/prices', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(prices) })).json(),
+      { [symbol]: value },
+    )
+  await feed(previous * 1.001)
+  const answer = (await feed(previous * 1.04)) as { fired: unknown[] }
+  check(answer.fired.length === 1, `el servidor no hizo saltar la alerta del indicador: ${JSON.stringify(answer)}`)
+  await page.getByRole('status').filter({ hasText: `${symbol}: Day move beyond 2%` }).first().waitFor({ timeout: 10_000 })
+  const deadline = Date.now() + 10_000
+  while (Date.now() < deadline && !telegramMessages.some((message) => String(message.text).includes('Day move beyond 2%'))) await page.waitForTimeout(200)
+  check(telegramMessages.some((message) => String(message.text).startsWith(`🔔 ${symbol}: Day move beyond 2%`)), 'la alerta del indicador no llegó por Telegram')
+  check((await savedState()).indicatorAlerts[symbol]?.[0]?.armed === false, 'la alerta del indicador no se desarmó al saltar')
+  await page.getByRole('button', { name: new RegExp(`^Dismiss ${symbol}: Day move`) }).first().click()
+  await button('Alerts').click()
+  await page.getByRole('button', { name: 'Remove alert Day move beyond 2%' }).click()
+  await page.keyboard.press('Escape')
+  check(!(symbol in (await savedState()).indicatorAlerts), 'la alerta del indicador no se quitó')
+})
+
 await step('dos gráficos a la vez con periodos distintos y los mismos dibujos', async () => {
   const charts = page.locator('.tv-lightweight-charts')
   const picker = page.getByRole('group', { name: 'Second chart timeframe' })
@@ -1529,7 +1562,7 @@ await step('el gráfico se ve en euros con el cambio de cada día y sus dibujos 
   await page.waitForTimeout(500)
   const drawn = (await drawingsOf(symbol)).find((drawing) => !existing.includes(drawing.id))
   check(drawn?.currency === 'EUR', `la línea hecha en euros no quedó marcada: ${JSON.stringify(drawn)}`)
-  check((await page.getByRole('button', { name: 'Alert' }).count()) === 0, 'una línea en euros ofrece alerta')
+  check((await page.getByRole('button', { name: 'Alert', exact: true }).count()) === 0, 'una línea en euros ofrece alerta')
   await page.keyboard.press('Delete')
   await button('Chart').click()
   await page.getByRole('radio', { name: 'Symbol currency' }).check()

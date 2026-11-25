@@ -616,3 +616,27 @@ test('Should show the chart in its own currency unless euros were chosen, and ke
   const out = normalizeState({ lines: { KO: [{ ...base, id: 'a', currency: 'EUR' }, { ...base, id: 'b', currency: 'USD' }] } })
   expect(out.lines.KO.map((drawing) => drawing.currency)).toEqual(['EUR', undefined])
 })
+
+test('Should keep the indicator alerts of each symbol and drop the ones it cannot read', () => {
+  expect(normalizeState({}).indicatorAlerts).toEqual({})
+  const out = normalizeState({
+    indicatorAlerts: {
+      KO: [
+        { id: 'r', kind: 'rsi', value: 30, armed: true },
+        { id: 'a', kind: 'average', value: 0, averageId: 's1', armed: false },
+        { id: 'm', kind: 'move', value: 3, armed: 'yes' },
+        { id: 'x', kind: 'volume', value: 3, armed: true },
+        { kind: 'rsi', value: 30, armed: true },
+        { id: 'n', kind: 'move', value: 'big', armed: true },
+      ],
+      PEP: [],
+    },
+  })
+  expect(out.indicatorAlerts).toEqual({
+    KO: [
+      { id: 'r', kind: 'rsi', value: 30, armed: true },
+      { id: 'a', kind: 'average', value: 0, averageId: 's1', armed: false },
+      { id: 'm', kind: 'move', value: 3, armed: false },
+    ],
+  })
+})

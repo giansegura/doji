@@ -439,3 +439,12 @@ test('Should share the positions with the AI only when switched on', () => {
   expect(shared.shareHoldings).toBe(true)
   expect(appReducer(shared, { type: 'setShareHoldings', on: true })).toBe(shared)
 })
+
+test('Should add an indicator alert to a symbol, arm or disarm it and remove it', () => {
+  const alert = { id: 'r', kind: 'rsi' as const, value: 30, armed: true }
+  const added = appReducer(base, { type: 'addIndicatorAlert', symbol: 'KO', alert })
+  expect(added.indicatorAlerts).toEqual({ KO: [alert] })
+  const quiet = appReducer(added, { type: 'armIndicatorAlert', symbol: 'KO', id: 'r', armed: false })
+  expect(quiet.indicatorAlerts.KO[0].armed).toBe(false)
+  expect(appReducer(quiet, { type: 'removeIndicatorAlert', symbol: 'KO', id: 'r' }).indicatorAlerts).toEqual({})
+})

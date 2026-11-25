@@ -161,6 +161,7 @@ export type AlertEvent = {
   direction: 'up' | 'down'
   at: string
   text: string | null
+  label?: string
 }
 
 export type EarningsTiming = 'pre' | 'post'
@@ -181,6 +182,10 @@ export type DrawingKind = 'trend' | 'hline' | 'channel' | 'rect' | 'position'
 export type LineLook = Pick<DrawingBase, 'color' | 'width' | 'lineStyle' | 'opacity'> & { hidePrice?: true }
 
 export type SmaConfig = { id: string; length: number; color: string; width: number; kind?: 'ema' }
+
+export type IndicatorAlertKind = 'rsi' | 'average' | 'move'
+
+export type IndicatorAlert = { id: string; kind: IndicatorAlertKind; value: number; averageId?: string; armed: boolean }
 
 export type Indicators = {
   volume: { visible: boolean }
@@ -226,6 +231,7 @@ export type AppState = {
   activeFilterId: string | null
   holdings: Record<string, Holding>
   shareHoldings: boolean
+  indicatorAlerts: Record<string, IndicatorAlert[]>
   lineLooks: Partial<Record<DrawingKind, LineLook>>
   earningsBadge: boolean
 }
@@ -277,6 +283,7 @@ export const DEFAULT_STATE: AppState = {
   activeFilterId: null,
   holdings: {},
   shareHoldings: false,
+  indicatorAlerts: {},
   lineLooks: {},
   earningsBadge: false,
 }

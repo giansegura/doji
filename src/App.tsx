@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ThemeProvider } from 'styled-components'
 import { todayIso } from '../shared/dates'
 import { symbolsOf } from '../shared/listItems'
-import type { AppState, Bar, Drawing, DrawingKind, LineLook, SavedFilter, SymbolInfo } from '../shared/types'
+import type { AppState, Bar, Drawing, DrawingKind, IndicatorAlert, LineLook, SavedFilter, SymbolInfo } from '../shared/types'
 import { ChartArea } from './components/ChartArea'
 import { EarningsCalendar } from './components/EarningsCalendar'
 import { FilterBar } from './components/FilterBar'
+import { IndicatorAlerts } from './components/IndicatorAlerts'
 import { FilterEditor } from './components/FilterEditor'
 import { LeftToolbar } from './components/LeftToolbar'
 import { ListPicker } from './components/ListPicker'
@@ -35,7 +36,7 @@ import { METRIC_FIELDS, allSymbols, filterItems } from './domain/filters'
 import { onlyFlagged } from './domain/flags'
 import { nextSort, sortItems } from './domain/watchlistSort'
 import { adjustLinesForSplits } from './domain/splits'
-import { useAlerts } from './hooks/useAlerts'
+import { askToNotify, useAlerts } from './hooks/useAlerts'
 import { useCompanyProfile } from './hooks/useCompanyProfile'
 import { useEarnings } from './hooks/useEarnings'
 import { useFxBars } from './hooks/useFxBars'
@@ -61,6 +62,8 @@ const NO_BARS: Bar[] = []
 type SearchMode = 'chart' | 'watchlist' | null
 
 const NO_DRAWINGS: Drawing[] = []
+
+const NO_ALERTS: IndicatorAlert[] = []
 
 const NO_FIELDS: never[] = []
 
@@ -119,6 +122,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   const shownSymbols = symbolsOf(shownItems).map((item) => item.symbol)
   const soon = useMemo(() => earningsSoon(listEarnings.earnings, today), [listEarnings.earnings, today])
   const drawings = state.lines[state.symbol] ?? NO_DRAWINGS
+  const symbolAlerts = state.indicatorAlerts[state.symbol] ?? NO_ALERTS
   const { changeDrawings, forgetDrawings } = useShortcuts({ symbol: state.symbol, drawings, symbols: shownSymbols, dispatch, onTool: setTool })
 
   useEffect(() => {
@@ -211,6 +215,23 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
           onSplit={() => dispatch({ type: 'toggleSecondChart' })}
           shareHoldings={state.shareHoldings}
           onShareHoldings={(on) => dispatch({ type: 'setShareHoldings', on })}
+          armedAlerts={symbolAlerts.filter((alert) => alert.armed).length}
+          alerts={
+            <IndicatorAlerts
+              symbol={state.symbol}
+              alerts={symbolAlerts}
+              averages={state.indicators.sma}
+              onAdd={(draft) => {
+                askToNotify()
+                dispatch({ type: 'addIndicatorAlert', symbol: state.symbol, alert: { ...draft, id: newId() } })
+              }}
+              onArm={(id, armed) => {
+                if (armed) askToNotify()
+                dispatch({ type: 'armIndicatorAlert', symbol: state.symbol, id, armed })
+              }}
+              onRemove={(id) => dispatch({ type: 'removeIndicatorAlert', symbol: state.symbol, id })}
+            />
+          }
         />
       </Styles.Top>
       <Styles.Tools>

@@ -22,6 +22,7 @@ import type {
   FlagColor,
   SavedFilter,
   Holding,
+  IndicatorAlert,
 } from '../../shared/types'
 
 export type Tool = 'cursor' | 'trendline' | 'hline' | 'channel' | 'rect' | 'measure' | 'long' | 'short'
@@ -56,6 +57,9 @@ export type Action =
   | { type: 'setOnlyFlagged'; on: boolean }
   | { type: 'saveFilter'; filter: SavedFilter }
   | { type: 'setHolding'; symbol: string; holding: Holding | null }
+  | { type: 'addIndicatorAlert'; symbol: string; alert: IndicatorAlert }
+  | { type: 'armIndicatorAlert'; symbol: string; id: string; armed: boolean }
+  | { type: 'removeIndicatorAlert'; symbol: string; id: string }
   | { type: 'setShareHoldings'; on: boolean }
   | { type: 'deleteFilter'; id: string }
   | { type: 'applyFilter'; id: string | null }
@@ -206,6 +210,13 @@ const setHolding = (state: AppState, symbol: string, holding: Holding | null): A
   return { ...state, holdings: holding ? { ...others, [symbol]: holding } : others }
 }
 
+const withSymbolAlerts = (state: AppState, symbol: string, alerts: IndicatorAlert[]): AppState => {
+  const { [symbol]: _old, ...others } = state.indicatorAlerts
+  return { ...state, indicatorAlerts: alerts.length > 0 ? { ...others, [symbol]: alerts } : others }
+}
+
+const alertsOf = (state: AppState, symbol: string): IndicatorAlert[] => state.indicatorAlerts[symbol] ?? []
+
 const setFlag = (state: AppState, symbol: string, color: FlagColor | null): AppState => {
   const { [symbol]: previous, ...others } = state.flags
   if ((previous ?? null) === color) return state
@@ -302,6 +313,14 @@ export const appReducer = (state: AppState, action: Action): AppState => {
   if (action.type === 'setFlag') return setFlag(state, action.symbol, action.color)
   if (action.type === 'saveFilter') return saveFilter(state, action.filter)
   if (action.type === 'setHolding') return setHolding(state, action.symbol, action.holding)
+  if (action.type === 'addIndicatorAlert') return withSymbolAlerts(state, action.symbol, [...alertsOf(state, action.symbol), action.alert])
+  if (action.type === 'armIndicatorAlert') {
+    const alerts = alertsOf(state, action.symbol).map((alert) => (alert.id === action.id ? { ...alert, armed: action.armed } : alert))
+    return withSymbolAlerts(state, action.symbol, alerts)
+  }
+  if (action.type === 'removeIndicatorAlert') {
+    return withSymbolAlerts(state, action.symbol, alertsOf(state, action.symbol).filter((alert) => alert.id !== action.id))
+  }
   if (action.type === 'setShareHoldings') return state.shareHoldings === action.on ? state : { ...state, shareHoldings: action.on }
   if (action.type === 'deleteFilter') return deleteFilter(state, action.id)
   if (action.type === 'applyFilter') return applyFilter(state, action.id)

@@ -22,3 +22,7 @@ test('Should add the text of the line and use the decimals of forex', () => {
     '🔔 USDEUR crossed 0.9100 going down, now at 0.9087 · Soporte semanal',
   )
 })
+
+test('Should say what an indicator alert watched instead of a level', () => {
+  expect(alertMessage(alert({ level: 30, price: 58.1, direction: 'down', label: 'RSI 14 crosses 30' }))).toBe('🔔 KO: RSI 14 crosses 30, going down, now at 58.10')
+})

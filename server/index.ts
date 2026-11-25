@@ -89,11 +89,18 @@ const telegram = createTelegram({
 
 const alertBus = createAlertBus()
 
+const historyCache = createHistoryCache({ provider, dir: join(dataDir, 'cache'), now: () => new Date() })
+
 const alertMonitor = createAlertMonitor({
   read: stateStore.read,
   save: stateStore.save,
   join: (symbols, send) => liveHub.join(symbols, send),
   quotes: (symbols) => quotes.get(symbols),
+  closes: async (symbol) => {
+    const history = await historyCache.get(symbol)
+    const last = history.bars.at(-1)
+    return last ? { closes: history.bars.map((bar) => bar.close), lastDay: last.time } : null
+  },
   announce: (alerts) => {
     alertBus.publish(alerts)
     alerts.forEach((alert) => {
@@ -120,8 +127,6 @@ const watchedState: StateStore = {
 const summary = createYahooSummary({ fetch: process.env.DOJI_OFFLINE ? offlineEarningsFetch : networkEarningsFetch })
 
 const profilesFile = join(dataDir, 'cache', 'profiles.json')
-
-const historyCache = createHistoryCache({ provider, dir: join(dataDir, 'cache'), now: () => new Date() })
 
 const api = createApi({
   history: historyCache,

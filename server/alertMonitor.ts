@@ -1,4 +1,5 @@
 import { type FiredAlert, alertLevels, armedSymbols, createAlertWatcher, latestPrice } from '../shared/alerts'
+import { type IndicatorHit, createIndicatorWatcher, indicatorLabel, withLivePrice } from '../shared/indicatorAlerts'
 import type { AlertEvent, AppState, Drawing, LiveTick, Quote } from '../shared/types'
 import type { SaveOutcome } from './stateStore'
 
@@ -7,11 +8,14 @@ type MonitorDeps = {
   save: (state: AppState, baseRev: number) => Promise<SaveOutcome>
   join: (symbols: string[], send: (ticks: LiveTick[]) => void) => () => void
   quotes: (symbols: string[]) => Promise<Quote[]>
+  closes?: (symbol: string) => Promise<DailyCloses | null>
   announce: (alerts: AlertEvent[]) => void
   now: () => Date
   every: (run: () => void, ms: number) => () => void
   newId: () => string
 }
+
+export type DailyCloses = { closes: number[]; lastDay: string }
 
 export type AlertMonitor = {
   start: () => Promise<void>
@@ -23,6 +27,7 @@ export type AlertMonitor = {
 
 const POLL_MS = 30_000
 const SAVE_ATTEMPTS = 3
+const CLOSES_KEEP_MS = 10 * 60_000
 
 const twoDigits = (value: number): string => String(value).padStart(2, '0')
 
@@ -37,8 +42,14 @@ const quiet = (drawing: Drawing): Drawing => {
 const firedOn = (hit: FiredAlert, symbol: string, drawing: Drawing, today: string): boolean =>
   hit.symbol === symbol && hit.drawingId === drawing.id && alertLevels(drawing, today).some((level) => level === hit.level)
 
-const withDisarmed = (state: AppState, hits: FiredAlert[], today: string): AppState => ({
+const withDisarmed = (state: AppState, today: string, hits: FiredAlert[], indicatorHits: IndicatorHit[] = []): AppState => ({
   ...state,
+  indicatorAlerts: Object.fromEntries(
+    Object.entries(state.indicatorAlerts).map(([symbol, alerts]) => [
+      symbol,
+      alerts.map((alert) => (indicatorHits.some((hit) => hit.symbol === symbol && hit.alertId === alert.id) ? { ...alert, armed: false } : alert)),
+    ]),
+  ),
   lines: Object.fromEntries(
     Object.entries(state.lines).map(([symbol, drawings]) => [
       symbol,
@@ -52,8 +63,17 @@ const textOf = (state: AppState, hit: FiredAlert): string | null => {
   return drawing && 'text' in drawing && drawing.text ? drawing.text : null
 }
 
+const indicatorSymbols = (state: AppState): string[] =>
+  Object.entries(state.indicatorAlerts)
+    .filter(([, alerts]) => alerts.some((alert) => alert.armed))
+    .map(([symbol]) => symbol)
+
+const watchedSymbols = (state: AppState): string[] => [...new Set([...armedSymbols(state.lines), ...indicatorSymbols(state)])]
+
 export const createAlertMonitor = (deps: MonitorDeps): AlertMonitor => {
   const watcher = createAlertWatcher()
+  const indicators = createIndicatorWatcher()
+  const kept = new Map<string, { at: number; daily: DailyCloses | null }>()
   let state: AppState | null = null
   let watched = ''
   let leave: (() => void) | null = null
@@ -66,10 +86,32 @@ export const createAlertMonitor = (deps: MonitorDeps): AlertMonitor => {
     return next
   }
 
-  const disarmOnce = async (hits: FiredAlert[], today: string): Promise<AppState | null> => {
+  const dailyOf = async (symbol: string): Promise<DailyCloses | null> => {
+    const known = kept.get(symbol)
+    const now = deps.now().getTime()
+    if (known && now - known.at < CLOSES_KEEP_MS) return known.daily
+    const daily = deps.closes ? await deps.closes(symbol).catch(() => null) : null
+    kept.set(symbol, { at: now, daily })
+    return daily
+  }
+
+  const indicatorHitsFor = async (current: AppState, prices: Record<string, number>, today: string): Promise<IndicatorHit[]> => {
+    const found: IndicatorHit[] = []
+    for (const [symbol, price] of Object.entries(prices)) {
+      const alerts = current.indicatorAlerts[symbol] ?? []
+      if (alerts.length === 0) continue
+      const daily = await dailyOf(symbol)
+      if (!daily || daily.closes.length === 0) continue
+      const live = withLivePrice(daily.closes, daily.lastDay, price, daily.lastDay)
+      found.push(...indicators.check(symbol, alerts, live, current.indicators.sma, today))
+    }
+    return found
+  }
+
+  const disarmOnce = async (today: string, hits: FiredAlert[], indicatorHits: IndicatorHit[]): Promise<AppState | null> => {
     try {
       const fresh = await deps.read()
-      const next = withDisarmed(fresh, hits, today)
+      const next = withDisarmed(fresh, today, hits, indicatorHits)
       const outcome = await deps.save(next, fresh.rev)
       return outcome.ok ? { ...next, rev: outcome.rev } : null
     } catch {
@@ -77,9 +119,9 @@ export const createAlertMonitor = (deps: MonitorDeps): AlertMonitor => {
     }
   }
 
-  const disarm = async (hits: FiredAlert[], today: string): Promise<AppState | null> => {
+  const disarm = async (today: string, hits: FiredAlert[], indicatorHits: IndicatorHit[]): Promise<AppState | null> => {
     for (let attempt = 0; attempt < SAVE_ATTEMPTS; attempt += 1) {
-      const saved = await disarmOnce(hits, today)
+      const saved = await disarmOnce(today, hits, indicatorHits)
       if (saved) return saved
     }
     return null
@@ -90,12 +132,13 @@ export const createAlertMonitor = (deps: MonitorDeps): AlertMonitor => {
       if (!state || Object.keys(prices).length === 0) return []
       const moment = deps.now()
       const today = dayOf(moment)
-      const hits = watcher.check(state.lines, prices, today)
-      if (hits.length === 0) return []
       const before = state
-      const saved = await disarm(hits, today)
+      const hits = watcher.check(before.lines, prices, today)
+      const indicatorHits = await indicatorHitsFor(before, prices, today)
+      if (hits.length === 0 && indicatorHits.length === 0) return []
+      const saved = await disarm(today, hits, indicatorHits)
       if (saved) stateSaved(saved)
-      const events = hits.map((hit) => ({
+      const lineEvents = hits.map((hit) => ({
         id: deps.newId(),
         symbol: hit.symbol,
         level: hit.level,
@@ -104,6 +147,20 @@ export const createAlertMonitor = (deps: MonitorDeps): AlertMonitor => {
         at: moment.toISOString(),
         text: textOf(before, hit),
       }))
+      const indicatorEvents = indicatorHits.map((hit) => {
+        const alert = before.indicatorAlerts[hit.symbol]?.find((candidate) => candidate.id === hit.alertId)
+        return {
+          id: deps.newId(),
+          symbol: hit.symbol,
+          level: hit.level,
+          price: hit.price,
+          direction: hit.direction,
+          at: moment.toISOString(),
+          text: null,
+          label: alert ? indicatorLabel(alert, before.indicators.sma) : 'Indicator alert',
+        }
+      })
+      const events = [...lineEvents, ...indicatorEvents]
       deps.announce(events)
       return events
     })
@@ -114,7 +171,7 @@ export const createAlertMonitor = (deps: MonitorDeps): AlertMonitor => {
   }
 
   const subscribe = (): void => {
-    const symbols = state ? armedSymbols(state.lines).sort() : []
+    const symbols = state ? watchedSymbols(state).sort() : []
     const key = symbols.join(',')
     if (key === watched) return
     watched = key
@@ -123,7 +180,7 @@ export const createAlertMonitor = (deps: MonitorDeps): AlertMonitor => {
   }
 
   const poll = (): void => {
-    const symbols = state ? armedSymbols(state.lines) : []
+    const symbols = state ? watchedSymbols(state) : []
     if (symbols.length === 0) return
     enqueue(async () => {
       const quotes = await deps.quotes(symbols)

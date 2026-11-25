@@ -10,7 +10,7 @@ const stateWith = (lines: Record<string, Drawing[]>, rev = 5): AppState => ({ ..
 
 const tick = (symbol: string, price: number): LiveTick => ({ symbol, price, change: 0, changePercent: 0, time: 1, session: 'regular', volume: null })
 
-const harness = (initial: AppState, over: { conflicts?: number; quotes?: Quote[]; failures?: number } = {}) => {
+const harness = (initial: AppState, over: { conflicts?: number; quotes?: Quote[]; closes?: number[]; failures?: number } = {}) => {
   const box = {
     state: initial,
     saves: 0,
@@ -52,6 +52,7 @@ const harness = (initial: AppState, over: { conflicts?: number; quotes?: Quote[]
       box.quotesAsked.push(symbols)
       return over.quotes ?? []
     },
+    closes: async () => ({ closes: over.closes ?? [100, 100], lastDay: '2026-11-23' }),
     announce: (alerts) => {
       box.announced.push(...alerts)
     },
@@ -157,4 +158,35 @@ test('Should leave armed a line moved to another level while its old level fired
   await monitor.settled()
   expect(box.announced.map((alert) => alert.level)).toEqual([100])
   expect(box.state.lines.KO[0]).toMatchObject({ value: 120, alert: true })
+})
+
+const moveAlert = { id: 'm', kind: 'move' as const, value: 3, armed: true }
+
+test('Should listen to the symbols with an armed indicator alert too', async () => {
+  const { box, monitor } = harness({ ...stateWith({}), indicatorAlerts: { KO: [moveAlert], PEP: [{ ...moveAlert, armed: false }] } })
+  await monitor.start()
+  expect(box.joined).toEqual([['KO']])
+})
+
+test('Should fire an indicator alert when the day moves past its percent, disarm it and say what it watched', async () => {
+  const { box, monitor } = harness({ ...stateWith({}), indicatorAlerts: { KO: [moveAlert] } })
+  await monitor.start()
+  box.send?.([tick('KO', 100.5)])
+  await monitor.settled()
+  expect(box.announced).toEqual([])
+  box.send?.([tick('KO', 104)])
+  await monitor.settled()
+  expect(box.announced).toEqual([
+    {
+      id: 'a1',
+      symbol: 'KO',
+      level: 3,
+      price: 104,
+      direction: 'up',
+      at: '2026-11-24T15:00:00.000Z',
+      text: null,
+      label: 'Day move beyond 3%',
+    },
+  ])
+  expect(box.state.indicatorAlerts.KO).toEqual([{ ...moveAlert, armed: false }])
 })

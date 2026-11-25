@@ -6,9 +6,9 @@ import type { Bar, Dividend, Drawing, History, LinePoint, Quote, SmaConfig, Time
 import { alertLevel } from '../shared/alerts'
 import { toMonthly } from '../src/domain/monthly'
 import { positionReading } from '../src/domain/position'
-import { rsi, sma } from '../shared/rsi'
+import { ema, rsi, sma } from '../shared/rsi'
 import { adjustLinesForSplits } from '../src/domain/splits'
-import { bollinger, ema, macd } from '../src/domain/studies'
+import { bollinger, macd } from '../src/domain/studies'
 import { toWeekly } from '../src/domain/weekly'
 
 export type SummaryInput = {

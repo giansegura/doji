@@ -22,6 +22,7 @@ import { WATCH_COLUMNS, toWatchColumns } from './watchColumns'
 import { toFlags } from './flags'
 import { toFilters } from './filters'
 import { toHoldings } from './holdings'
+import { toIndicatorAlerts } from './indicatorAlerts'
 import {
   type AppState,
   type ChartSettings,
@@ -411,6 +412,7 @@ export const normalizeState = (raw: unknown): AppState => {
     activeFilterId: filters.some((filter) => filter.id === activeFilterId) ? activeFilterId : null,
     holdings: toHoldings(source.holdings),
     shareHoldings: source.shareHoldings === true,
+    indicatorAlerts: toIndicatorAlerts(source.indicatorAlerts),
     lineLooks: toLineLooks(source.lineLooks),
     earningsBadge: source.earningsBadge === true,
   }
