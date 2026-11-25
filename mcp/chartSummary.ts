@@ -228,7 +228,10 @@ export const summarizeChart = ({ history, timeframe, bars: count, averages, draw
         bar.volume,
       ]),
     },
-    drawings: adjustLinesForSplits(drawings, history.splits).lines.map((drawing) => describeDrawing(drawing, last.time, digits)),
+    drawings: adjustLinesForSplits(drawings, history.splits).lines.map((drawing) => ({
+      ...describeDrawing(drawing, last.time, digits),
+      ...(drawing.by === 'ai' ? { madeByAi: true } : {}),
+    })),
     note,
   }
 }

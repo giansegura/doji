@@ -11,6 +11,7 @@ export type DojiApi = {
   getEarningsCalendar: (symbols: string[]) => Promise<{ earnings: Record<string, Earnings>; pending: number }>
   getProfile: (symbol: string) => Promise<CompanyProfile>
   getNews: (symbol: string) => Promise<NewsItem[]>
+  getEarnings: (symbol: string) => Promise<Earnings>
 }
 
 type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
@@ -61,6 +62,7 @@ export const createDojiApi = ({ baseUrl, fetch = globalThis.fetch }: ApiDeps): D
     getHistory: (symbol) => read(`/api/history?symbol=${encodeURIComponent(symbol)}`, `doji has no data for ${symbol}.`),
     getQuotes: (symbols) => read(`/api/quotes?symbols=${symbols.map(encodeURIComponent).join(',')}`),
     getEarningsCalendar: (symbols) => askInBatches(symbols, (batch) => read(`/api/earnings/calendar?symbols=${batch.map(encodeURIComponent).join(',')}`)),
+    getEarnings: (symbol) => read(`/api/earnings?symbol=${encodeURIComponent(symbol)}`),
     getNews: (symbol) => read(`/api/news?symbol=${encodeURIComponent(symbol)}`),
     getProfile: (symbol) => read(`/api/profile?symbol=${encodeURIComponent(symbol)}`, `Yahoo has no company data for ${symbol}.`),
   }

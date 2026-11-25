@@ -116,8 +116,12 @@ Herramientas que ofrece:
 | `get_earnings_calendar` | Quién presenta resultados entre dos fechas, en todas tus listas o en una, con la hora (antes de abrir o tras el cierre) si se sabe. |
 | `get_news` | Los últimos titulares de una acción, con su medio, la hora y el enlace. |
 | `get_company_profile` | La ficha de una empresa o fondo: capitalización (o patrimonio), PER, rentabilidad por dividendo, beta, rango de 52 semanas, sector o categoría, país, empleados, web y descripción. |
+| `get_earnings` | Las últimas fechas de resultados de una acción y la próxima (también van dentro de `get_chart`). |
 | `add_horizontal_line` | Dibuja una línea horizontal, con alerta si se pide. |
+| `add_trend_line` | Dibuja una línea de tendencia entre dos puntos (día y precio), extendida a la derecha si se pide, con alerta y texto opcionales. |
 | `set_alert` | Arma o desarma la alerta de una línea existente. |
+| `update_drawing` | Mueve o cambia un dibujo: el precio de una horizontal, los puntos de una tendencia, canal o rectángulo, si se extiende, su color, grosor, trazo, opacidad o texto. |
+| `delete_drawing` | Borra un dibujo, pero solo los que hizo una IA (`get_chart` los marca con `madeByAi`); los tuyos no. La aplicación de IA pide confirmación antes de usarla. |
 | `write_note` | Escribe en la nota de una acción. |
 | `create_watchlist` | Crea una lista, con sus símbolos si se le dan, sin cambiar la que tienes en pantalla. |
 | `add_to_watchlist` | Añade símbolos a una lista, al final o dentro de una de sus secciones. |
@@ -126,7 +130,7 @@ Herramientas que ofrece:
 | `rename_watchlist` | Cambia el nombre de una lista. |
 | `set_watchlist_icon` | Pone o quita el emoji de una lista (`create_watchlist` también acepta uno). |
 
-La IA no puede borrar listas enteras ni dibujos. Sí puede quitar símbolos de una lista (`remove_from_watchlist`) y `write_note` en modo `replace` sustituye la nota entera; las aplicaciones de IA suelen pedir confirmación antes de usar herramientas marcadas como destructivas. Lo que añade aparece en doji en unos segundos, sin recargar; las alertas saltan mientras el servidor de doji esté en marcha, aunque no haya ninguna pestaña abierta.
+La IA no puede borrar listas enteras ni tus dibujos; solo borra los dibujos que hizo ella. Sí puede quitar símbolos de una lista (`remove_from_watchlist`) y `write_note` en modo `replace` sustituye la nota entera; las aplicaciones de IA suelen pedir confirmación antes de usar herramientas marcadas como destructivas. Lo que añade aparece en doji en unos segundos, sin recargar; las alertas saltan mientras el servidor de doji esté en marcha, aunque no haya ninguna pestaña abierta.
 
 Para usarlo, doji tiene que estar en marcha (`npm start`). Después se registra en tu aplicación de IA el comando `<doji>/node_modules/.bin/tsx <doji>/mcp/index.ts`, cambiando `<doji>` por la ruta completa de la carpeta:
 

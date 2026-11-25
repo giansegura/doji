@@ -15,12 +15,15 @@ import {
   addLevel,
   addSectionTo,
   addSymbols,
+  addTrend,
   createList,
+  deleteDrawing,
   keyOf,
   removeSymbols,
   renameList,
   setAlert,
   setListIcon,
+  updateDrawing,
   writeNote,
 } from './edits'
 
@@ -28,10 +31,10 @@ type ServerDeps = { api: DojiApi; newId: () => string; version: string; today?: 
 
 const INSTRUCTIONS = [
   "doji is the user's own stock charting app, running on their computer.",
-  'Use these tools to read the watchlists, charts, earnings dates, drawings and notes of the user, and to add horizontal lines, price alerts and notes.',
+  'Use these tools to read the watchlists, charts, earnings dates, news, company sheets, drawings and notes of the user, to draw horizontal and trend lines, to move, restyle or label drawings, and to set price alerts and notes.',
   'Indicator values are computed by doji: quote them instead of estimating numbers.',
   'Prices come from Yahoo Finance and may be delayed.',
-  'You can also create watchlists, add or remove their symbols, add sections and rename them, but not delete a watchlist or a drawing.',
+  'You can also create watchlists, add or remove their symbols, add sections and rename them, but not delete a watchlist. You can delete only the drawings you made yourself (get_chart marks them with madeByAi).',
   'Whatever you change shows up in doji within a few seconds. Alerts fire while the doji server is running, even with no browser tab open, and also arrive by Telegram when the user linked a bot.',
 ].join(' ')
 
@@ -43,6 +46,8 @@ const SCAN_BATCH = 4
 const MAX_SYMBOLS_PER_CALL = 50
 const LIST_NAME_LIMIT = 40
 const ADDED = 'Added. It shows in doji within a few seconds.'
+const CHANGED = 'Changed. It shows in doji within a few seconds.'
+const DELETED = 'Deleted.'
 const CALENDAR_DAYS = 7
 const TIMING_WORDS = { pre: 'before the opening', post: 'after the close' } as const
 const isCalendarDay = (text: string): boolean => {
@@ -57,6 +62,12 @@ const timeframeField = z.enum(['D', 'W', 'M']).describe('D daily, W weekly, M mo
 const symbolsField = z.array(symbolField).min(1).max(MAX_SYMBOLS_PER_CALL)
 const iconField = z.string().max(16).describe('An emoji shown before the name of the watchlist, such as 🏦 or 🚀.')
 const watchlistField = z.string().optional().describe('Name or id of the watchlist. Defaults to the active one.')
+const pointField = z.object({
+  date: dateField.describe('Day of the candle, as YYYY-MM-DD.'),
+  price: z.number().describe('Price at that day, in the currency of the symbol.'),
+})
+const colorField = z.string().regex(/^#[0-9A-Fa-f]{6}$/)
+const textField = z.string().max(60).describe('Short label written on the line, such as "R1" or "weekly support".')
 
 const reply = (data: unknown): CallToolResult => ({ content: [{ type: 'text', text: JSON.stringify(data) }] })
 
@@ -189,7 +200,7 @@ export const createDojiServer = ({ api, newId, version, today = todayIso }: Serv
     {
       title: 'Chart summary',
       description:
-        'Summarizes the chart of one symbol: last price and change, extended hours, 52-week range, SMA 20/50/200 and EMA 21 plus the averages the user set, RSI 14, MACD 12/26/9, Bollinger Bands 20/2, volume, recent swing highs and lows, the support and resistance levels around the price (found by doji from the weekly turns and how often the price bounced there), the last four dividends with their ex-dates and the dividend yield of the last twelve months, recent candles, the drawings of the user with their ids, the note of the user for that symbol and, only if the user chose to share positions with the AI, the position held (shares, average price and gain).',
+        'Summarizes the chart of one symbol: last price and change, extended hours, 52-week range, SMA 20/50/200 and EMA 21 plus the averages the user set, RSI 14, MACD 12/26/9, Bollinger Bands 20/2, volume, recent swing highs and lows, the support and resistance levels around the price (found by doji from the weekly turns and how often the price bounced there), the last four dividends with their ex-dates and the dividend yield of the last twelve months, recent candles, the drawings of the user with their ids, the note of the user for that symbol, the past and next earnings dates and, only if the user chose to share positions with the AI, the position held (shares, average price and gain).',
       inputSchema: {
         symbol: symbolField,
         timeframe: timeframeField.optional(),
@@ -201,7 +212,8 @@ export const createDojiServer = ({ api, newId, version, today = todayIso }: Serv
       run(async () => {
         const key = keyOf(symbol)
         const [state, quotes] = await Promise.all([api.getState(), quotesFor(api, [key])])
-        return chartOf(state, key, timeframe ?? 'D', bars ?? DEFAULT_BARS, quotes[key] ?? null)
+        const [chart, earnings] = await Promise.all([chartOf(state, key, timeframe ?? 'D', bars ?? DEFAULT_BARS, quotes[key] ?? null), api.getEarnings(key)])
+        return { ...chart, earnings }
       }),
   )
 
@@ -281,6 +293,21 @@ export const createDojiServer = ({ api, newId, version, today = todayIso }: Serv
   )
 
   server.registerTool(
+    'get_earnings',
+    {
+      title: 'Earnings dates',
+      description: 'Gives the last reported earnings dates of a symbol and the next one, saying whether Yahoo only estimates the next date.',
+      inputSchema: { symbol: symbolField },
+      annotations: { readOnlyHint: true },
+    },
+    ({ symbol }) =>
+      run(async () => {
+        const key = keyOf(symbol)
+        return { symbol: key, ...(await api.getEarnings(key)) }
+      }),
+  )
+
+  server.registerTool(
     'add_horizontal_line',
     {
       title: 'Add a horizontal line',
@@ -307,6 +334,53 @@ export const createDojiServer = ({ api, newId, version, today = todayIso }: Serv
   )
 
   server.registerTool(
+    'add_trend_line',
+    {
+      title: 'Add a trend line',
+      description:
+        'Draws a trend line on the price chart of a symbol between two points, each a day and a price, for a rising support, a falling resistance or a channel edge. extend_right carries it past the second point. With alert true, doji notifies the user when the price crosses it.',
+      inputSchema: {
+        symbol: symbolField,
+        from: pointField.describe('First point of the line.'),
+        to: pointField.describe('Second point, on a later day.'),
+        extend_right: z.boolean().optional().describe('Carry the line on past the second point. Defaults to false.'),
+        alert: z.boolean().optional().describe('Notify the user when the price crosses the line. Defaults to false.'),
+        color: colorField.optional().describe(`Colour as #RRGGBB. Defaults to ${DEFAULT_COLOR}.`),
+        text: textField.optional(),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    },
+    ({ symbol, from, to, extend_right: extendRight, alert, color, text }) =>
+      run(async () => {
+        const key = keyOf(symbol)
+        const pricedAt = splitBasis((await api.getHistory(key)).splits)
+        const id = newId()
+        const line = await update(api, (state) =>
+          addTrend(state, {
+            symbol: key,
+            from,
+            to,
+            extendRight: extendRight ?? false,
+            alert: alert ?? false,
+            color: color ?? DEFAULT_COLOR,
+            text: text ?? null,
+            id,
+            pricedAt,
+          }),
+        )
+        return {
+          id: line.id,
+          symbol: key,
+          from: { date: line.p1.date, price: line.p1.value },
+          to: { date: line.p2.date, price: line.p2.value },
+          extendRight: line.extendRight,
+          alert: line.alert === true,
+          message: ADDED,
+        }
+      }),
+  )
+
+  server.registerTool(
     'set_alert',
     {
       title: 'Arm or disarm an alert',
@@ -323,6 +397,57 @@ export const createDojiServer = ({ api, newId, version, today = todayIso }: Serv
       run(async () => {
         const drawing = await update(api, (state) => setAlert(state, { symbol, drawingId, on: on ?? true }))
         return { id: drawing.id, symbol: keyOf(symbol), alert: 'alert' in drawing && drawing.alert === true }
+      }),
+  )
+
+  server.registerTool(
+    'update_drawing',
+    {
+      title: 'Move or restyle a drawing',
+      description:
+        'Changes an existing drawing of a symbol: the price of a horizontal line, the two points of a trend line, channel or rectangle, whether a trend line extends to the right, its colour, width (1 to 4), line style (solid, dashed or dotted), opacity (0.1 to 1) or its text (an empty text removes it). Get the ids of the drawings with get_chart. Only what is given changes.',
+      inputSchema: {
+        symbol: symbolField,
+        drawing_id: z.string().min(1).describe('Id of the drawing, as get_chart returns it.'),
+        price: z.number().optional().describe('New price of a horizontal line.'),
+        from: pointField.optional().describe('New first point of a trend line, channel or rectangle.'),
+        to: pointField.optional().describe('New second point of a trend line, channel or rectangle.'),
+        extend_right: z.boolean().optional().describe('Carry a trend line on past its second point, or stop it there.'),
+        color: colorField.optional().describe('Colour as #RRGGBB.'),
+        width: z.number().int().min(1).max(4).optional(),
+        line_style: z.enum(['solid', 'dashed', 'dotted']).optional(),
+        opacity: z.number().min(0.1).max(1).optional(),
+        text: z.string().max(60).optional().describe('Label of a trend or horizontal line. An empty text removes it.'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    },
+    ({ symbol, drawing_id: drawingId, price, from, to, extend_right: extendRight, color, width, line_style: lineStyle, opacity, text }) =>
+      run(async () => {
+        const key = keyOf(symbol)
+        const drawing = await update(api, (state) =>
+          updateDrawing(state, { symbol: key, drawingId, price, from, to, extendRight, color, width, lineStyle, opacity, text }),
+        )
+        return { id: drawing.id, symbol: key, message: CHANGED }
+      }),
+  )
+
+  server.registerTool(
+    'delete_drawing',
+    {
+      title: 'Delete a drawing made by the AI',
+      description:
+        'Deletes a drawing that an AI made earlier (get_chart marks those with madeByAi). Drawings made by the user cannot be deleted from here; ask the user to delete them in doji.',
+      inputSchema: {
+        symbol: symbolField,
+        drawing_id: z.string().min(1).describe('Id of the drawing, as get_chart returns it.'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    },
+    ({ symbol, drawing_id: drawingId }) =>
+      run(async () => {
+        const key = keyOf(symbol)
+        const removed = await update(api, (state) => deleteDrawing(state, { symbol: key, drawingId }))
+        return { id: removed.id, symbol: key, message: DELETED }
       }),
   )
 

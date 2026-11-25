@@ -1898,6 +1898,7 @@ await step('una IA conectada por MCP añade una línea con alerta, una nota y un
   check(Array.isArray(scan.rows) && scan.rows.length > 0, 'scan_watchlist no devolvió filas')
   const chart = await call('get_chart', { symbol, bars: 5 })
   check(typeof chart.price.close === 'number' && chart.recentBars.rows.length === 5, 'get_chart no devolvió el precio y las velas')
+  check(Array.isArray(chart.earnings?.past), 'get_chart no trae las fechas de resultados')
   const level = Number((chart.price.close * 0.97).toFixed(2))
   const { price: seedArea } = await panes()
   const existing = (await drawingsOf(symbol)).map((drawing) => drawing.id)
@@ -1907,6 +1908,21 @@ await step('una IA conectada por MCP añade una línea con alerta, una nota y un
   const seeded = (await drawingsOf(symbol)).find((drawing) => !existing.includes(drawing.id))
   check(seeded?.kind === 'hline', 'la línea propia no se guardó antes de que escribiera la IA')
   const added = await call('add_horizontal_line', { symbol, price: level, alert: true, color: '#FF00FF' })
+  const [first, second] = chart.recentBars.rows as [string, number, number, number, number, number][]
+  const trend = await call('add_trend_line', {
+    symbol,
+    from: { date: first[0], price: first[4] },
+    to: { date: second[0], price: second[4] },
+    extend_right: true,
+  })
+  await call('update_drawing', { symbol, drawing_id: trend.id, color: '#00FFFF', line_style: 'dashed', text: 'IA' })
+  const drawnByAi = (await drawingsOf(symbol)).find((drawing) => drawing.id === trend.id)
+  check(drawnByAi?.color === '#00FFFF' && drawnByAi.lineStyle === 'dashed' && drawnByAi.by === 'ai', `la IA no cambió su línea: ${JSON.stringify(drawnByAi)}`)
+  await call('delete_drawing', { symbol, drawing_id: trend.id })
+  check(!(await drawingsOf(symbol)).some((drawing) => drawing.id === trend.id), 'la IA no borró su línea')
+  const refused = await client.callTool({ name: 'delete_drawing', arguments: { symbol, drawing_id: seeded?.id ?? '' } })
+  check(refused.isError === true, 'la IA pudo borrar una línea del usuario')
+  check((await drawingsOf(symbol)).some((drawing) => drawing.id === seeded?.id), 'la línea del usuario desapareció')
   await call('write_note', { symbol, text: 'Nota escrita por la IA' })
   const listsBefore = (await savedState()).watchlists.length
   const created = await call('create_watchlist', { name: 'Lista de la IA', symbols: ['KO', 'PEP', 'ZZZZ'] })

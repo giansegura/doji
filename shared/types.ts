@@ -117,6 +117,7 @@ export type DrawingBase = {
   pricedAt: string
   lineStyle?: Exclude<LineStyle, 'solid'>
   opacity?: number
+  by?: 'ai'
 }
 
 export type TrendLine = DrawingBase & {

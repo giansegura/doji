@@ -48,10 +48,15 @@ test('Should ask for the sheet of a company and say when there is none', async (
   expect((missing as Error).message).toBe('Yahoo has no company data for EURUSD=X.')
 })
 
-test('Should ask for the headlines of a symbol', async () => {
+test('Should ask for the headlines and the earnings dates of a symbol', async () => {
   const fetch = reply(200, [])
-  await createDojiApi({ baseUrl: BASE, fetch }).getNews('BRK-B')
-  expect(callsOf(fetch)).toEqual([[`${BASE}/api/news?symbol=BRK-B`, 'GET']])
+  const api = createDojiApi({ baseUrl: BASE, fetch })
+  await api.getNews('BRK-B')
+  await api.getEarnings('BRK-B')
+  expect(callsOf(fetch)).toEqual([
+    [`${BASE}/api/news?symbol=BRK-B`, 'GET'],
+    [`${BASE}/api/earnings?symbol=BRK-B`, 'GET'],
+  ])
 })
 
 test('Should say that a symbol is unknown', async () => {

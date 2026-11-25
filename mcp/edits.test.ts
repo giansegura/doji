@@ -1,7 +1,20 @@
 import { expect, test } from 'vitest'
 import { LIST_NAME_MAX_LENGTH, MAX_LISTS, NOTE_MAX_LENGTH } from '../shared/limits'
 import { type AppState, DEFAULT_STATE, type Drawing, type SymbolInfo } from '../shared/types'
-import { addLevel, addSectionTo, addSymbols, createList, removeSymbols, renameList, setAlert, setListIcon, writeNote } from './edits'
+import {
+  addLevel,
+  addSectionTo,
+  addSymbols,
+  addTrend,
+  createList,
+  deleteDrawing,
+  removeSymbols,
+  renameList,
+  setAlert,
+  setListIcon,
+  updateDrawing,
+  writeNote,
+} from './edits'
 
 const base = { pane: 'price' as const, timeframe: 'D' as const, color: '#2962FF', width: 2, pricedAt: '2020-01-01' }
 
@@ -25,6 +38,7 @@ test('Should add a horizontal line on the price at the end of the drawings of th
     color: '#FF9800',
     width: 2,
     pricedAt: '2024-06-10',
+    by: 'ai',
   })
   expect(result.state.lines.KO).toHaveLength(5)
 })
@@ -185,4 +199,82 @@ test('Should put an icon on a watchlist, change it and take it away', () => {
   const cleared = setListIcon(result.state, { listId: 'tech', icon: '' })
   expect(cleared.ok && cleared.detail).toEqual({ id: 'tech', icon: null })
   expect(cleared.ok && 'icon' in cleared.state.watchlists[1]).toBe(false)
+})
+
+const trendRequest = {
+  symbol: 'ko',
+  from: { date: '2026-10-01', price: 58 },
+  to: { date: '2026-11-02', price: 61.5 },
+  extendRight: true,
+  alert: false,
+  color: '#FF9800',
+  text: 'Soporte',
+  id: 'ai-t',
+  pricedAt: '2024-06-10',
+}
+
+test('Should draw a trend line on the price between two points, marked as drawn by the AI', () => {
+  const result = addTrend(state, trendRequest)
+  expect(result.ok && result.state.lines.KO.at(-1)).toEqual({
+    kind: 'trend',
+    id: 'ai-t',
+    pane: 'price',
+    timeframe: 'D',
+    p1: { date: '2026-10-01', value: 58 },
+    p2: { date: '2026-11-02', value: 61.5 },
+    extendRight: true,
+    color: '#FF9800',
+    width: 2,
+    pricedAt: '2024-06-10',
+    text: 'Soporte',
+    by: 'ai',
+  })
+})
+
+test('Should refuse a trend line with dates out of order or a price that is not positive', () => {
+  expect(addTrend(state, { ...trendRequest, to: { date: '2026-09-01', price: 61 } })).toEqual({ ok: false, error: 'The second point must come after the first.' })
+  expect(addTrend(state, { ...trendRequest, from: { date: '2026-10-01', price: 0 } })).toEqual({ ok: false, error: 'The prices must be positive numbers.' })
+  expect(addTrend(state, { ...trendRequest, from: { date: '1 Oct', price: 58 } })).toEqual({ ok: false, error: 'Dates must be written as YYYY-MM-DD.' })
+})
+
+test('Should move a horizontal line, restyle it and write its text', () => {
+  const result = updateDrawing(state, { symbol: 'KO', drawingId: 'h', price: 92, color: '#FFFFFF', lineStyle: 'dashed', opacity: 0.5, width: 1, text: 'R1' })
+  expect(result.ok && result.state.lines.KO[1]).toEqual({ ...level, value: 92, color: '#FFFFFF', lineStyle: 'dashed', opacity: 0.5, width: 1, text: 'R1' })
+})
+
+test('Should move the points of a trend line, extend it and clear its look and text', () => {
+  const styled = { ...state, lines: { KO: [{ ...trend, lineStyle: 'dotted' as const, opacity: 0.4, text: 'x' }] } }
+  const result = updateDrawing(styled, {
+    symbol: 'KO',
+    drawingId: 't',
+    from: { date: '2026-11-03', price: 101 },
+    to: { date: '2026-11-20', price: 125 },
+    extendRight: true,
+    lineStyle: 'solid',
+    opacity: 1,
+    text: '',
+  })
+  expect(result.ok && result.state.lines.KO[0]).toEqual({
+    ...trend,
+    p1: { date: '2026-11-03', value: 101 },
+    p2: { date: '2026-11-20', value: 125 },
+    extendRight: true,
+  })
+})
+
+test('Should refuse to change what a drawing does not have, or a drawing that does not exist', () => {
+  expect(updateDrawing(state, { symbol: 'KO', drawingId: 't', price: 3 })).toEqual({ ok: false, error: 'Only horizontal lines have a single price; move a trend line with from and to.' })
+  expect(updateDrawing(state, { symbol: 'KO', drawingId: 'h', extendRight: true })).toEqual({ ok: false, error: 'Only trend lines can be extended.' })
+  expect(updateDrawing(state, { symbol: 'KO', drawingId: 'zz', color: '#FFFFFF' })).toEqual({ ok: false, error: 'KO has no drawing with id "zz".' })
+})
+
+test('Should delete only the drawings the AI made', () => {
+  const made = { ...trend, id: 'mine', by: 'ai' as const }
+  const withMine = { ...state, lines: { KO: [...state.lines.KO, made] } }
+  const result = deleteDrawing(withMine, { symbol: 'ko', drawingId: 'mine' })
+  expect(result.ok && result.state.lines.KO.map((drawing) => drawing.id)).toEqual(['t', 'h', 'r', 'x'])
+  expect(deleteDrawing(withMine, { symbol: 'KO', drawingId: 't' })).toEqual({
+    ok: false,
+    error: 'The AI can delete only the drawings it made. Ask the user to delete this one in doji.',
+  })
 })
