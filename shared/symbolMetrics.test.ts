@@ -7,9 +7,15 @@ import type { Bar } from './types'
 
 const START = '2015-01-05'
 
+const DAYS = (() => {
+  const days = [START]
+  while (days.length < 1600) days.push(addWeekdays(days[days.length - 1], 1))
+  return days
+})()
+
 const barsOf = (closes: number[], volumeOf: (index: number) => number = () => 1000): Bar[] =>
   closes.map((close, index) => ({
-    time: addWeekdays(START, index),
+    time: DAYS[index],
     open: close * 0.999,
     high: close * 1.01,
     low: close * 0.99,
