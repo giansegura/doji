@@ -24,6 +24,7 @@ import { type TelegramFetch, createTelegram } from './telegram'
 import { removeFile, testHooksOn } from './serverEnv'
 import { createWatchMetrics } from './watchMetrics'
 import { createProfileSource } from './provider/profile'
+import { createNewsCache } from './newsCache'
 import { createYahooSummary } from './provider/yahooSummary'
 
 const HOST = '127.0.0.1'
@@ -129,6 +130,7 @@ const api = createApi({
   state: watchedState,
   telegram,
   ...(testHooksOn(process.env) ? { testPrices: (prices: Record<string, number>) => alertMonitor.check(prices) } : {}),
+  news: createNewsCache({ fetchNews: provider.news, now: () => new Date() }),
   profiles: createProfileSource({
     summary,
     now: () => new Date(),

@@ -1472,6 +1472,17 @@ await step('la ficha de la empresa enseña sus cifras al abrir el panel', async 
   check((await page.getByText('Market cap', { exact: true }).count()) === 0, 'la ficha no se plegó')
 })
 
+await step('las noticias de la acción se abren en otra pestaña', async () => {
+  const symbol = (await savedState()).symbol
+  await button(`News for ${symbol}`).click()
+  const first = page.getByRole('listitem').getByRole('link').first()
+  await first.waitFor({ timeout: 20_000 })
+  check(((await first.getAttribute('href')) ?? '').startsWith('https://'), 'el titular no enlaza a una web segura')
+  check((await first.getAttribute('target')) === '_blank', 'el titular no se abre en otra pestaña')
+  check((await page.getByText(/ · (just now|\d+[mhd] ago|[A-Z][a-z]{2} \d{1,2})$/).count()) > 0, 'los titulares no dicen su medio y cuándo salieron')
+  await button(`News for ${symbol}`).click()
+})
+
 await step('oculta y muestra el RSI', async () => {
   await button('Indicators').click()
   await page.getByRole('checkbox', { name: 'RSI', exact: true }).click()

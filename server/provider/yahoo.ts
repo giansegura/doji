@@ -1,4 +1,4 @@
-import type { Bar, Dividend, ExtendedQuote, ExtendedSession, History, Quote, Split, SymbolInfo } from '../../shared/types'
+import type { Bar, Dividend, ExtendedQuote, ExtendedSession, History, NewsItem, Quote, Split, SymbolInfo } from '../../shared/types'
 
 export type ProviderErrorKind = 'not_found' | 'rate_limited' | 'unavailable'
 
@@ -14,6 +14,7 @@ export type DataProvider = {
   search: (query: string) => Promise<SymbolInfo[]>
   quotes: (symbols: string[]) => Promise<Quote[]>
   logoUrl: (symbol: string) => Promise<string | null>
+  news: (symbol: string) => Promise<NewsItem[]>
 }
 
 type Json = Record<string, unknown>
@@ -147,6 +148,34 @@ export const parseHistory = (json: unknown, fetchedAt: string): History => {
     stale: false,
     ...(tradedAt === null ? {} : { tradedAt }),
   }
+}
+
+const NEWS_COUNT = 10
+
+const isSafeLink = (value: string): boolean => {
+  try {
+    return new URL(value).protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+export const parseNews = (json: unknown, symbol: string): NewsItem[] => {
+  const wanted = symbol.toUpperCase()
+  return asArray(asObject(json).news)
+    .map((raw): NewsItem | null => {
+      const item = asObject(raw)
+      const id = asString(item.uuid)
+      const title = asString(item.title)
+      const url = asString(item.link)
+      const seconds = asNumber(item.providerPublishTime)
+      const tickers = asArray(item.relatedTickers).map((ticker) => String(ticker).toUpperCase())
+      if (!id || !title || !url || seconds === null || !isSafeLink(url)) return null
+      if (tickers.length > 0 && !tickers.includes(wanted)) return null
+      return { id, title, publisher: asString(item.publisher) ?? '', time: seconds * 1000, url }
+    })
+    .filter((item): item is NewsItem => item !== null)
+    .sort((a, b) => b.time - a.time)
 }
 
 export const parseSearch = (json: unknown): SymbolInfo[] =>
@@ -284,5 +313,8 @@ export const createYahooProvider = (deps: {
       symbol,
     )
 
-  return { history, search, quotes, logoUrl }
+  const news = async (symbol: string): Promise<NewsItem[]> =>
+    parseNews(await request(`${SEARCH_URL}?q=${encodeURIComponent(symbol)}&quotesCount=0&newsCount=${NEWS_COUNT}`), symbol)
+
+  return { history, search, quotes, logoUrl, news }
 }

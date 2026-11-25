@@ -76,6 +76,12 @@ const makeApi = (over: Overrides = {}) => {
       },
       kept: async () => null,
     },
+    news: {
+      get: async (symbol) => {
+        if (symbol === 'ZZZZ') throw providerError('unavailable', 'down')
+        return [{ id: 'n1', title: `${symbol} news`, publisher: 'Reuters', time: 1, url: 'https://example.com/n1' }]
+      },
+    },
     profiles: {
       get: async (symbol) => (symbol === 'ZZZZ' ? null : { ...EMPTY_PROFILE, name: `${symbol} Inc.` }),
     },
@@ -89,6 +95,7 @@ const makeApi = (over: Overrides = {}) => {
     provider: {
       history: async (symbol) => historyOf(symbol),
       logoUrl: async () => null,
+      news: async () => [],
       search: async (query) => {
         requested.search.push(query)
         return (over.search ?? (async () => [{ symbol: 'AAPL', name: 'Apple Inc.', exchange: 'NASDAQ' }]))(query)
@@ -439,6 +446,16 @@ test('Should give the watchlist columns of many symbols and say how many are sti
   await call('GET', '/api/watchlist/metrics?symbols=KO&all=1')
   expect(requested.metrics).toEqual(['KO,PEP with level', 'KO', 'KO from every list'])
   expect(await call('GET', '/api/watchlist/metrics?symbols=')).toEqual({ status: 200, body: { metrics: {}, pending: 0 } })
+})
+
+test('Should give the headlines of a symbol', async () => {
+  const { call } = makeApi()
+  expect(await call('GET', '/api/news?symbol=AAPL')).toEqual({
+    status: 200,
+    body: [{ id: 'n1', title: 'AAPL news', publisher: 'Reuters', time: 1, url: 'https://example.com/n1' }],
+  })
+  expect((await call('GET', '/api/news?symbol=ZZZZ')).status).toBe(502)
+  expect(await call('GET', '/api/news?symbol=../x')).toEqual({ status: 400, body: { error: 'invalid_symbol' } })
 })
 
 test('Should give the sheet of a company and say when Yahoo has none', async () => {

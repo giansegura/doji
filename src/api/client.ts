@@ -2,7 +2,7 @@ import { MAX_METRICS_SYMBOLS } from '../../shared/limits'
 import { type CalendarAnswer, askInBatches } from '../../shared/earningsCalendarBatches'
 import { changesSince } from '../../shared/stateChanges'
 import type { SymbolMetrics } from '../../shared/symbolMetrics'
-import type { AppState, CompanyProfile, Earnings, History, Quote, SymbolInfo } from '../../shared/types'
+import type { AppState, CompanyProfile, Earnings, History, NewsItem, Quote, SymbolInfo } from '../../shared/types'
 import type { SaveResult } from '../state/stateSync'
 
 export type ApiError = Error & { code: string }
@@ -59,6 +59,8 @@ export const getKeptHistory = (symbol: string): Promise<History> =>
 
 export const searchSymbols = (query: string): Promise<SymbolInfo[]> =>
   request(`/api/search?q=${encodeURIComponent(query)}`)
+
+export const getNews = (symbol: string): Promise<NewsItem[]> => request(`/api/news?symbol=${encodeURIComponent(symbol)}`)
 
 export const getProfile = (symbol: string): Promise<CompanyProfile> => request(`/api/profile?symbol=${encodeURIComponent(symbol)}`)
 

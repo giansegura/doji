@@ -37,6 +37,7 @@ const makeCache = async (responses: (History | Error)[], over: { dir?: string } 
     search: async () => [],
     quotes: async () => [],
     logoUrl: async () => null,
+    news: async () => [],
   }
   const cache = createHistoryCache({ provider, dir, now: () => new Date(clock) })
   const advance = (ms: number) => {
@@ -113,6 +114,7 @@ test('Should read the cache from disk again after a restart', async () => {
       search: async () => [],
       quotes: async () => [],
       logoUrl: async () => null,
+      news: async () => [],
     },
     dir: first.dir,
     now: () => new Date('2026-11-23T20:00:05Z'),
@@ -315,7 +317,7 @@ test('Should not hand out when the last full download was', async () => {
   const answered = await cache.get('AAPL')
   expect(Object.keys(answered).sort()).toEqual(['bars', 'dividends', 'fetchedAt', 'info', 'splits', 'stale'])
   const restarted = createHistoryCache({
-    provider: { history: async () => full, search: async () => [], quotes: async () => [], logoUrl: async () => null },
+    provider: { history: async () => full, search: async () => [], quotes: async () => [], logoUrl: async () => null, news: async () => [] },
     dir,
     now: () => new Date('2026-11-23T20:00:05Z'),
   })

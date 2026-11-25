@@ -87,6 +87,7 @@ const fakeApi = (
     },
     getQuotes: async (symbols) =>
       symbols.map((symbol): Quote => ({ symbol, price: 100, change: 1, changePercent: 1, extended: null })),
+    getNews: async (symbol) => [{ id: 'n1', title: `${symbol} beats estimates`, publisher: 'Reuters', time: Date.parse('2026-11-25T12:00:00Z'), url: 'https://example.com/n1' }],
     getProfile: async (symbol) => {
       if (symbol === 'ZZZZ') throw new Error('Yahoo has no company data for ZZZZ.')
       return { name: `${symbol} Inc.`, sector: 'Consumer Defensive' } as CompanyProfile
@@ -137,6 +138,7 @@ test('Should offer its tools and tell the reading ones from the writing ones and
     ['get_chart', true, false],
     ['get_earnings_calendar', true, false],
     ['get_company_profile', true, false],
+    ['get_news', true, false],
     ['add_horizontal_line', false, false],
     ['set_alert', false, false],
     ['write_note', false, true],
@@ -508,4 +510,12 @@ test('Should give the sheet of a company', async () => {
   const { call } = await connect(fakeApi().api)
   expect((await call('get_company_profile', { symbol: 'ko' })).data).toEqual({ symbol: 'KO', name: 'KO Inc.', sector: 'Consumer Defensive' })
   expect(await call('get_company_profile', { symbol: 'ZZZZ' })).toEqual({ failed: true, text: 'Yahoo has no company data for ZZZZ.', data: null })
+})
+
+test('Should give the latest headlines of a symbol with their source, time and link', async () => {
+  const { call } = await connect(fakeApi().api)
+  expect((await call('get_news', { symbol: 'ko' })).data).toEqual({
+    symbol: 'KO',
+    headlines: [{ title: 'KO beats estimates', publisher: 'Reuters', time: '2026-11-25T12:00:00.000Z', url: 'https://example.com/n1' }],
+  })
 })

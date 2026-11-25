@@ -72,6 +72,8 @@ export type CompanyProfile = {
   summary: string | null
 }
 
+export type NewsItem = { id: string; title: string; publisher: string; time: number; url: string }
+
 export type ExtendedSession = 'pre' | 'post'
 
 export type ExtendedQuote = { session: ExtendedSession; price: number; changePercent: number }

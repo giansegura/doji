@@ -261,6 +261,26 @@ export const createDojiServer = ({ api, newId, version, today = todayIso }: Serv
   )
 
   server.registerTool(
+    'get_news',
+    {
+      title: 'News headlines',
+      description:
+        'Gives the latest news headlines about a symbol from Yahoo Finance, newest first: title, publisher, time and link. Only headlines: doji does not copy the articles, so open the link to read one.',
+      inputSchema: { symbol: symbolField },
+      annotations: { readOnlyHint: true },
+    },
+    ({ symbol }) =>
+      run(async () => {
+        const key = keyOf(symbol)
+        const news = await api.getNews(key)
+        return {
+          symbol: key,
+          headlines: news.map((item) => ({ title: item.title, publisher: item.publisher, time: new Date(item.time).toISOString(), url: item.url })),
+        }
+      }),
+  )
+
+  server.registerTool(
     'add_horizontal_line',
     {
       title: 'Add a horizontal line',
