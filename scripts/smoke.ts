@@ -1527,6 +1527,28 @@ await step('la lista se pliega con su botón o con Alt+W y se recuerda, y ? ense
   check(Math.abs((await chartWidth()) - wide) < 2, 'el gráfico no recuperó su ancho')
 })
 
+await step('escribir un ticker con el gráfico delante abre el buscador con esa letra y Enter abre el primero', async () => {
+  const before = (await savedState()).symbol
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+  await page.keyboard.press('k')
+  const field = page.getByPlaceholder('Search symbol or company')
+  await field.waitFor({ timeout: 5000 })
+  check((await field.inputValue()) === 'k', `el buscador no empezó con la letra: ${await field.inputValue()}`)
+  check(await field.evaluate((input) => input === document.activeElement), 'el buscador no quedó listo para seguir escribiendo')
+  await page.keyboard.type('o')
+  check((await field.inputValue()) === 'ko', `no se siguió escribiendo tras la letra: ${await field.inputValue()}`)
+  await page.getByRole('option').filter({ hasText: 'Coca-Cola' }).first().waitFor({ timeout: 15_000 })
+  await page.keyboard.press('Enter')
+  await page.getByText(/Coca-Cola Company · 1D/).waitFor({ timeout: 15_000 })
+  check((await savedState()).symbol === 'KO', 'Enter no abrió el primer resultado')
+  await page.getByPlaceholder('Search symbol or company').waitFor({ state: 'detached', timeout: 5000 })
+  await page.getByRole('region', { name: 'Market ticker' }).waitFor({ timeout: 5000 })
+  const state = await savedState()
+  await fetch(`${url}/api/state`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...state, symbol: before }) })
+  await page.reload()
+  await waitForChart()
+})
+
 await step('dos gráficos a la vez con periodos distintos y los mismos dibujos', async () => {
   const charts = page.locator('.tv-lightweight-charts')
   const picker = page.getByRole('group', { name: 'Second chart timeframe' })

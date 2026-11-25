@@ -29,6 +29,8 @@ test('Should list every shortcut with its keys', () => {
       'Alt+WHide or show the watchlist',
       '→Next bar while replaying',
       '?This list',
+      'A–Z / 0–9Search a symbol, starting with that character',
+      'EnterOpen the first result of the search',
     ]),
   )
 })

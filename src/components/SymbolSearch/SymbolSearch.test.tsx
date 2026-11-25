@@ -217,3 +217,18 @@ test('Should stay open after a pick with the mouse when adding to a watchlist', 
   expect(handlers.onPick).toHaveBeenCalledWith(apple)
   expect((input as HTMLInputElement).value).toBe('')
 })
+
+test('Should start with the character typed on the chart, keep typing after it and open the first result with Enter', async () => {
+  const search = vi.fn(async () => [apple, hospitality])
+  const onPick = vi.fn()
+  renderWithTheme(<SymbolSearch search={search} initialQuery="a" onPick={onPick} onClose={vi.fn()} />)
+  const input = screen.getByPlaceholderText('Search symbol or company') as HTMLInputElement
+  expect(input.value).toBe('a')
+  expect(document.activeElement).toBe(input)
+  expect([input.selectionStart, input.selectionEnd]).toEqual([1, 1])
+  const user = userEvent.setup()
+  await user.type(input, 'apl')
+  expect(input.value).toBe('aapl')
+  await user.keyboard('{Enter}')
+  await waitFor(() => expect(onPick).toHaveBeenCalledWith(apple))
+})

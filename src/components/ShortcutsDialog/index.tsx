@@ -21,6 +21,13 @@ const GROUPS: Group[] = [
     ],
   },
   {
+    title: 'Search',
+    shortcuts: [
+      ['A–Z / 0–9', 'Search a symbol, starting with that character'],
+      ['Enter', 'Open the first result of the search'],
+    ],
+  },
+  {
     title: 'Watchlist',
     shortcuts: [
       ['↑ / ↓', 'Previous or next symbol of the watchlist'],

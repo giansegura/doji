@@ -9,6 +9,7 @@ type SymbolSearchProps = {
   onClose: () => void
   search?: (query: string) => Promise<SymbolInfo[]>
   stayOpen?: boolean
+  initialQuery?: string
 }
 
 type SearchState = { status: 'idle' | 'searching' | 'done' | 'failed'; results: SymbolInfo[]; text: string }
@@ -25,8 +26,8 @@ const hintFor = ({ status, results }: SearchState, added: string | null): string
   return 'No results'
 }
 
-export const SymbolSearch = ({ onPick, onClose, search = searchSymbols, stayOpen = false }: SymbolSearchProps) => {
-  const [query, setQuery] = useState('')
+export const SymbolSearch = ({ onPick, onClose, search = searchSymbols, stayOpen = false, initialQuery = '' }: SymbolSearchProps) => {
+  const [query, setQuery] = useState(initialQuery)
   const [state, setState] = useState<SearchState>(IDLE)
   const [highlight, setHighlight] = useState(0)
   const [added, setAdded] = useState<string | null>(null)

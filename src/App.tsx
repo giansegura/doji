@@ -89,6 +89,7 @@ type FilterDraft = { filter: SavedFilter; editing: boolean }
 const Workspace = ({ state, dispatch, notice, replaced, refresh }: WorkspaceProps) => {
   const [tool, setTool] = useState<Tool>('cursor')
   const [searchMode, setSearchMode] = useState<SearchMode>(null)
+  const [searchText, setSearchText] = useState('')
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [filterDraft, setFilterDraft] = useState<FilterDraft | null>(null)
@@ -140,6 +141,10 @@ const Workspace = ({ state, dispatch, notice, replaced, refresh }: WorkspaceProp
   const drawings = state.lines[state.symbol] ?? NO_DRAWINGS
   const symbolAlerts = state.indicatorAlerts[state.symbol] ?? NO_ALERTS
   const toggleList = () => dispatch({ type: 'setListHidden', on: !state.listHidden })
+  const openSearch = (text: string) => {
+    setSearchText(text)
+    setSearchMode('chart')
+  }
   const { changeDrawings, forgetDrawings } = useShortcuts({
     symbol: state.symbol,
     drawings,
@@ -148,6 +153,7 @@ const Workspace = ({ state, dispatch, notice, replaced, refresh }: WorkspaceProp
     onTool: setTool,
     onToggleList: toggleList,
     onHelp: () => setShortcutsOpen(true),
+    onSearch: openSearch,
   })
 
   useEffect(() => {
@@ -227,7 +233,7 @@ const Workspace = ({ state, dispatch, notice, replaced, refresh }: WorkspaceProp
           theme={state.theme}
           indicators={state.indicators}
           notice={notice ?? fxNotice}
-          onOpenSearch={() => setSearchMode('chart')}
+          onOpenSearch={() => openSearch('')}
           onTimeframe={(timeframe) => dispatch({ type: 'setTimeframe', timeframe })}
           onTheme={(theme) => dispatch({ type: 'setTheme', theme })}
           onIndicators={(indicators) => dispatch({ type: 'setIndicators', indicators })}
@@ -418,7 +424,12 @@ const Workspace = ({ state, dispatch, notice, replaced, refresh }: WorkspaceProp
         </Styles.List>
       )}
       {searchMode && (
-        <SymbolSearch onPick={handlePick} onClose={() => setSearchMode(null)} stayOpen={searchMode === 'watchlist'} />
+        <SymbolSearch
+          onPick={handlePick}
+          onClose={() => setSearchMode(null)}
+          stayOpen={searchMode === 'watchlist'}
+          initialQuery={searchMode === 'chart' ? searchText : ''}
+        />
       )}
       {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
       {listImport.progress && <ListImportDialog progress={listImport.progress} onClose={listImport.close} />}

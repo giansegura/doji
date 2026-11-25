@@ -19,12 +19,13 @@ const setup = (drawings: Drawing[] = []) => {
   const onTool = vi.fn()
   const onToggleList = vi.fn()
   const onHelp = vi.fn()
+  const onSearch = vi.fn()
   const symbols = ['AAPL', 'MSFT', 'NVDA']
   const hook = renderHook(
-    (props: { drawings: Drawing[]; symbol: string }) => useShortcuts({ ...props, symbols, dispatch, onTool, onToggleList, onHelp }),
+    (props: { drawings: Drawing[]; symbol: string }) => useShortcuts({ ...props, symbols, dispatch, onTool, onToggleList, onHelp, onSearch }),
     { initialProps: { drawings, symbol: 'MSFT' } },
   )
-  return { dispatch, onTool, onToggleList, onHelp, ...hook }
+  return { dispatch, onTool, onToggleList, onHelp, onSearch, ...hook }
 }
 
 test('Should save a change of drawings and give back the previous ones on Cmd+Z', () => {
@@ -73,7 +74,7 @@ test('Should arm a drawing tool with Alt and its letter', () => {
 test('Should keep the browser from also acting on a key it used, and leave the others alone', () => {
   setup()
   expect(fireEvent.keyDown(window, { code: 'ArrowDown', key: 'ArrowDown' })).toBe(false)
-  expect(fireEvent.keyDown(window, { code: 'KeyQ', key: 'q' })).toBe(true)
+  expect(fireEvent.keyDown(window, { code: 'Space', key: ' ' })).toBe(true)
 })
 
 test('Should ignore the keys typed into a field', () => {
@@ -105,4 +106,16 @@ test('Should fold the watchlist with Alt+W and open the shortcuts with the quest
   expect(onToggleList).toHaveBeenCalledTimes(1)
   fireEvent.keyDown(window, { code: 'Slash', key: '?', shiftKey: true })
   expect(onHelp).toHaveBeenCalledTimes(1)
+})
+
+test('Should open the search with the character typed, unless a dialog is open', () => {
+  const { onSearch } = setup()
+  fireEvent.keyDown(window, { code: 'KeyK', key: 'k' })
+  expect(onSearch).toHaveBeenCalledWith('k')
+  const dialog = document.createElement('div')
+  dialog.setAttribute('role', 'dialog')
+  document.body.append(dialog)
+  fireEvent.keyDown(window, { code: 'KeyP', key: 'p' })
+  dialog.remove()
+  expect(onSearch).toHaveBeenCalledTimes(1)
 })
