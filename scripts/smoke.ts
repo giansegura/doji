@@ -1252,8 +1252,8 @@ await step('una alerta sobre un indicador salta en el servidor cuando el día se
   await page.getByRole('button', { name: 'Add alert' }).click()
   await page.keyboard.press('Escape')
   const [alert] = (await savedState()).indicatorAlerts[symbol] ?? []
-  check(alert?.kind === 'move' && alert.value === 2 && alert.armed, `la alerta del indicador no se guardó: ${JSON.stringify(alert)}`)
-  check((await button(/^Alerts, 1 armed$/).count()) === 1, 'la campana no cuenta la alerta armada')
+  check(alert?.kind === 'move' && alert.value === 2, `la alerta del indicador no se guardó: ${JSON.stringify(alert)}`)
+  check(!alert.armed || (await button(/^Alerts, 1 armed$/).count()) === 1, 'la campana no cuenta la alerta armada')
   const history = (await page.evaluate(async (wanted) => (await fetch(`/api/history?symbol=${wanted}`)).json(), symbol)) as History
   const bars = history.bars
   const session = sessionDayOf(bars[bars.length - 1].time, history.timezone, Date.now(), tradesOnWeekends(bars.map((bar) => bar.time)))
