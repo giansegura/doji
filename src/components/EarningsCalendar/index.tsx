@@ -3,6 +3,7 @@ import { addDays } from '../../../shared/dates'
 import { displaySymbol } from '../../../shared/symbols'
 import type { Earnings, EarningsTiming, SymbolList } from '../../../shared/types'
 import { type CalendarEntry, calendarEntries, calendarItems, calendarWeek, shiftWeek, weekStart } from '../../domain/earningsCalendar'
+import { focusedBefore, keepTabInside } from '../../domain/dialogFocus'
 import { SymbolLogo } from '../SymbolLogo'
 import * as Styles from './styles'
 
@@ -23,8 +24,6 @@ const YEAR = new Intl.DateTimeFormat('en-US', { year: 'numeric', timeZone: 'UTC'
 const WEEKDAY = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'UTC' })
 const TIMING_WORDS: Record<EarningsTiming, string> = { pre: 'before the opening', post: 'after the close' }
 const TIMING_MARKS: Record<EarningsTiming, string> = { pre: '☀', post: '☾' }
-
-const FOCUSABLE = 'button:not([disabled]), select:not([disabled]), input:not([disabled]), [href]'
 
 const asDate = (date: string): Date => new Date(`${date}T00:00:00Z`)
 
@@ -57,30 +56,14 @@ export const EarningsCalendar = ({ lists, earnings, pending, today, badge, onBad
     entry.lists.map((id) => lists.find((list) => list.id === id)?.name ?? '').filter(Boolean).join(', ')
 
   useEffect(() => {
-    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const previous = focusedBefore()
     dialogRef.current?.focus()
     return () => previous?.focus()
   }, [])
 
-  const keepTabInside = (event: KeyboardEvent) => {
-    const items = [...(dialogRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])]
-    const first = items[0]
-    const last = items.at(-1)
-    if (!first || !last) return
-    const atStart = document.activeElement === first || document.activeElement === dialogRef.current
-    if (event.shiftKey && atStart) {
-      event.preventDefault()
-      last.focus()
-    }
-    if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault()
-      first.focus()
-    }
-  }
-
   const handleKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Escape') onClose()
-    if (event.key === 'Tab') keepTabInside(event)
+    keepTabInside(event, dialogRef.current)
   }
 
   const handleBackdrop = (event: MouseEvent) => {

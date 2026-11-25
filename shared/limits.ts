@@ -12,6 +12,7 @@ export const LIST_MAX_WIDTH = 640
 export const LIST_DEFAULT_WIDTH = 400
 export const WATCH_COLUMN_WIDTH = 64
 export const MAX_FILTERS = 30
+export const MAX_METRICS_SYMBOLS = 200
 export const MAX_FILTER_CONDITIONS = 8
 export const NOTE_MAX_LENGTH = 5000
 export const MIN_LINE_OPACITY = 0.1

@@ -17,6 +17,7 @@ export const FlagIcon = () => (
 export const FlagPicker = ({ symbol, flag, onFlag }: FlagPickerProps) => {
   const [open, setOpen] = useState(false)
   const paletteRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     if (!open) return undefined
@@ -24,7 +25,8 @@ export const FlagPicker = ({ symbol, flag, onFlag }: FlagPickerProps) => {
       if (event.key === 'Escape') setOpen(false)
     }
     const handleDown = (event: PointerEvent) => {
-      if (!paletteRef.current?.contains(event.target as Node)) setOpen(false)
+      const target = event.target as Node
+      if (!paletteRef.current?.contains(target) && !buttonRef.current?.contains(target)) setOpen(false)
     }
     window.addEventListener('keydown', handleKey)
     window.addEventListener('pointerdown', handleDown)
@@ -42,6 +44,7 @@ export const FlagPicker = ({ symbol, flag, onFlag }: FlagPickerProps) => {
   return (
     <>
       <Styles.FlagButton
+        ref={buttonRef}
         type="button"
         aria-label={`Flag ${displaySymbol(symbol)}`}
         title={flag ? `${FLAG_NAMES[flag]} flag` : 'Flag'}

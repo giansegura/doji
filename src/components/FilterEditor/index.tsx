@@ -1,7 +1,8 @@
-import { type KeyboardEvent, type MouseEvent, useState } from 'react'
+import { type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from 'react'
 import { FILTER_FIELDS } from '../../../shared/filters'
 import { MAX_FILTER_CONDITIONS } from '../../../shared/limits'
 import type { FilterCondition, FilterField, SavedFilter } from '../../../shared/types'
+import { focusedBefore, keepTabInside } from '../../domain/dialogFocus'
 import { FILTER_FIELD_NAMES } from '../../domain/filters'
 import * as Styles from './styles'
 
@@ -28,6 +29,8 @@ export const FilterEditor = ({ filter, editing, onSave, onDelete, onClose }: Fil
   const [name, setName] = useState(filter.name)
   const [scope, setScope] = useState(filter.scope)
   const [drafts, setDrafts] = useState<Draft[]>(() => filter.conditions.map(toDraft))
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const [opener] = useState(focusedBefore)
   const conditions = drafts.map(toCondition)
   const complete = conditions.filter((condition): condition is FilterCondition => condition !== null)
   const ready = name.trim().length > 0 && drafts.length > 0 && complete.length === drafts.length
@@ -36,8 +39,11 @@ export const FilterEditor = ({ filter, editing, onSave, onDelete, onClose }: Fil
   const change = (index: number, patch: Partial<Draft>) =>
     setDrafts((current) => current.map((draft, at) => (at === index ? { ...draft, ...patch } : draft)))
 
+  useEffect(() => () => opener?.focus(), [opener])
+
   const handleKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Escape') onClose()
+    keepTabInside(event, dialogRef.current)
   }
 
   const handleBackdrop = (event: MouseEvent) => {
@@ -50,7 +56,7 @@ export const FilterEditor = ({ filter, editing, onSave, onDelete, onClose }: Fil
 
   return (
     <Styles.Backdrop onClick={handleBackdrop}>
-      <Styles.Dialog role="dialog" aria-modal="true" aria-label={title} onKeyDown={handleKeyDown}>
+      <Styles.Dialog ref={dialogRef} role="dialog" aria-modal="true" aria-label={title} onKeyDown={handleKeyDown}>
         <Styles.Title>{title}</Styles.Title>
         <Styles.Field>
           Name

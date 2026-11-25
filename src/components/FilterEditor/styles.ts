@@ -7,7 +7,8 @@ export const Backdrop = styled.div`
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding-top: 12vh;
+  padding: 12vh 0 24px;
+  overflow-y: auto;
   background: rgba(0, 0, 0, 0.45);
 `
 

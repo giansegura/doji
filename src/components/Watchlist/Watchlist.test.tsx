@@ -532,6 +532,14 @@ test('Should pick the columns from the menu of the header', async () => {
   expect(screen.queryByRole('group', { name: 'Columns' })).toBeNull()
 })
 
+test('Should close the flag colours with a second click on the flag', async () => {
+  const { user } = setup()
+  await user.click(screen.getByRole('button', { name: 'Flag AAPL' }))
+  expect(screen.getByRole('group', { name: 'Flag colour' })).toBeTruthy()
+  await user.click(screen.getByRole('button', { name: 'Flag AAPL' }))
+  expect(screen.queryByRole('group', { name: 'Flag colour' })).toBeNull()
+})
+
 test('Should flag a symbol with a colour from its row and take the flag off', async () => {
   const { handlers, user } = setup({ flags: { MSFT: 'red' } })
   expect(screen.getByRole('button', { name: 'Flag AAPL' }).getAttribute('title')).toBe('Flag')
@@ -589,8 +597,8 @@ test('Should show the gain of each position and the total of each currency at th
   expect(within(row('AAPL')).getByText('+10.00%')).toBeTruthy()
   expect(within(row('AAPL')).getByText('+$200')).toBeTruthy()
   const total = screen.getByRole('status', { name: 'Total gain' })
-  expect(total.textContent).toContain('+$200 (+10.00%)')
-  expect(total.textContent).toContain('−€40 (−5.00%)')
+  expect(total.textContent).toContain('+$200 USD (+10.00%)')
+  expect(total.textContent).toContain('−€40 EUR (−5.00%)')
 })
 
 test('Should not show a total without the gain columns', () => {

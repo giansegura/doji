@@ -22,10 +22,8 @@ export const formatMoney = (value: number, currency: string | undefined): string
     ...(currency ? { style: 'currency', currency, currencyDisplay: 'narrowSymbol' } : {}),
   }
   const text = new Intl.NumberFormat('en-US', options).format(Math.abs(value))
-  const rounded = Math.round(value)
-  if (rounded > 0 || (large && value > 0)) return `+${text}`
-  if (rounded < 0 || (large && value < 0)) return `${MINUS}${text}`
-  return text
+  if (!large && Math.round(Math.abs(value)) === 0) return text
+  return value > 0 ? `+${text}` : `${MINUS}${text}`
 }
 
 export const totalsByCurrency = (symbols: string[], holdings: Record<string, Holding>, quotes: Record<string, Quote>): CurrencyTotal[] => {

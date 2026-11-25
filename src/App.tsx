@@ -76,11 +76,11 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   const everySymbol = useMemo(() => allSymbols(state.watchlists), [state.watchlists])
   const scopeItems = everywhere ? everySymbol : list.items
   const scopeSymbols = symbolsOf(scopeItems).map((item) => item.symbol)
-  const metrics = useWatchMetrics(
-    scopeSymbols,
-    columns.some((column) => column !== 'earnings') || fields.some((field) => METRIC_FIELDS.includes(field)),
-    columns.includes('level') || fields.includes('level'),
-  )
+  const metrics = useWatchMetrics(scopeSymbols, {
+    enabled: columns.some((column) => column !== 'earnings') || fields.some((field) => METRIC_FIELDS.includes(field)),
+    withLevel: columns.includes('level') || fields.includes('level'),
+    everyList: everywhere,
+  })
   usePrefetchHistories(listSymbols)
   const today = todayIso()
   const calendarSymbols = useMemo(() => calendarItems(state.watchlists).map((item) => item.symbol), [state.watchlists])

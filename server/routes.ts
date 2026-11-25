@@ -1,4 +1,5 @@
 import { MAX_CALENDAR_SYMBOLS } from '../shared/earningsCalendarBatches'
+import { MAX_METRICS_SYMBOLS } from '../shared/limits'
 import { normalizeState } from '../shared/normalizeState'
 import { type StateChanges, applyChanges } from '../shared/stateChanges'
 import { SYMBOL_PATTERN } from '../shared/symbols'
@@ -30,7 +31,6 @@ type Route = (request: ApiRequest) => Promise<ApiResult>
 const LOCAL_HOSTNAMES = ['127.0.0.1', 'localhost', '[::1]']
 const OWN_FETCH_SITES = ['same-origin', 'none']
 const WRITING_METHODS = ['PUT', 'PATCH']
-const MAX_WATCHLIST_SYMBOLS = 200
 
 const ok = (body: unknown): ApiResult => ({ status: 200, body })
 
@@ -131,9 +131,9 @@ export const createApi = (deps: ApiDeps): Route => {
       return ok(await deps.earnings.get(symbol))
     },
     'GET /api/watchlist/metrics': async ({ query }) => {
-      const symbols = symbolsIn(query, MAX_WATCHLIST_SYMBOLS)
+      const symbols = symbolsIn(query, MAX_METRICS_SYMBOLS)
       if (symbols.length === 0) return ok({ metrics: {}, pending: 0 })
-      return ok(await deps.metrics.read(symbols, query.get('level') === '1'))
+      return ok(await deps.metrics.read(symbols, query.get('level') === '1', query.get('all') === '1'))
     },
     'GET /api/earnings/calendar': async ({ query }) => {
       const symbols = symbolsIn(query, MAX_CALENDAR_SYMBOLS)

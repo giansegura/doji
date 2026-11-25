@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { type AppState, DEFAULT_STATE, type TrendLine } from '../../shared/types'
-import { getHistory, getKeptHistory, putState } from './client'
+import { getHistory, getKeptHistory, getWatchMetrics, putState } from './client'
 
 const reply = (status: number, body: unknown) =>
   vi.fn(async () => ({ ok: status >= 200 && status < 300, status, json: async () => body }))
@@ -107,4 +107,20 @@ test('Should ask for the kept copy of a history without waiting for the source',
     '/api/history?symbol=BRK-B&cached=1',
     '/api/history?symbol=BRK-B',
   ])
+})
+
+test('Should ask for the columns of a long list in batches the server takes and join the answers', async () => {
+  const symbols = Array.from({ length: 250 }, (_, index) => `S${index}`)
+  const fetchMock = vi.fn(async (url: string) => {
+    const asked = (new URL(url, 'http://doji').searchParams.get('symbols') ?? '').split(',')
+    const metrics = Object.fromEntries(asked.slice(0, 1).map((symbol) => [symbol, { rsi: 50 }]))
+    return { ok: true, status: 200, json: async () => ({ metrics, pending: asked.length }) }
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  const answer = await getWatchMetrics(symbols, true, true)
+  const urls = fetchMock.mock.calls.map((call) => new URL((call as unknown as [string])[0], 'http://doji'))
+  expect(urls.map((url) => (url.searchParams.get('symbols') ?? '').split(',').length)).toEqual([200, 50])
+  expect(urls.every((url) => url.searchParams.get('level') === '1' && url.searchParams.get('all') === '1')).toBe(true)
+  expect(Object.keys(answer.metrics)).toEqual(['S0', 'S200'])
+  expect(answer.pending).toBe(250)
 })

@@ -5,7 +5,7 @@ import type { HistoryCache } from './historyCache'
 export type WatchMetricsAnswer = { metrics: Record<string, SymbolMetrics>; pending: number }
 
 export type WatchMetrics = {
-  read: (symbols: string[], withLevel: boolean) => Promise<WatchMetricsAnswer>
+  read: (symbols: string[], withLevel: boolean, everyList?: boolean) => Promise<WatchMetricsAnswer>
   settled: () => Promise<void>
 }
 
@@ -15,7 +15,6 @@ type Known = { metrics: SymbolMetrics; fetchedAt: number; withLevel: boolean }
 
 export const STALE_MS = 5 * 60_000
 export const STALE_MANY_MS = 30 * 60_000
-export const MANY_SYMBOLS = 60
 const WORKERS = 2
 
 export const createWatchMetrics = (deps: Deps): WatchMetrics => {
@@ -62,9 +61,8 @@ export const createWatchMetrics = (deps: Deps): WatchMetrics => {
     pump()
   }
 
-  const read = async (symbols: string[], withLevel: boolean): Promise<WatchMetricsAnswer> => {
-    const staleMs = symbols.length > MANY_SYMBOLS ? STALE_MANY_MS : STALE_MS
-    const metrics: Record<string, SymbolMetrics> = {}
+  const read = async (symbols: string[], withLevel: boolean, everyList = false): Promise<WatchMetricsAnswer> => {
+    const staleMs = everyList ? STALE_MANY_MS : STALE_MS
     for (const symbol of symbols) {
       if (withLevel) levelWanted.add(symbol)
       let entry = known.get(symbol) ?? null
@@ -74,6 +72,10 @@ export const createWatchMetrics = (deps: Deps): WatchMetrics => {
       }
       const checked = Math.max(entry?.fetchedAt ?? Number.NEGATIVE_INFINITY, triedAt.get(symbol) ?? Number.NEGATIVE_INFINITY)
       if (nowMs() - checked > staleMs) enqueue(symbol)
+    }
+    const metrics: Record<string, SymbolMetrics> = {}
+    for (const symbol of symbols) {
+      const entry = known.get(symbol)
       if (entry) metrics[symbol] = withLevel ? entry.metrics : { ...entry.metrics, level: null }
     }
     return { metrics, pending: symbols.filter((symbol) => queued.has(symbol)).length }

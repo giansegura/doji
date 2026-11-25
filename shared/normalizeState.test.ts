@@ -594,3 +594,8 @@ test('Should keep the positions away from the AI unless the user shares them', (
   expect(normalizeState({ shareHoldings: true }).shareHoldings).toBe(true)
   expect(normalizeState({ watchlistColumns: ['gain', 'gainValue'] }).watchlistColumns).toEqual(['gain', 'gainValue'])
 })
+
+test('Should keep only the first saved filter of each id', () => {
+  const filter = (id: string, name: string) => ({ id, name, scope: 'list', conditions: [{ field: 'rsi', op: 'below', value: 30 }] })
+  expect(normalizeState({ filters: [filter('a', 'Uno'), filter('a', 'Dos'), filter('b', 'Tres')] }).filters.map((saved) => saved.name)).toEqual(['Uno', 'Tres'])
+})

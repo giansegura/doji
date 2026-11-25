@@ -62,3 +62,28 @@ test('Should delete a saved filter and close with Escape', async () => {
   await user.keyboard('{Escape}')
   expect(handlers.onClose).toHaveBeenCalled()
 })
+
+test('Should keep Tab inside the editor and give the focus back when it closes', async () => {
+  const opener = document.createElement('button')
+  document.body.append(opener)
+  opener.focus()
+  const handlers = { onSave: vi.fn(), onDelete: vi.fn(), onClose: vi.fn() }
+  const view = renderWithTheme(<FilterEditor filter={{ ...fresh, name: 'Sobrevendidas' }} editing={false} {...handlers} />)
+  const user = userEvent.setup()
+  const name = screen.getByRole('textbox', { name: 'Filter name' })
+  const save = screen.getByRole('button', { name: 'Save' })
+  expect(document.activeElement).toBe(name)
+  save.focus()
+  await user.tab()
+  expect(document.activeElement).toBe(name)
+  await user.tab({ shift: true })
+  expect(document.activeElement).toBe(save)
+  view.unmount()
+  expect(document.activeElement).toBe(opener)
+  opener.remove()
+})
+
+test('Should let the page scroll when the editor is taller than the window', () => {
+  const { dialog } = setup()
+  expect(getComputedStyle(dialog.parentElement as HTMLElement).overflowY).toBe('auto')
+})

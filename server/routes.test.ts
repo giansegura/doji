@@ -56,8 +56,8 @@ const makeApi = (over: Overrides = {}) => {
       kept: async () => null,
     },
     metrics: {
-      read: async (symbols, withLevel) => {
-        requested.metrics.push(`${symbols.join(',')}${withLevel ? ' with level' : ''}`)
+      read: async (symbols, withLevel, everyList) => {
+        requested.metrics.push(`${symbols.join(',')}${withLevel ? ' with level' : ''}${everyList ? ' from every list' : ''}`)
         return { metrics: { KO: { rsi: 55.5, fromHighPercent: -3.2, volumeRatio: 1.1, level: null, changePercent: 1, vsSma50Percent: 2, vsSma200Percent: 3 } }, pending: 1 }
       },
       settled: async () => undefined,
@@ -412,7 +412,8 @@ test('Should give the watchlist columns of many symbols and say how many are sti
     body: { metrics: { KO: { rsi: 55.5, fromHighPercent: -3.2, volumeRatio: 1.1, level: null, changePercent: 1, vsSma50Percent: 2, vsSma200Percent: 3 } }, pending: 1 },
   })
   await call('GET', '/api/watchlist/metrics?symbols=KO')
-  expect(requested.metrics).toEqual(['KO,PEP with level', 'KO'])
+  await call('GET', '/api/watchlist/metrics?symbols=KO&all=1')
+  expect(requested.metrics).toEqual(['KO,PEP with level', 'KO', 'KO from every list'])
   expect(await call('GET', '/api/watchlist/metrics?symbols=')).toEqual({ status: 200, body: { metrics: {}, pending: 0 } })
 })
 

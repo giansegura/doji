@@ -23,4 +23,7 @@ const toFilter = (raw: unknown): SavedFilter[] => {
   return [{ id, name, scope: filter.scope === 'all' ? 'all' : 'list', conditions }]
 }
 
-export const toFilters = (raw: unknown): SavedFilter[] => (Array.isArray(raw) ? raw.flatMap(toFilter).slice(0, MAX_FILTERS) : [])
+export const toFilters = (raw: unknown): SavedFilter[] =>
+  (Array.isArray(raw) ? raw.flatMap(toFilter) : [])
+    .filter((filter, index, all) => all.findIndex((other) => other.id === filter.id) === index)
+    .slice(0, MAX_FILTERS)

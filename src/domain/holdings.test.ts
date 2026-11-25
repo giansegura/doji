@@ -20,6 +20,9 @@ test('Should write money with its currency, signed, and shorter when it is large
   expect(formatMoney(-1234.5, 'EUR')).toBe('−€1,235')
   expect(formatMoney(12_345, 'USD')).toBe('+$12.3K')
   expect(formatMoney(0, 'GBP')).toBe('£0')
+  expect(formatMoney(-0.5, 'USD')).toBe('−$1')
+  expect(formatMoney(0.5, 'USD')).toBe('+$1')
+  expect(formatMoney(-0.4, 'USD')).toBe('$0')
   expect(formatMoney(25, undefined)).toBe('+25')
 })
 

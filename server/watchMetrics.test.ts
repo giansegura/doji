@@ -125,16 +125,47 @@ test('Should keep the values it worked out and not read the history again while 
   expect(downloads).toEqual(['PEP'])
 })
 
-test('Should refresh many symbols every half hour instead of every five minutes', async () => {
+test('Should refresh the symbols of every list every half hour instead of every five minutes', async () => {
   const many = Array.from({ length: 80 }, (_, index) => `S${index}`)
   const { metrics, downloads, advance } = setup(Object.fromEntries(many.map((symbol) => [symbol, new Date(NOW - MINUTE).toISOString()])))
-  await metrics.read(many, false)
+  await metrics.read(many, false, true)
   advance(10 * MINUTE)
-  expect((await metrics.read(many, false)).pending).toBe(0)
+  expect((await metrics.read(many, false, true)).pending).toBe(0)
   advance(25 * MINUTE)
-  expect((await metrics.read(many, false)).pending).toBe(80)
+  expect((await metrics.read(many, false, true)).pending).toBe(80)
   await metrics.settled()
   expect(downloads).toHaveLength(80)
+})
+
+test('Should keep refreshing a long single list every five minutes', async () => {
+  const many = Array.from({ length: 80 }, (_, index) => `S${index}`)
+  const { metrics, advance } = setup(Object.fromEntries(many.map((symbol) => [symbol, new Date(NOW - MINUTE).toISOString()])))
+  await metrics.read(many, false)
+  advance(10 * MINUTE)
+  expect((await metrics.read(many, false)).pending).toBe(80)
+})
+
+test('Should include a symbol whose download ended while it was still reading the others', async () => {
+  let releaseSlow: () => void = () => undefined
+  const slow = new Promise<void>((done) => (releaseSlow = done))
+  const history: HistoryCache = {
+    get: async (symbol) => historyOf(symbol, new Date(NOW).toISOString()),
+    peek: async (symbol) => historyOf(symbol),
+    kept: async (symbol) => {
+      if (symbol === 'SLOW') {
+        await slow
+        return historyOf(symbol)
+      }
+      return null
+    },
+  }
+  const metrics = createWatchMetrics({ history, now: () => new Date(NOW), workers: 2 })
+  const reading = metrics.read(['FAST', 'SLOW'], false)
+  await new Promise((done) => setTimeout(done, 10))
+  releaseSlow()
+  const answer = await reading
+  expect(Object.keys(answer.metrics).sort()).toEqual(['FAST', 'SLOW'])
+  expect(answer.pending).toBe(0)
 })
 
 test('Should not ask again and again for a history the source keeps failing to refresh', async () => {

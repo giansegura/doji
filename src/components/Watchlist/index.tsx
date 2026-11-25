@@ -261,7 +261,7 @@ export const Watchlist = ({
           <Styles.TotalLabel>Total P/L</Styles.TotalLabel>
           {totals.map((total) => (
             <Styles.Number key={total.currency} $color={total.value < 0 ? theme.ui.down : theme.ui.up}>
-              {`${formatMoney(total.value, total.currency || undefined)} (${formatPercent(total.percent)})`}
+              {[formatMoney(total.value, total.currency || undefined), total.currency, `(${formatPercent(total.percent)})`].filter(Boolean).join(' ')}
             </Styles.Number>
           ))}
         </Styles.Total>
