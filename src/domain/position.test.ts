@@ -35,4 +35,5 @@ test('Should read a short position the other way round', () => {
 test('Should tell how many shares to buy for the account and the risk given, rounded down', () => {
   expect(positionReading(position({ account: 10000, riskPercent: 1 }))).toMatchObject({ shares: 20, risk: 100 })
   expect(positionReading(position({ account: 10000, riskPercent: 1, stop: 97 }))).toMatchObject({ shares: 33, risk: 100 })
+  expect(positionReading(position({ account: 10000, riskPercent: 1, stop: 99.8 }))).toMatchObject({ shares: 500, risk: 100 })
 })

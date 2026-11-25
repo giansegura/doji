@@ -154,7 +154,6 @@ test('Should fire an armed position when the price reaches its target or its sto
     { symbol: 'KO', drawingId: 'a', level: 110, price: 111, direction: 'up' },
   ])
   expect(watcher.check({ KO: [position()] }, { KO: 94 }, '2026-11-24')).toEqual([
-    { symbol: 'KO', drawingId: 'a', level: 110, price: 94, direction: 'down' },
     { symbol: 'KO', drawingId: 'a', level: 95, price: 94, direction: 'down' },
   ])
   const early = createAlertWatcher()

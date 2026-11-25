@@ -214,6 +214,12 @@ const onItsSide = (position: Position, level: 'stop' | 'target', price: number):
   return price !== position.p1.value && above === wantsAbove
 }
 
+const inOrder = (geometry: ShapeGeometry, left: LinePoint, right: LinePoint): boolean => {
+  const from = geometry.toXY(left)
+  const to = geometry.toXY(right)
+  return from !== null && to !== null && to.x > from.x
+}
+
 const movePosition = (geometry: ShapeGeometry, position: Position, part: string, start: XY, to: XY): Position | null => {
   if (part === 'stop' || part === 'target') {
     const price = geometry.toPoint(to)?.value
@@ -222,17 +228,20 @@ const movePosition = (geometry: ShapeGeometry, position: Position, part: string,
   }
   if (part === 'p2') {
     const end = movePoint(geometry, position.p2, to)
-    return end ? { ...position, p2: { date: end.date, value: position.p1.value } } : null
+    if (!end) return null
+    return inOrder(geometry, position.p1, end) ? { ...position, p2: { date: end.date, value: position.p1.value } } : position
   }
   if (part === 'p1') {
     const entry = movePoint(geometry, position.p1, to)
-    if (!entry || !onItsSide({ ...position, p1: entry }, 'stop', position.stop) || !onItsSide({ ...position, p1: entry }, 'target', position.target))
-      return entry ? position : null
-    return { ...position, p1: entry, p2: { date: position.p2.date, value: entry.value } }
+    if (!entry) return null
+    const moved = { ...position, p1: entry }
+    if (!inOrder(geometry, entry, position.p2) || !onItsSide(moved, 'stop', position.stop) || !onItsSide(moved, 'target', position.target)) return position
+    return { ...moved, p2: { date: position.p2.date, value: entry.value } }
   }
   const moved = moveBoth(geometry, position, start, to)
   if (!moved) return null
   const shift = moved.p1.value - position.p1.value
+  if (position.stop + shift <= 0 || position.target + shift <= 0) return position
   return { ...moved, p2: { ...moved.p2, value: moved.p1.value }, stop: position.stop + shift, target: position.target + shift }
 }
 

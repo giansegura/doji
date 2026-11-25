@@ -851,6 +851,17 @@ test('Should place a long position with one click, its stop below and its target
   expect(record.toolDone).toBe(1)
 })
 
+test('Should keep the reward twice the risk when a low price leaves no room for the usual stop or target', () => {
+  const long = harness()
+  long.controller.setTool('long')
+  long.controller.pointerDown('price', { x: 40, y: 20 })
+  expect(long.record.lines[0]).toMatchObject({ side: 'long', p1: { value: 20 }, stop: 10, target: 40 })
+  const short = harness()
+  short.controller.setTool('short')
+  short.controller.pointerDown('price', { x: 40, y: 50 })
+  expect(short.record.lines[0]).toMatchObject({ side: 'short', p1: { value: 50 }, stop: 62.5, target: 25 })
+})
+
 test('Should place a short position the other way round and only on the price pane', () => {
   const { record, controller } = harness()
   controller.setTool('short')

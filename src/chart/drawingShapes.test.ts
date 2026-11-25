@@ -224,6 +224,16 @@ test('Should stretch a position in time from its right handle, keeping its level
   expect(moveDrawing(geometry, position, 'p2', { x: 200, y: 100 }, { x: 260, y: 140 })).toEqual({ ...position, p2: { date: 'd260', value: 100 } })
 })
 
+test('Should keep the right edge of a position to the right of its entry', () => {
+  expect(moveDrawing(geometry, position, 'p2', { x: 200, y: 100 }, { x: 80, y: 100 })).toBe(position)
+  expect(moveDrawing(geometry, position, 'p2', { x: 200, y: 100 }, { x: 100, y: 100 })).toBe(position)
+  expect(moveDrawing(geometry, position, 'p1', { x: 100, y: 100 }, { x: 230, y: 100 })).toBe(position)
+})
+
+test('Should not let the body of a position carry its stop or target to zero or below', () => {
+  expect(moveDrawing(geometry, position, 'body', { x: 150, y: 110 }, { x: 150, y: 15 })).toBe(position)
+})
+
 test('Should move the entry of a position with its levels in place, and the whole position with its body', () => {
   expect(moveDrawing(geometry, position, 'p1', { x: 100, y: 100 }, { x: 110, y: 104 })).toEqual({
     ...position,

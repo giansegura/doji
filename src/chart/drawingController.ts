@@ -216,8 +216,8 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
     const risk = entry && away ? Math.abs(away.value - entry.value) : 0
     if (!entry || !end || risk <= 0) return false
     const sign = side === 'long' ? 1 : -1
-    const reach = entry.value + sign * risk * REWARD_TO_RISK
-    const target = reach > 0 ? reach : entry.value / 2
+    const limit = side === 'long' ? entry.value : entry.value / REWARD_TO_RISK
+    const distance = risk < limit ? risk : limit / 2
     add(
       styled('position', pane, (base) => ({
         ...base,
@@ -225,8 +225,8 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
         side,
         p1: entry,
         p2: { date: end.date, value: entry.value },
-        stop: entry.value - sign * risk > 0 ? entry.value - sign * risk : entry.value / 2,
-        target,
+        stop: entry.value - sign * distance,
+        target: entry.value + sign * distance * REWARD_TO_RISK,
       })),
     )
     return true

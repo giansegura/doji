@@ -233,3 +233,9 @@ test('Should shade the zones of a position faintly and write its labels on solid
   expect(calls.some((call) => call.startsWith('fillRect') && call.includes('#3CC68A 1'))).toBe(true)
   expect(calls.filter((call) => call.startsWith('text Target 115.00 (+15.00%)') || call.startsWith('text R:R 3.00'))).toHaveLength(2)
 })
+
+test('Should shade the zones of a position with the opacity of the drawing', () => {
+  const zones = [{ color: '#3CC68A', points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }] }]
+  expect(draw([view({ zones, opacity: 0.5 })]).calls).toContain('fill #3CC68A 0.09')
+  expect(draw([view({ zones, opacity: 0 })]).calls).toContain('fill #3CC68A 0')
+})

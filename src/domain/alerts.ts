@@ -56,11 +56,13 @@ export const createAlertWatcher = (): AlertWatcher => {
     if (previous === undefined) return []
     return drawings.filter(isArmed).flatMap((drawing) => {
       const before = alertLevels(drawing, previous.day)
-      return alertLevels(drawing, today).flatMap((level, index) => {
+      const hits = alertLevels(drawing, today).flatMap((level, index) => {
         const earlier = before[index]
         const direction = earlier === undefined ? null : sideChange(previous.price - earlier, price - level)
         return direction ? [{ symbol, drawingId: drawing.id, level, price, direction }] : []
       })
+      const reached = hits.sort((a, b) => Math.abs(price - a.level) - Math.abs(price - b.level))[0]
+      return reached ? [reached] : []
     })
   }
 

@@ -71,7 +71,7 @@ const shadeZones = (context: CanvasRenderingContext2D, view: ShapeView): void =>
   view.zones.forEach((zone) => {
     const [first, ...rest] = zone.points
     if (!first) return
-    context.globalAlpha = ZONE_FILL
+    context.globalAlpha = ZONE_FILL * view.opacity
     context.fillStyle = zone.color
     context.beginPath()
     context.moveTo(first.x, first.y)

@@ -8,6 +8,8 @@ export type PositionReading = {
   risk: number | null
 }
 
+const SHARE_DIGITS = 6
+
 const percentFrom = (entry: number, price: number): number => (entry !== 0 ? ((price - entry) / entry) * 100 : 0)
 
 export const positionReading = (position: Position): PositionReading => {
@@ -19,7 +21,7 @@ export const positionReading = (position: Position): PositionReading => {
     targetPercent: percentFrom(entry, position.target),
     stopPercent: percentFrom(entry, position.stop),
     rewardToRisk: perShare > 0 ? reward / perShare : 0,
-    shares: risk !== null && perShare > 0 ? Math.floor(risk / perShare) : null,
+    shares: risk !== null && perShare > 0 ? Math.floor(Number((risk / perShare).toFixed(SHARE_DIGITS))) : null,
     risk,
   }
 }
