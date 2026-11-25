@@ -209,6 +209,7 @@ export type Indicators = {
   levels: { visible: boolean; perSide: number }
   marks: { earnings: boolean; dividends: boolean }
   patterns: { visible: boolean; kinds: PatternKind[] }
+  gaps: { visible: boolean; minPercent: number }
 }
 
 export type ChartType = 'candles' | 'bars' | 'line' | 'area' | 'baseline'
@@ -284,6 +285,7 @@ export const DEFAULT_STATE: AppState = {
     levels: { visible: false, perSide: 3 },
     marks: { earnings: true, dividends: true },
     patterns: { visible: false, kinds: ['doji', 'hammer', 'shootingStar', 'bullishEngulfing', 'bearishEngulfing'] },
+    gaps: { visible: false, minPercent: 1 },
   },
   chart: { type: 'candles', scale: 'normal', invert: false, cursor: 'normal', currency: 'original' },
   listWidth: LIST_DEFAULT_WIDTH,

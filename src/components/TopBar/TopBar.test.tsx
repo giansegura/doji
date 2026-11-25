@@ -673,3 +673,17 @@ test('Should switch the candle patterns on and choose which ones to mark', async
   await user.click(screen.getByRole('checkbox', { name: 'Bullish engulfing' }))
   expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ patterns: { visible: true, kinds: ['doji', 'hammer', 'bullishEngulfing'] } }))
 })
+
+test('Should switch the open gaps on and set their minimum size', async () => {
+  const { handlers, user } = setup()
+  await openIndicators(user)
+  await user.click(screen.getByRole('checkbox', { name: 'Open gaps' }))
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ gaps: { visible: true, minPercent: 1 } }))
+})
+
+test('Should set the minimum size of the open gaps', async () => {
+  const { handlers, user } = setup({ ...DEFAULT_STATE.indicators, gaps: { visible: true, minPercent: 1 } })
+  await openIndicators(user)
+  await typeInto(user, 'Minimum gap %', '2')
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ gaps: { visible: true, minPercent: 2 } }))
+})

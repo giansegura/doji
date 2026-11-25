@@ -682,3 +682,9 @@ test('Should keep the candle patterns hidden with every kind chosen unless the c
   })
   expect(normalizeState({ indicators: { patterns: { visible: 'yes' } } }).indicators.patterns).toEqual({ visible: false, kinds: all })
 })
+
+test('Should keep the open gaps hidden with a one percent minimum unless the configuration says otherwise', () => {
+  expect(normalizeState({}).indicators.gaps).toEqual({ visible: false, minPercent: 1 })
+  expect(normalizeState({ indicators: { gaps: { visible: true, minPercent: 2.5 } } }).indicators.gaps).toEqual({ visible: true, minPercent: 2.5 })
+  expect(normalizeState({ indicators: { gaps: { visible: true, minPercent: 0 } } }).indicators.gaps).toEqual({ visible: true, minPercent: 1 })
+})

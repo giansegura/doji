@@ -868,6 +868,25 @@ await step('los patrones de velas se marcan al encenderlos y se quitan al apagar
   await button('Show 1 year').click()
 })
 
+await step('los huecos sin cerrar se sombrean al encenderlos y se quitan al apagarlos', async () => {
+  const { price } = await panes()
+  await button('Show all').click()
+  const clean = await regionShot(price)
+  await button('Indicators').click()
+  await page.getByRole('checkbox', { name: 'Open gaps' }).click()
+  await page.getByRole('spinbutton', { name: 'Minimum gap %' }).fill('0.5')
+  await page.getByRole('spinbutton', { name: 'Minimum gap %' }).press('Enter')
+  await page.keyboard.press('Escape')
+  const gaps = (await savedState()).indicators.gaps
+  check(gaps.visible && gaps.minPercent === 0.5, `los huecos no se guardaron: ${JSON.stringify(gaps)}`)
+  check((await regionShot(price)) !== clean, 'no se sombreó ningún hueco en toda la historia')
+  await button('Indicators').click()
+  await page.getByRole('checkbox', { name: 'Open gaps' }).click()
+  await page.keyboard.press('Escape')
+  check((await regionShot(price)) === clean, 'queda sombra de huecos al apagarlos')
+  await button('Show 1 year').click()
+})
+
 await step('la leyenda dice cuándo son los próximos resultados', async () => {
   await page.getByText(/^Earnings ~?[A-Z][a-z]{2} \d{1,2}, \d{4}( · EPS est\. [−-]?\d+\.\d{2})?$/).waitFor({ timeout: 15_000 })
   const earnings = await page.evaluate(async () => (await fetch('/api/earnings?symbol=AAPL')).json())

@@ -1,6 +1,8 @@
 import {
   BAND_MAX_MULTIPLIER,
   BAND_MIN_MULTIPLIER,
+  GAP_MAX_PERCENT,
+  GAP_MIN_PERCENT,
   LEVELS_MAX_PER_SIDE,
   PROFILE_MAX_ROWS,
   PROFILE_MIN_ROWS,
@@ -31,7 +33,9 @@ const MACD_FIELDS = [
 ] as const
 
 export const StudiesPanel = ({ indicators, onIndicators }: StudiesPanelProps) => {
-  const { bollinger, macd, volumeProfile, levels, marks, patterns } = indicators
+  const { bollinger, macd, volumeProfile, levels, marks, patterns, gaps } = indicators
+
+  const setGaps = (patch: Partial<Indicators['gaps']>) => onIndicators({ ...indicators, gaps: { ...gaps, ...patch } })
 
   const setBollinger = (patch: Partial<Indicators['bollinger']>) =>
     onIndicators({ ...indicators, bollinger: { ...bollinger, ...patch } })
@@ -151,6 +155,23 @@ export const StudiesPanel = ({ indicators, onIndicators }: StudiesPanelProps) =>
             <Styles.RowLabel>{label}</Styles.RowLabel>
           </Styles.MenuRow>
         ))}
+      <Styles.MenuRow>
+        <input type="checkbox" checked={gaps.visible} onChange={(event) => setGaps({ visible: event.target.checked })} />
+        <Styles.RowLabel>Open gaps</Styles.RowLabel>
+      </Styles.MenuRow>
+      {gaps.visible && (
+        <Styles.MenuItem $indented>
+          <Styles.RowLabel>Minimum %</Styles.RowLabel>
+          <NumberField
+            label="Minimum gap %"
+            value={gaps.minPercent}
+            min={GAP_MIN_PERCENT}
+            max={GAP_MAX_PERCENT}
+            decimal
+            onChange={(minPercent) => setGaps({ minPercent })}
+          />
+        </Styles.MenuItem>
+      )}
       <Styles.MenuSection>Marks</Styles.MenuSection>
       <Styles.MenuRow>
         <input type="checkbox" checked={marks.earnings} onChange={(event) => setMarks({ earnings: event.target.checked })} />

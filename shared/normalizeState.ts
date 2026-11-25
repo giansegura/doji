@@ -3,6 +3,8 @@ import {
   BAND_MAX_MULTIPLIER,
   BAND_MIN_MULTIPLIER,
   LIST_NAME_MAX_LENGTH,
+  GAP_MAX_PERCENT,
+  GAP_MIN_PERCENT,
   LEVELS_MAX_PER_SIDE,
   LINE_TEXT_MAX_LENGTH,
   MAX_LISTS,
@@ -316,6 +318,8 @@ const toIndicators = (raw: unknown): Indicators => {
   const perSide = asFinite(levels.perSide)
   const marks = asRecord(indicators.marks)
   const patterns = asRecord(indicators.patterns)
+  const gaps = asRecord(indicators.gaps)
+  const gapMinimum = asFinite(gaps.minPercent)
   const defaults = DEFAULT_STATE.indicators
   return {
     volume: { visible: asBoolean(volume.visible, defaults.volume.visible) },
@@ -361,6 +365,10 @@ const toIndicators = (raw: unknown): Indicators => {
     patterns: {
       visible: asBoolean(patterns.visible, defaults.patterns.visible),
       kinds: Array.isArray(patterns.kinds) ? defaults.patterns.kinds.filter((kind) => (patterns.kinds as unknown[]).includes(kind)) : defaults.patterns.kinds,
+    },
+    gaps: {
+      visible: asBoolean(gaps.visible, defaults.gaps.visible),
+      minPercent: gapMinimum !== null && gapMinimum >= GAP_MIN_PERCENT && gapMinimum <= GAP_MAX_PERCENT ? gapMinimum : defaults.gaps.minPercent,
     },
   }
 }
