@@ -5,12 +5,19 @@ import type { Bar } from './types'
 
 const START = '2015-01-05'
 
-const barsFrom = (weekly: number[]): Bar[] =>
-  weekly.flatMap((value, week) =>
+const weekdaysFrom = (start: string, count: number): string[] => {
+  const days = [start]
+  while (days.length < count) days.push(addWeekdays(days[days.length - 1], 1))
+  return days
+}
+
+const barsFrom = (weekly: number[]): Bar[] => {
+  const days = weekdaysFrom(START, weekly.length * 5)
+  return weekly.flatMap((value, week) =>
     Array.from({ length: 5 }, (_, day) => {
       const close = value * (1 + (day - 2) * 0.002)
       return {
-        time: addWeekdays(START, week * 5 + day),
+        time: days[week * 5 + day],
         open: close * 0.999,
         high: close * 1.01,
         low: close * 0.99,
@@ -19,6 +26,7 @@ const barsFrom = (weekly: number[]): Bar[] =>
       }
     }),
   )
+}
 
 const triangle = (weeks: number, low: number, high: number, period: number): number[] =>
   Array.from({ length: weeks }, (_, week) => {

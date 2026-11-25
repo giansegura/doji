@@ -7,9 +7,15 @@ import { type SummaryInput, scanRow, summarizeChart } from './chartSummary'
 
 const START = '2025-01-02'
 
+const DAYS = (() => {
+  const days = [START]
+  while (days.length < 2000) days.push(addWeekdays(days[days.length - 1], 1))
+  return days
+})()
+
 const barsOf = (closes: number[]): Bar[] =>
   closes.map((close, index) => ({
-    time: addWeekdays(START, index),
+    time: DAYS[index],
     open: close - 1,
     high: close + 2,
     low: close - 2,
