@@ -27,6 +27,9 @@ import { calendarItems, earningsSoon } from './domain/earningsCalendar'
 import { freshQuotes } from './domain/liveBar'
 import { newId } from './domain/newId'
 import { replayBars } from './domain/replay'
+import { linesIn, mergeLinesIn } from './domain/currencyLines'
+import { euroLive } from './domain/euroView'
+import { convertHistory, fxPairOf } from '../shared/currency'
 import { tabTitle } from './domain/tabTitle'
 import { METRIC_FIELDS, allSymbols, filterItems } from './domain/filters'
 import { onlyFlagged } from './domain/flags'
@@ -35,6 +38,7 @@ import { adjustLinesForSplits } from './domain/splits'
 import { useAlerts } from './hooks/useAlerts'
 import { useCompanyProfile } from './hooks/useCompanyProfile'
 import { useEarnings } from './hooks/useEarnings'
+import { useFxBars } from './hooks/useFxBars'
 import { useNews } from './hooks/useNews'
 import { useEarningsCalendar } from './hooks/useEarningsCalendar'
 import { useWatchMetrics } from './hooks/useWatchMetrics'
@@ -132,13 +136,20 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
     if (adjusted.changed) dispatch({ type: 'setLines', symbol: state.symbol, lines: adjusted.lines })
   }, [history, state.symbol, state.lines, dispatch])
 
-  const replayer = useReplay({ bars: history?.bars ?? NO_BARS, timeframe: state.timeframe, symbol: state.symbol })
+  const fx = state.chart.currency === 'EUR' && history?.info.symbol === state.symbol ? fxPairOf(history.currency) : null
+  const fxBars = useFxBars(fx?.pair ?? null)
+  const viewed = useMemo(() => (history && fx && fxBars ? convertHistory(history, fxBars, fx.factor) : history), [history, fx?.pair, fx?.factor, fxBars])
+  const inEuros = viewed !== history
+  const viewCurrency = inEuros ? 'EUR' : 'original'
+  const shownLines = useMemo(() => linesIn(drawings, viewCurrency), [drawings, viewCurrency])
+  const replayer = useReplay({ bars: viewed?.bars ?? NO_BARS, timeframe: state.timeframe, symbol: state.symbol })
   const { replay } = replayer
   const replayAt = replay.status === 'on' ? replay.cutoff : null
   const shownHistory = useMemo(
-    () => (history && replayAt ? { ...history, bars: replayBars(history.bars, replayAt) } : history),
-    [history, replayAt],
+    () => (viewed && replayAt ? { ...viewed, bars: replayBars(viewed.bars, replayAt) } : viewed),
+    [viewed, replayAt],
   )
+  const shownLive = inEuros && fx && fxBars ? euroLive(livePrice, fxBars, fx.factor) : livePrice
   const chartProps = {
     symbol: state.symbol,
     status,
@@ -146,18 +157,19 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
     errorCode,
     indicators: state.indicators,
     settings: state.chart,
-    live: replay.status === 'off' ? livePrice : null,
+    live: replay.status === 'off' ? shownLive : null,
     asOf: replayAt,
     onPickBar: replay.status === 'picking' ? replayer.pick : undefined,
-    lines: drawings,
+    lines: shownLines,
     tool,
-    onLinesChange: changeDrawings,
+    onLinesChange: (shown: Drawing[]) => changeDrawings(mergeLinesIn(drawings, shown, viewCurrency)),
     looks: state.lineLooks,
     onLook: (kind: DrawingKind, look: LineLook) => dispatch({ type: 'rememberLook', kind, look }),
     onToolDone: () => setTool('cursor'),
     onRetry: retry,
-    holding: state.holdings[state.symbol],
+    holding: inEuros ? undefined : state.holdings[state.symbol],
     currency: quotes[state.symbol]?.currency,
+    inEuros,
   }
 
   const handlePick = (info: SymbolInfo) => {

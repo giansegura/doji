@@ -43,6 +43,7 @@ type ChartViewProps = {
   onToolDone: () => void
   holding?: Holding
   currency?: string
+  inEuros?: boolean
 }
 
 const NO_LOOKS: Partial<Record<DrawingKind, LineLook>> = {}
@@ -72,6 +73,7 @@ export const ChartView = ({
   onToolDone,
   holding,
   currency,
+  inEuros = false,
 }: ChartViewProps) => {
   const theme = useTheme()
   const { containerRef, handles, data, rsiPaneTop, macdPaneTop, hover } = useChart({
@@ -164,6 +166,7 @@ export const ChartView = ({
         macdPaneTop={macdPaneTop}
         earnings={earnings ? nextEarningsLabel(earnings) : null}
         dividends={dividends}
+        inEuros={inEuros}
       />
       {selectedLine && <LineToolbar line={selectedLine} onChange={changeLine} onDelete={deleteSelected} onArm={askToNotify} />}
       {manual && (

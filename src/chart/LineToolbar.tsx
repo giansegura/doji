@@ -286,7 +286,7 @@ export const LineToolbar = ({ line, onChange, onDelete, onArm }: LineToolbarProp
           <ExtendIcon />
         </Styles.ToolbarButton>
       )}
-      {line.pane === 'price' && (line.kind === undefined || line.kind === 'trend' || line.kind === 'hline' || line.kind === 'position') && (
+      {line.pane === 'price' && !line.currency && (line.kind === undefined || line.kind === 'trend' || line.kind === 'hline' || line.kind === 'position') && (
         <Styles.ToolbarButton
           type="button"
           title="Alert when the price crosses it"

@@ -15,6 +15,7 @@ export type LegendProps = {
   macdPaneTop: number | null
   earnings?: string | null
   dividend?: string | null
+  inEuros?: boolean
 }
 
 const LEGEND_PADDING = 8
@@ -34,6 +35,7 @@ export const Legend = ({
   macdPaneTop,
   earnings = null,
   dividend = null,
+  inEuros = false,
 }: LegendProps) => {
   const theme = useTheme()
   const bar = values?.bar ?? null
@@ -44,7 +46,7 @@ export const Legend = ({
   const changePercent = reference !== 0 ? (change / reference) * 100 : 0
   const barColor = change >= 0 ? theme.chart.up : theme.chart.down
   const digits = priceDigits(info.symbol, bar?.close ?? reference)
-  const title = [info.name, `1${timeframe}`, info.exchange].filter(Boolean).join(' · ')
+  const title = [info.name, `1${timeframe}`, info.exchange, inEuros ? 'in EUR' : null].filter(Boolean).join(' · ')
   const showRsi = indicators.rsi.visible && rsiPaneTop !== null
   const volumeMa = indicators.volumeMa.visible ? (values?.volumeMa ?? null) : null
   const bands = indicators.bollinger.visible ? (values?.bands ?? null) : null

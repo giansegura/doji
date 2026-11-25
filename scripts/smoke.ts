@@ -1483,6 +1483,43 @@ await step('las noticias de la acción se abren en otra pestaña', async () => {
   await button(`News for ${symbol}`).click()
 })
 
+await step('el gráfico se ve en euros con el cambio de cada día y sus dibujos son aparte', async () => {
+  const before = await savedState()
+  const symbol = before.symbol
+  const closeShown = async (): Promise<number> => {
+    await page.mouse.move(700, 10)
+    await page.waitForTimeout(400)
+    const row = (await page.getByText(/ · 1[DWM] · /).first().locator('..').innerText()).replace(/\s+/g, '')
+    return Number((row.match(/C([\d,.]+)/)?.[1] ?? 'NaN').replace(/,/g, ''))
+  }
+  const dollars = await closeShown()
+  await button('Chart').click()
+  await page.getByRole('radio', { name: 'Euros' }).check()
+  await page.keyboard.press('Escape')
+  await page.getByText(/ · in EUR$/).waitFor({ timeout: 20_000 })
+  check((await savedState()).chart.currency === 'EUR', 'la moneda del gráfico no se guardó')
+  const euros = await closeShown()
+  const rates = await page.evaluate(async () => (await fetch('/api/history?symbol=EURUSD=X')).json())
+  const rate = rates.bars.at(-1).close
+  check(Math.abs(euros - dollars / rate) / euros < 0.02, `el cierre en euros no cuadra: ${dollars} / ${rate} ≠ ${euros}`)
+  const existing = (await drawingsOf(symbol)).map((drawing) => drawing.id)
+  const { price } = await panes()
+  await button('Horizontal line').click()
+  await page.mouse.click(price.x + price.width * 0.5, price.y + price.height * 0.4)
+  await page.waitForTimeout(500)
+  const drawn = (await drawingsOf(symbol)).find((drawing) => !existing.includes(drawing.id))
+  check(drawn?.currency === 'EUR', `la línea hecha en euros no quedó marcada: ${JSON.stringify(drawn)}`)
+  check((await page.getByRole('button', { name: 'Alert' }).count()) === 0, 'una línea en euros ofrece alerta')
+  await page.keyboard.press('Delete')
+  await button('Chart').click()
+  await page.getByRole('radio', { name: 'Symbol currency' }).check()
+  await page.keyboard.press('Escape')
+  check((await page.getByText(/ · in EUR$/).count()) === 0, 'la leyenda sigue diciendo euros')
+  check(Math.abs((await closeShown()) - dollars) < 0.01, 'el gráfico no volvió a la moneda de la acción')
+  const after = await savedState()
+  check(after.chart.currency === 'original' && (after.lines[symbol] ?? []).length === existing.length, 'no quedó todo como estaba')
+})
+
 await step('oculta y muestra el RSI', async () => {
   await button('Indicators').click()
   await page.getByRole('checkbox', { name: 'RSI', exact: true }).click()

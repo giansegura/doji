@@ -548,3 +548,8 @@ test('Should ask the search for news only', async () => {
   await provider.news('AAPL')
   expect(calls[0].url).toBe('https://query2.finance.yahoo.com/v1/finance/search?q=AAPL&quotesCount=0&newsCount=10')
 })
+
+test('Should read the currency the symbol trades in', () => {
+  expect(parseHistory(chartJson({ meta: { symbol: 'VOD.L', exchangeTimezoneName: 'Europe/London', currency: 'GBp' } }), 'x').currency).toBe('GBp')
+  expect(parseHistory(chartJson(), 'x').currency).toBeUndefined()
+})

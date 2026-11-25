@@ -204,7 +204,7 @@ test('Should change theme, timeframe and indicators', () => {
 })
 
 test('Should change the chart settings', () => {
-  const chart = { type: 'line', scale: 'log', invert: true, cursor: 'magnet' } as const
+  const chart = { type: 'line', scale: 'log', invert: true, cursor: 'magnet', currency: 'EUR' } as const
   expect(appReducer(base, { type: 'setChart', chart }).chart).toEqual(chart)
 })
 

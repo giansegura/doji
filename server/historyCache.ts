@@ -66,6 +66,7 @@ export const mergeHistory = (cached: History, tail: History): History => {
   const splits = new Map([...cached.splits, ...tail.splits].map((split) => [split.date, split]))
   const dividends = new Map([...(cached.dividends ?? []), ...(tail.dividends ?? [])].map((dividend) => [dividend.date, dividend]))
   const tradedAt = fresh.length > 0 ? tail.tradedAt : cached.tradedAt
+  const currency = tail.currency ?? cached.currency
   return {
     info: tail.info,
     bars: [...kept, ...fresh],
@@ -74,6 +75,7 @@ export const mergeHistory = (cached: History, tail: History): History => {
     fetchedAt: tail.fetchedAt,
     stale: false,
     ...(tradedAt === undefined ? {} : { tradedAt }),
+    ...(currency === undefined ? {} : { currency }),
   }
 }
 

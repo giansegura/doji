@@ -28,6 +28,7 @@ type ChartAreaProps = {
   onRetry: () => void
   holding?: Holding
   currency?: string
+  inEuros?: boolean
 }
 
 const NO_LINES: Drawing[] = []
@@ -58,6 +59,7 @@ export const ChartArea = ({
   onRetry,
   holding,
   currency,
+  inEuros = false,
 }: ChartAreaProps) => {
   const [lastShown, setLastShown] = useState<History | null>(hasBars(history) ? history : null)
   const loading = status === 'loading'
@@ -102,6 +104,7 @@ export const ChartArea = ({
         onToolDone={loading ? ignore : onToolDone}
         holding={loading ? undefined : holding}
         currency={currency}
+        inEuros={inEuros}
       />
       {loading && <Styles.Veil role="status">{`Loading ${displaySymbol(symbol)}…`}</Styles.Veil>}
     </>

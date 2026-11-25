@@ -301,14 +301,16 @@ test('Should describe a position with its entry, stop, target, reward to risk an
   ])
 })
 
-test('Should say which drawings the AI made', () => {
+test('Should say which drawings the AI made and which were drawn in euros', () => {
   const base = { pane: 'price' as const, timeframe: 'D' as const, color: '#2962FF', width: 2, pricedAt: '2020-01-01' }
   const drawings: Drawing[] = [
     { ...base, id: 'mine', kind: 'hline', value: 230, by: 'ai' },
     { ...base, id: 'yours', kind: 'hline', value: 231 },
+    { ...base, id: 'euros', kind: 'hline', value: 210, currency: 'EUR' },
   ]
   expect(summarizeChart(input({ drawings })).drawings).toEqual([
     { id: 'mine', kind: 'horizontal', pane: 'price', level: 230, alert: false, madeByAi: true },
     { id: 'yours', kind: 'horizontal', pane: 'price', level: 231, alert: false },
+    { id: 'euros', kind: 'horizontal', pane: 'price', level: 210, alert: false, currency: 'EUR' },
   ])
 })

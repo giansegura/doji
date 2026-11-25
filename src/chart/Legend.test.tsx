@@ -29,6 +29,7 @@ type Options = {
   info?: SymbolInfo
   earnings?: string | null
   dividend?: string | null
+  inEuros?: boolean
 }
 
 const setup = (over: Options = {}) =>
@@ -42,6 +43,7 @@ const setup = (over: Options = {}) =>
       macdPaneTop={over.macdPaneTop ?? null}
       earnings={over.earnings ?? null}
       dividend={over.dividend ?? null}
+      inEuros={over.inEuros ?? false}
     />,
   )
 
@@ -222,4 +224,9 @@ test('Should show the dividend paid on the bar under the cursor', () => {
   first.unmount()
   setup()
   expect(text()).not.toContain('Dividend')
+})
+
+test('Should say when the prices are shown in euros', () => {
+  setup({ inEuros: true })
+  expect(screen.getByText('Apple Inc. · 1D · NASDAQ · in EUR')).toBeTruthy()
 })

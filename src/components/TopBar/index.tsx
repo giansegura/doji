@@ -5,6 +5,7 @@ import type {
   AppState,
   ChartSettings,
   ChartType,
+  ChartCurrency,
   CursorMode,
   Indicators,
   ScaleMode,
@@ -68,6 +69,11 @@ const SCALE_MODES: [ScaleMode, string][] = [
   ['percent', 'Percent'],
   ['indexed', 'Indexed to 100'],
 ]
+const CURRENCIES: [ChartCurrency, string][] = [
+  ['original', 'Symbol currency'],
+  ['EUR', 'Euros'],
+]
+
 const CURSOR_MODES: [CursorMode, string][] = [
   ['normal', 'Free'],
   ['magnet', 'Magnet to close'],
@@ -425,6 +431,13 @@ export const TopBar = ({
             {CURSOR_MODES.map(([cursor, label]) => (
               <Styles.MenuRow key={cursor}>
                 <input type="radio" name="chart-cursor" checked={chart.cursor === cursor} onChange={() => onChart({ ...chart, cursor })} />
+                <Styles.RowLabel>{label}</Styles.RowLabel>
+              </Styles.MenuRow>
+            ))}
+            <Styles.MenuSection>Currency</Styles.MenuSection>
+            {CURRENCIES.map(([currency, label]) => (
+              <Styles.MenuRow key={currency}>
+                <input type="radio" name="chart-currency" checked={chart.currency === currency} onChange={() => onChart({ ...chart, currency })} />
                 <Styles.RowLabel>{label}</Styles.RowLabel>
               </Styles.MenuRow>
             ))}

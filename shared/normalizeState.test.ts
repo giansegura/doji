@@ -168,18 +168,20 @@ test('Should return the defaults for non-object input', () => {
 })
 
 test('Should keep valid chart settings and default the rest one by one', () => {
-  expect(normalizeState({}).chart).toEqual({ type: 'candles', scale: 'normal', invert: false, cursor: 'normal' })
+  expect(normalizeState({}).chart).toEqual({ type: 'candles', scale: 'normal', invert: false, cursor: 'normal', currency: 'original' })
   expect(normalizeState({ chart: { type: 'area', scale: 'percent', invert: true, cursor: 'magnetOhlc' } }).chart).toEqual({
     type: 'area',
     scale: 'percent',
     invert: true,
     cursor: 'magnetOhlc',
+    currency: 'original',
   })
   expect(normalizeState({ chart: { type: 'tarta', scale: 'log', invert: 'sí', cursor: 7 } }).chart).toEqual({
     type: 'candles',
     scale: 'log',
     invert: false,
     cursor: 'normal',
+    currency: 'original',
   })
 })
 
@@ -604,4 +606,13 @@ test('Should remember which drawings the AI made and nothing else in that mark',
   const base = { pane: 'price', timeframe: 'D', color: '#fff', width: 1, value: 10, kind: 'hline' }
   const out = normalizeState({ lines: { KO: [{ ...base, id: 'a', by: 'ai' }, { ...base, id: 'b', by: 'user' }] } })
   expect(out.lines.KO.map((drawing) => drawing.by)).toEqual(['ai', undefined])
+})
+
+test('Should show the chart in its own currency unless euros were chosen, and keep the drawings made in euros', () => {
+  expect(normalizeState({}).chart.currency).toBe('original')
+  expect(normalizeState({ chart: { currency: 'EUR' } }).chart.currency).toBe('EUR')
+  expect(normalizeState({ chart: { currency: 'JPY' } }).chart.currency).toBe('original')
+  const base = { pane: 'price', timeframe: 'D', color: '#fff', width: 1, value: 10, kind: 'hline' }
+  const out = normalizeState({ lines: { KO: [{ ...base, id: 'a', currency: 'EUR' }, { ...base, id: 'b', currency: 'USD' }] } })
+  expect(out.lines.KO.map((drawing) => drawing.currency)).toEqual(['EUR', undefined])
 })
