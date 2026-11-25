@@ -21,6 +21,9 @@ const FULL_CIRCLE = Math.PI * 2
 const FILL_ALPHA = 0.12
 const ALERT_RING = 6
 const ALERT_DOT = 2.5
+const ZONE_FILL = 0.18
+const BADGE_PADDING = 6
+const BADGE_LINE = 15
 const MEASURE_FILL = 0.15
 const ARROW_HEAD = 6
 const LABEL_GAP = 8
@@ -62,6 +65,37 @@ const strokeSegments = (context: CanvasRenderingContext2D, view: ShapeView): voi
   context.stroke()
   context.globalAlpha = 1
   context.setLineDash([])
+}
+
+const shadeZones = (context: CanvasRenderingContext2D, view: ShapeView): void => {
+  view.zones.forEach((zone) => {
+    const [first, ...rest] = zone.points
+    if (!first) return
+    context.globalAlpha = ZONE_FILL * view.opacity
+    context.fillStyle = zone.color
+    context.beginPath()
+    context.moveTo(first.x, first.y)
+    rest.forEach((point) => context.lineTo(point.x, point.y))
+    context.closePath()
+    context.fill()
+  })
+  context.globalAlpha = 1
+}
+
+const drawBadges = (context: CanvasRenderingContext2D, view: ShapeView): void => {
+  context.font = TEXT_FONT
+  view.badges.forEach((badge) => {
+    const width = Math.max(...badge.lines.map((line) => context.measureText(line).width)) + BADGE_PADDING * 2
+    const height = badge.lines.length * BADGE_LINE + BADGE_PADDING
+    const top = badge.y - height / 2
+    context.globalAlpha = 1
+    context.fillStyle = badge.color
+    context.fillRect(badge.x - width / 2, top, width, height)
+    context.fillStyle = textOn(badge.color)
+    context.textAlign = 'center'
+    context.textBaseline = 'top'
+    badge.lines.forEach((line, index) => context.fillText(line, badge.x, top + BADGE_PADDING / 2 + index * BADGE_LINE))
+  })
 }
 
 const writeText = (context: CanvasRenderingContext2D, view: ShapeView): void => {
@@ -158,9 +192,11 @@ export const createDrawingsPrimitive = (
       target.useMediaCoordinateSpace(({ context, mediaSize }) => {
         getViews().forEach((view) => {
           context.save()
+          shadeZones(context, view)
           fillArea(context, view)
           strokeSegments(context, view)
           writeText(context, view)
+          drawBadges(context, view)
           drawAlert(context, view, getHandleFill())
           drawHandles(context, view, getHandleFill())
           context.restore()

@@ -1,6 +1,6 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { LINE_TEXT_MAX_LENGTH, MIN_LINE_OPACITY } from '../../shared/limits'
-import type { Drawing, LineStyle } from '../../shared/types'
+import type { Drawing, LineStyle, Position } from '../../shared/types'
 import { LINE_COLORS } from '../theme/tokens'
 import * as Styles from './styles'
 
@@ -45,8 +45,16 @@ const withText = (line: Drawing, text: string): Drawing => {
 
 const takesText = (line: Drawing): boolean => line.kind === undefined || line.kind === 'trend' || line.kind === 'hline'
 
-const LineTextField = ({ line, onChange }: { line: Drawing; onChange: (line: Drawing) => void }) => {
-  const saved = 'text' in line ? (line.text ?? '') : ''
+type DraftFieldProps = {
+  label: string
+  placeholder: string
+  saved: string
+  maxLength?: number
+  narrow?: boolean
+  onCommit: (text: string) => boolean
+}
+
+const DraftField = ({ label, placeholder, saved, maxLength, narrow = false, onCommit }: DraftFieldProps) => {
   const [draft, setDraft] = useState(saved)
   const fieldRef = useRef<HTMLInputElement>(null)
   const saveRef = useRef<() => void>(() => undefined)
@@ -58,8 +66,11 @@ const LineTextField = ({ line, onChange }: { line: Drawing; onChange: (line: Dra
     editedRef.current = false
     const text = draft.trim()
     if (text === sentRef.current) return
+    if (!onCommit(text)) {
+      setDraft(sentRef.current)
+      return
+    }
     sentRef.current = text
-    onChange(withText(line, text))
   }
 
   useEffect(() => {
@@ -90,10 +101,11 @@ const LineTextField = ({ line, onChange }: { line: Drawing; onChange: (line: Dra
     <Styles.LineText
       ref={fieldRef}
       type="text"
-      aria-label="Text on the line"
-      title="Text on the line"
-      placeholder="Text"
-      maxLength={LINE_TEXT_MAX_LENGTH}
+      aria-label={label}
+      title={label}
+      placeholder={placeholder}
+      maxLength={maxLength}
+      $narrow={narrow}
       value={draft}
       onChange={(event) => {
         editedRef.current = true
@@ -104,6 +116,44 @@ const LineTextField = ({ line, onChange }: { line: Drawing; onChange: (line: Dra
     />
   )
 }
+
+const LineTextField = ({ line, onChange }: { line: Drawing; onChange: (line: Drawing) => void }) => (
+  <DraftField
+    label="Text on the line"
+    placeholder="Text"
+    saved={'text' in line ? (line.text ?? '') : ''}
+    maxLength={LINE_TEXT_MAX_LENGTH}
+    onCommit={(text) => {
+      onChange(withText(line, text))
+      return true
+    }}
+  />
+)
+
+type Sizing = 'account' | 'riskPercent'
+
+const SIZING_LIMITS: Record<Sizing, number> = { account: Number.POSITIVE_INFINITY, riskPercent: 100 }
+
+const withSizing = (position: Position, field: Sizing, text: string): Position | null => {
+  const { [field]: _old, ...rest } = position
+  if (text === '') return rest as Position
+  const value = Number(text.replace(',', '.'))
+  return Number.isFinite(value) && value > 0 && value <= SIZING_LIMITS[field] ? { ...rest, [field]: value } : null
+}
+
+const SizingField = ({ position, field, label, placeholder, onChange }: { position: Position; field: Sizing; label: string; placeholder: string; onChange: (line: Drawing) => void }) => (
+  <DraftField
+    label={label}
+    placeholder={placeholder}
+    saved={position[field] === undefined ? '' : String(position[field])}
+    narrow
+    onCommit={(text) => {
+      const sized = withSizing(position, field, text)
+      if (sized) onChange(sized)
+      return sized !== null
+    }}
+  />
+)
 
 const StrokeIcon = ({ dash }: { dash?: string }) => (
   <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
@@ -219,6 +269,12 @@ export const LineToolbar = ({ line, onChange, onDelete, onArm }: LineToolbarProp
       </Styles.StyleAnchor>
       <Styles.ToolbarDivider />
       {takesText(line) && <LineTextField key={line.id} line={line} onChange={onChange} />}
+      {line.kind === 'position' && (
+        <>
+          <SizingField key={`${line.id}-account`} position={line} field="account" label="Account size" placeholder="Account" onChange={onChange} />
+          <SizingField key={`${line.id}-risk`} position={line} field="riskPercent" label="Risk %" placeholder="Risk %" onChange={onChange} />
+        </>
+      )}
       {(line.kind === undefined || line.kind === 'trend') && (
         <Styles.ToolbarButton
           type="button"
@@ -230,7 +286,7 @@ export const LineToolbar = ({ line, onChange, onDelete, onArm }: LineToolbarProp
           <ExtendIcon />
         </Styles.ToolbarButton>
       )}
-      {line.pane === 'price' && (line.kind === undefined || line.kind === 'trend' || line.kind === 'hline') && (
+      {line.pane === 'price' && (line.kind === undefined || line.kind === 'trend' || line.kind === 'hline' || line.kind === 'position') && (
         <Styles.ToolbarButton
           type="button"
           title="Alert when the price crosses it"

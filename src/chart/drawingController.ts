@@ -1,4 +1,4 @@
-import type { Drawing, DrawingBase, DrawingKind, LineLook, LinePoint, PaneId, Timeframe } from '../../shared/types'
+import type { Drawing, DrawingBase, DrawingKind, LineLook, LinePoint, PaneId, PositionSide, Timeframe } from '../../shared/types'
 import { withLook } from '../domain/lineLooks'
 import type { Tool } from '../state/appReducer'
 import { type ShapeGeometry, hitTestOutline, moveDrawing, offsetAt, outlineOf } from './drawingShapes'
@@ -53,6 +53,9 @@ type Measuring = { kind: 'measuring'; p1: LinePoint; start: XY }
 type Mode = { kind: 'idle' } | Placing | Dragging | Measuring
 
 const MEASURE_PANE: PaneId = 'price'
+const POSITION_LENGTH = 120
+const POSITION_RISK = 40
+const REWARD_TO_RISK = 2
 
 const RELEASE_DISTANCE = 5
 const IDLE: Mode = { kind: 'idle' }
@@ -206,6 +209,29 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
     return true
   }
 
+  const placePosition = (side: PositionSide, pane: PaneId, xy: XY): boolean => {
+    const entry = pane === 'price' ? pointAt(pane, xy) : null
+    const end = entry ? pointAt(pane, { x: xy.x + POSITION_LENGTH, y: xy.y }) : null
+    const away = entry ? pointAt(pane, { x: xy.x, y: xy.y + POSITION_RISK }) : null
+    const risk = entry && away ? Math.abs(away.value - entry.value) : 0
+    if (!entry || !end || risk <= 0) return false
+    const sign = side === 'long' ? 1 : -1
+    const limit = side === 'long' ? entry.value : entry.value / REWARD_TO_RISK
+    const distance = risk < limit ? risk : limit / 2
+    add(
+      styled('position', pane, (base) => ({
+        ...base,
+        kind: 'position',
+        side,
+        p1: entry,
+        p2: { date: end.date, value: entry.value },
+        stop: entry.value - sign * distance,
+        target: entry.value + sign * distance * REWARD_TO_RISK,
+      })),
+    )
+    return true
+  }
+
   const placeLevel = (pane: PaneId, xy: XY): boolean => {
     const at = pointAt(pane, xy)
     if (!at) return false
@@ -267,6 +293,7 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
     clearMeasure()
     if (tool === 'measure') return startMeasuring(pane, xy)
     if (tool === 'hline') return placeLevel(pane, xy)
+    if (tool === 'long' || tool === 'short') return placePosition(tool, pane, xy)
     if (tool !== 'cursor') return startPlacing(tool, pane, xy)
     const hit = hitAt(pane, xy)
     if (!hit) {

@@ -18,7 +18,7 @@ import type {
   WatchlistSort,
 } from '../../shared/types'
 
-export type Tool = 'cursor' | 'trendline' | 'hline' | 'channel' | 'rect' | 'measure'
+export type Tool = 'cursor' | 'trendline' | 'hline' | 'channel' | 'rect' | 'measure' | 'long' | 'short'
 
 export type Action =
   | { type: 'setTheme'; theme: ThemeName }

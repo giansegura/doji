@@ -243,3 +243,37 @@ test('Should describe the drawings at the prices after the latest split', () => 
   const summary = summarizeChart(input({ history: historyOf(rising, { splits: [split] }), drawings: [level] }))
   expect(summary.drawings).toEqual([{ id: 'h', kind: 'horizontal', pane: 'price', level: 50, alert: false }])
 })
+
+test('Should describe a position with its entry, stop, target, reward to risk and its sizing', () => {
+  const base = { pane: 'price' as const, timeframe: 'D' as const, color: '#2962FF', width: 1, pricedAt: '2020-01-01' }
+  const drawings: Drawing[] = [
+    {
+      ...base,
+      id: 'p',
+      kind: 'position',
+      side: 'long',
+      p1: { date: addWeekdays(lastDate, -5), value: 240 },
+      p2: { date: lastDate, value: 240 },
+      stop: 230,
+      target: 270,
+      alert: true,
+      account: 10000,
+      riskPercent: 1,
+    },
+  ]
+  expect(summarizeChart(input({ drawings })).drawings).toEqual([
+    {
+      id: 'p',
+      kind: 'position',
+      side: 'long',
+      from: addWeekdays(lastDate, -5),
+      to: lastDate,
+      entry: 240,
+      stop: 230,
+      target: 270,
+      rewardToRisk: 3,
+      alert: true,
+      shares: 10,
+    },
+  ])
+})

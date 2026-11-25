@@ -51,12 +51,28 @@ const RulerIcon = () => (
   </svg>
 )
 
+const LongIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">
+    <path d="M4 11h14M4 4.5h14v13H4z" strokeLinejoin="round" />
+    <path d="M11 9.5V5.8M9.3 7.4L11 5.7l1.7 1.7" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)
+
+const ShortIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">
+    <path d="M4 11h14M4 4.5h14v13H4z" strokeLinejoin="round" />
+    <path d="M11 12.5v3.7M9.3 14.6l1.7 1.7 1.7-1.7" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)
+
 const TOOLS: { tool: Tool; label: string; icon: ReactNode }[] = [
   { tool: 'cursor', label: 'Cursor', icon: <CursorIcon /> },
   { tool: 'trendline', label: 'Trend line', icon: <TrendLineIcon /> },
   { tool: 'hline', label: 'Horizontal line', icon: <HorizontalLineIcon /> },
   { tool: 'channel', label: 'Parallel channel', icon: <ChannelIcon /> },
   { tool: 'rect', label: 'Rectangle', icon: <RectangleIcon /> },
+  { tool: 'long', label: 'Long position', icon: <LongIcon /> },
+  { tool: 'short', label: 'Short position', icon: <ShortIcon /> },
   { tool: 'measure', label: 'Measure', icon: <RulerIcon /> },
 ]
 

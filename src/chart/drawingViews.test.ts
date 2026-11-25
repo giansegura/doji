@@ -90,3 +90,34 @@ test('Should mark an armed trend line at its right-most end', () => {
 test('Should label a horizontal line of a forex pair with the decimals of forex', () => {
   expect(viewOf({ ...hline, value: 1.096731 }, geometry, false, 'EURUSD=X')?.label?.text).toBe('1.0967')
 })
+
+const position: Drawing = {
+  ...base,
+  kind: 'position',
+  side: 'long',
+  p1: { date: 'd100', value: 100 },
+  p2: { date: 'd200', value: 100 },
+  stop: 95,
+  target: 115,
+  account: 10000,
+  riskPercent: 1,
+}
+
+const tones = { profit: '#3CC68A', loss: '#F25C69' }
+
+test('Should paint the zones of a position in the colours of gain and loss', () => {
+  const view = viewOf(position, geometry, false, 'KO', tones)
+  expect(view?.zones.map((zone) => zone.color)).toEqual(['#3CC68A', '#F25C69'])
+  expect(view?.zones[0].points).toEqual([{ x: 100, y: 100 }, { x: 200, y: 100 }, { x: 200, y: 115 }, { x: 100, y: 115 }])
+})
+
+test('Should label a position with its target, its stop, its reward to risk and the shares to buy', () => {
+  expect(viewOf(position, geometry, false, 'KO', tones)?.badges).toEqual([
+    { x: 150, y: 107.5, color: '#3CC68A', lines: ['Target 115.00 (+15.00%)', 'R:R 3.00'] },
+    { x: 150, y: 97.5, color: '#F25C69', lines: ['Stop 95.00 (−5.00%)', '20 shares · risk 100.00'] },
+  ])
+})
+
+test('Should paint no zones and no labels for the other drawings', () => {
+  expect(viewOf(trend, geometry, false, 'KO', tones)).toMatchObject({ zones: [], badges: [] })
+})

@@ -1,19 +1,30 @@
-import type { Drawing, LineStyle, Timeframe } from '../../shared/types'
+import type { Drawing, LineStyle, Position, Timeframe } from '../../shared/types'
+import { positionReading } from '../domain/position'
 import type { Draft } from './drawingController'
 import { type Outline, type ShapeGeometry, outlineOf } from './drawingShapes'
 import type { XY } from './lineGeometry'
-import { formatPrice } from './format'
+import { formatPercent, formatPrice } from './format'
 
 export type AxisLabel = { y: number; text: string }
 
 export type LineText = { x: number; y: number; value: string; align: 'right' | 'center' }
 
-export type ShapeView = Outline & {
+export type PaintedZone = { points: XY[]; color: string }
+
+export type Badge = { x: number; y: number; color: string; lines: string[] }
+
+export type Tones = { profit: string; loss: string }
+
+const DEFAULT_TONES: Tones = { profit: '#089981', loss: '#F23645' }
+
+export type ShapeView = Omit<Outline, 'zones'> & {
   color: string
   width: number
   lineStyle: LineStyle
   opacity: number
   text: LineText | null
+  zones: PaintedZone[]
+  badges: Badge[]
   selected: boolean
   label: AxisLabel | null
   alert: XY | null
@@ -48,16 +59,50 @@ const alertOf = (drawing: Drawing, outline: Outline, width: number): XY | null =
   return from.x <= to.x ? to : from
 }
 
-export const viewOf = (drawing: Drawing, geometry: ShapeGeometry, selected: boolean, symbol = ''): ShapeView | null => {
+const centreOf = (points: XY[]): XY => {
+  const xs = points.map((point) => point.x)
+  const ys = points.map((point) => point.y)
+  return { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 }
+}
+
+const positionBadges = (position: Position, outline: Outline, symbol: string, tones: Tones): Badge[] => {
+  const [profit, loss] = outline.zones ?? []
+  if (!profit || !loss) return []
+  const reading = positionReading(position)
+  const sizing = reading.shares !== null && reading.risk !== null ? [`${reading.shares} shares · risk ${formatPrice(reading.risk, symbol)}`] : []
+  return [
+    {
+      ...centreOf(profit.points),
+      color: tones.profit,
+      lines: [`Target ${formatPrice(position.target, symbol)} (${formatPercent(reading.targetPercent)})`, `R:R ${reading.rewardToRisk.toFixed(2)}`],
+    },
+    {
+      ...centreOf(loss.points),
+      color: tones.loss,
+      lines: [`Stop ${formatPrice(position.stop, symbol)} (${formatPercent(reading.stopPercent)})`, ...sizing],
+    },
+  ]
+}
+
+export const viewOf = (
+  drawing: Drawing,
+  geometry: ShapeGeometry,
+  selected: boolean,
+  symbol = '',
+  tones: Tones = DEFAULT_TONES,
+): ShapeView | null => {
   const outline = outlineOf(drawing, geometry)
   if (!outline) return null
+  const { zones, ...shape } = outline
   return {
-    ...outline,
+    ...shape,
     color: drawing.color,
     width: drawing.width,
     lineStyle: drawing.lineStyle ?? 'solid',
     opacity: drawing.opacity ?? 1,
     text: textOf(drawing, outline, geometry.width),
+    zones: (zones ?? []).map((zone) => ({ points: zone.points, color: tones[zone.tone] })),
+    badges: drawing.kind === 'position' ? positionBadges(drawing, outline, symbol, tones) : [],
     selected,
     label: labelOf(drawing, outline, symbol),
     alert: alertOf(drawing, outline, geometry.width),

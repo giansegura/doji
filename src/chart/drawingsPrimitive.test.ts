@@ -15,6 +15,8 @@ const view = (over: Partial<ShapeView> = {}): ShapeView => ({
   lineStyle: 'solid',
   opacity: 1,
   text: null,
+  zones: [],
+  badges: [],
   selected: false,
   label: null,
   alert: null,
@@ -218,4 +220,22 @@ test('Should ring the drawings that carry an alert with a dot inside a circle', 
   const { calls } = draw([view({ alert: { x: 300, y: 40 } })])
   expect(calls.filter((call) => call.startsWith('arc'))).toEqual(['arc 300,40 r6', 'arc 300,40 r2.5'])
   expect(draw([view()]).calls.filter((call) => call.startsWith('arc'))).toEqual([])
+})
+
+test('Should shade the zones of a position faintly and write its labels on solid boxes', () => {
+  const { calls } = draw([
+    view({
+      zones: [{ color: '#3CC68A', points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }] }],
+      badges: [{ x: 100, y: 50, color: '#3CC68A', lines: ['Target 115.00 (+15.00%)', 'R:R 3.00'] }],
+    }),
+  ])
+  expect(calls).toContain('fill #3CC68A 0.18')
+  expect(calls.some((call) => call.startsWith('fillRect') && call.includes('#3CC68A 1'))).toBe(true)
+  expect(calls.filter((call) => call.startsWith('text Target 115.00 (+15.00%)') || call.startsWith('text R:R 3.00'))).toHaveLength(2)
+})
+
+test('Should shade the zones of a position with the opacity of the drawing', () => {
+  const zones = [{ color: '#3CC68A', points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }] }]
+  expect(draw([view({ zones, opacity: 0.5 })]).calls).toContain('fill #3CC68A 0.09')
+  expect(draw([view({ zones, opacity: 0 })]).calls).toContain('fill #3CC68A 0')
 })

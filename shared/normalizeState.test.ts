@@ -473,3 +473,35 @@ test('Should keep the earnings warning of the watchlist off unless the configura
   expect(normalizeState({ earningsBadge: true }).earningsBadge).toBe(true)
   expect(normalizeState({ earningsBadge: 'sí' }).earningsBadge).toBe(false)
 })
+
+const position = {
+  kind: 'position',
+  id: 'p',
+  pane: 'price',
+  timeframe: 'D',
+  side: 'long',
+  p1: { date: '2026-11-02', value: 100 },
+  p2: { date: '2026-11-20', value: 100 },
+  stop: 95,
+  target: 110,
+  color: '#2962FF',
+  width: 1,
+  pricedAt: '2026-11-21',
+}
+
+test('Should keep a position with its levels, its alert and its sizing', () => {
+  const sized = { ...position, alert: true, account: 10000, riskPercent: 1 }
+  expect(normalizeState({ lines: { KO: [position, sized] } }).lines.KO).toEqual([position, sized])
+})
+
+test('Should drop a position that lacks its side or its levels, and the sizing it cannot read', () => {
+  const broken = [
+    { ...position, side: 'sideways' },
+    { ...position, stop: 'bajo' },
+    { ...position, target: undefined },
+    { ...position, p2: undefined },
+    { ...position, pane: 'rsi' },
+  ]
+  const oddSizing = { ...position, id: 'o', account: -5, riskPercent: 400 }
+  expect(normalizeState({ lines: { KO: [...broken, oddSizing] } }).lines.KO).toEqual([{ ...position, id: 'o' }])
+})

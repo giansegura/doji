@@ -73,6 +73,7 @@ export const ChartView = ({
     defaultColor: theme.chart.line,
     looks,
     measureColors: { up: theme.chart.up, down: theme.chart.down },
+    tones: { profit: theme.chart.up, loss: theme.chart.down },
     levels,
     levelLook: { ...LEVEL_LOOK, color: theme.chart.levels },
     handleFill: theme.chart.bg,

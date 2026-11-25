@@ -141,12 +141,40 @@ const toOpacity = (value: unknown): Pick<DrawingBase, 'opacity'> => {
   return opacity !== null && opacity >= MIN_LINE_OPACITY && opacity < 1 ? { opacity } : {}
 }
 
+const POSITION_SIDES = ['long', 'short'] as const
+
+const positiveOf = (value: unknown, most = Number.POSITIVE_INFINITY): number | null => {
+  const number = asFinite(value)
+  return number !== null && number > 0 && number <= most ? number : null
+}
+
+const toPosition = (item: Raw, base: DrawingBase, p1: LinePoint | null, p2: LinePoint | null): Drawing | null => {
+  const side = POSITION_SIDES.find((name) => name === item.side)
+  const stop = positiveOf(item.stop)
+  const target = positiveOf(item.target)
+  const account = positiveOf(item.account)
+  const riskPercent = positiveOf(item.riskPercent, 100)
+  if (!side || !p1 || !p2 || stop === null || target === null || base.pane !== 'price') return null
+  return {
+    ...base,
+    kind: 'position',
+    side,
+    p1,
+    p2,
+    stop,
+    target,
+    ...(item.alert === true ? { alert: true } : {}),
+    ...(account !== null ? { account } : {}),
+    ...(riskPercent !== null ? { riskPercent } : {}),
+  }
+}
+
 const toLineText = (value: unknown): { text?: string } => {
   const text = typeof value === 'string' ? value.trim().slice(0, LINE_TEXT_MAX_LENGTH) : ''
   return text ? { text } : {}
 }
 
-const DRAWING_KINDS: DrawingKind[] = ['trend', 'hline', 'channel', 'rect']
+const DRAWING_KINDS: DrawingKind[] = ['trend', 'hline', 'channel', 'rect', 'position']
 
 const toLook = (raw: unknown, kind: DrawingKind): LineLook | null => {
   const item = asRecord(raw)
@@ -199,6 +227,7 @@ const toDrawing = (raw: unknown): Drawing | null => {
   const hidePrice = item.hidePrice === true ? { hidePrice: true as const } : {}
   const text = toLineText(item.text)
   if (item.kind === 'hline') return value === null ? null : { ...base, kind: 'hline', value, ...alert, ...hidePrice, ...text }
+  if (item.kind === 'position') return toPosition(item, base, p1, p2)
   if (!p1 || !p2) return null
   if (item.kind === 'channel') return offset === null ? null : { ...base, kind: 'channel', p1, p2, offset }
   if (item.kind === 'rect') return { ...base, kind: 'rect', p1, p2 }
