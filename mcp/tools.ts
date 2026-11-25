@@ -386,7 +386,7 @@ export const createDojiServer = ({ api, newId, version, today = todayIso }: Serv
     {
       title: 'Arm or disarm an alert',
       description:
-        'Arms or disarms the price alert of an existing trend line, horizontal line or position of the price chart. Get the ids of the drawings with get_chart. An alert fires once when the price crosses the line, or the stop or target of a position, then disarms itself.',
+        'Arms or disarms the price alert of an existing trend line, horizontal line or position of the price chart. Get the ids of the drawings with get_chart. An alert fires when the price crosses the line, or the stop or target of a position, then disarms itself, unless the user set it to repeat (alertRepeats in get_chart: it stays armed and fires at most once a day). alertUntil is the last day it stays armed.',
       inputSchema: {
         symbol: symbolField,
         drawing_id: z.string().min(1).describe('Id of the drawing, as get_chart returns it.'),

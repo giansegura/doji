@@ -9,6 +9,7 @@ import type { EarningsSource } from './provider/earnings'
 import type { BackupHistory } from './backupHistory'
 import { type BackupKey, isBackupKeyError } from './backupKey'
 import type { NewsCache } from './newsCache'
+import { resolveSymbols } from './resolveSymbols'
 import type { ProfileSource } from './provider/profile'
 import { type Telegram, type TelegramErrorKind, isTelegramError } from './telegram'
 import { type DataProvider, isProviderError } from './provider/yahoo'
@@ -40,6 +41,8 @@ type Route = (request: ApiRequest) => Promise<ApiResult>
 const LOCAL_HOSTNAMES = ['127.0.0.1', 'localhost', '[::1]']
 const OWN_FETCH_SITES = ['same-origin', 'none']
 const WRITING_METHODS = ['PUT', 'PATCH']
+const MAX_RESOLVE_GROUPS = 50
+const MAX_CANDIDATES = 5
 
 const ok = (body: unknown): ApiResult => ({ status: 200, body })
 
@@ -129,6 +132,20 @@ export const createApi = (deps: ApiDeps): Route => {
         .map((symbol) => symbol.toUpperCase())
       if (symbols.length === 0) return ok([])
       return ok(await deps.provider.quotes(symbols))
+    },
+    'GET /api/resolve': async ({ query }) => {
+      const groups = (query.get('symbols') ?? '')
+        .split(',')
+        .filter(Boolean)
+        .map((group) =>
+          group
+            .split('|')
+            .filter((symbol) => SYMBOL_PATTERN.test(symbol))
+            .map((symbol) => symbol.toUpperCase())
+            .slice(0, MAX_CANDIDATES),
+        )
+      if (groups.length > MAX_RESOLVE_GROUPS) return fail(400, 'too_many_symbols')
+      return ok({ found: await resolveSymbols(groups, async (symbol) => (await deps.history.get(symbol, false)).info) })
     },
     'GET /api/logo': async ({ query }) => {
       const symbol = query.get('symbol') ?? ''

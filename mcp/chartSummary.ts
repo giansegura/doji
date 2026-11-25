@@ -2,7 +2,7 @@ import { addDays } from '../shared/dates'
 import { type Level, supportsAndResistances } from '../shared/levels'
 import { fromYearHigh } from '../shared/symbolMetrics'
 import { priceDigits, tradesEveryDay } from '../shared/symbols'
-import type { Bar, Dividend, Drawing, History, LinePoint, Quote, SmaConfig, Timeframe } from '../shared/types'
+import type { AlertSettings, Bar, Dividend, Drawing, History, LinePoint, Quote, SmaConfig, Timeframe } from '../shared/types'
 import { alertLevel } from '../shared/alerts'
 import { toMonthly } from '../src/domain/monthly'
 import { positionReading } from '../src/domain/position'
@@ -100,6 +100,12 @@ const yearRange = (daily: Bar[], close: number, digits: number) => {
 
 const pointOf = (point: LinePoint, digits: number) => ({ date: point.date, level: roundTo(point.value, digits) })
 
+const alertOf = (drawing: AlertSettings) => ({
+  alert: drawing.alert === true,
+  ...(drawing.alert && drawing.alertRepeat ? { alertRepeats: true } : {}),
+  ...(drawing.alert && drawing.alertUntil ? { alertUntil: drawing.alertUntil } : {}),
+})
+
 const describeDrawing = (drawing: Drawing, today: string, priceDigits: number, everyDay: boolean) => {
   const digits = drawing.pane === 'price' ? priceDigits : PERCENT_DIGITS
   const { id, pane, timeframe } = drawing
@@ -115,12 +121,12 @@ const describeDrawing = (drawing: Drawing, today: string, priceDigits: number, e
       stop: roundTo(drawing.stop, digits),
       target: roundTo(drawing.target, digits),
       rewardToRisk: roundTo(reading.rewardToRisk, PERCENT_DIGITS),
-      alert: drawing.alert === true,
+      ...alertOf(drawing),
       ...(reading.shares !== null ? { shares: reading.shares } : {}),
     }
   }
   if (drawing.kind === 'hline') {
-    return { id, kind: 'horizontal', pane, level: roundTo(drawing.value, digits), alert: drawing.alert === true, ...(drawing.from ? { from: drawing.from } : {}) }
+    return { id, kind: 'horizontal', pane, level: roundTo(drawing.value, digits), ...alertOf(drawing), ...(drawing.from ? { from: drawing.from } : {}) }
   }
   if (drawing.kind === 'vline') return { id, kind: 'vertical', pane, date: drawing.date }
   if (drawing.kind === 'zone') return { id, kind: 'zone', pane, top: roundTo(drawing.top, digits), bottom: roundTo(drawing.bottom, digits) }
@@ -135,7 +141,7 @@ const describeDrawing = (drawing: Drawing, today: string, priceDigits: number, e
     timeframe,
     ...ends,
     extendRight: drawing.extendRight,
-    alert: drawing.alert === true,
+    ...alertOf(drawing),
     ...(drawing.arrow ? { arrow: true } : {}),
     levelToday: pane === 'price' ? roundTo(alertLevel(drawing, today, everyDay), digits) : null,
   }

@@ -168,6 +168,14 @@ test('Should pick up within five seconds what was saved from outside while the t
   expect(result.current.notice).toBe(null)
 })
 
+test('Should pick up at once what the server saved when asked to look again', async () => {
+  const { result, box } = await mount()
+  box.server = { ...DEFAULT_STATE, symbol: 'MSFT', rev: 5 }
+  act(() => result.current.refresh())
+  await wait(0)
+  expect(result.current.state?.symbol).toBe('MSFT')
+})
+
 test('Should not ask for the state again while nothing is visible', async () => {
   const { api } = await mount()
   const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')

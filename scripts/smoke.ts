@@ -1,6 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { mkdir, readFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { join, resolve } from 'node:path'
 import { chromium } from 'playwright-core'
@@ -1287,6 +1287,78 @@ await step('una alerta sobre un indicador salta en el servidor cuando el día se
   check(!(symbol in (await savedState()).indicatorAlerts), 'la alerta del indicador no se quitó')
 })
 
+await step('una alerta que se repite salta como mucho una vez al día, caduca tras su último día y queda en el historial', async () => {
+  const { price } = await panes()
+  const levels = async () => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'hline')
+  const localDay = (offset: number) => {
+    const day = new Date()
+    day.setDate(day.getDate() + offset)
+    return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
+  }
+  await pickTool('Horizontal line')
+  await page.mouse.click(...at(price, 0.4, 0.3))
+  const [placed] = await levels()
+  const target = placed?.kind === 'hline' ? placed.value : 0
+  const feed = async (value: number) =>
+    ((await (
+      await fetch(`${url}/api/test/prices`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ AAPL: value }) })
+    ).json()) as { fired: unknown[] }).fired.length
+  await feed(target - 1)
+  await button('Alert').click()
+  await page.getByRole('combobox', { name: 'Alert repeat' }).selectOption('repeat')
+  await page.getByLabel('Alert until').fill(localDay(1))
+  const [armed] = await levels()
+  check(
+    armed?.kind === 'hline' && armed.alert === true && armed.alertRepeat === true && armed.alertUntil === localDay(1),
+    `la alerta que se repite no se guardó: ${JSON.stringify(armed)}`,
+  )
+  const firedToday = async () => {
+    const [line] = await levels()
+    return line?.kind === 'hline' && line.alertFiredOn === localDay(0)
+  }
+  let fired = 0
+  for (let attempt = 0; attempt < 3 && fired === 0 && !(await firedToday()); attempt += 1) fired = (await feed(target - 1)) + (await feed(target + 1))
+  check(fired === 1 || (fired === 0 && (await firedToday())), `la alerta que se repite saltó ${fired} veces`)
+  const [after] = await levels()
+  check(after?.kind === 'hline' && after.alert === true && after.alertFiredOn === localDay(0), `la alerta que se repite se desarmó: ${JSON.stringify(after)}`)
+  check((await feed(target - 1)) === 0 && (await feed(target + 1)) === 0, 'la alerta saltó dos veces el mismo día')
+  await page.getByRole('button', { name: /^Dismiss AAPL crossed/ }).first().click()
+  await button(/^Alerts/).click()
+  const history = page.getByRole('list', { name: 'Alert history' })
+  await history.getByRole('button').nth(2).waitFor({ timeout: 5000 })
+  const entries = await history.getByRole('button').allTextContents()
+  await page.keyboard.press('Escape')
+  await row('MSFT').click()
+  await page.getByText(/Microsoft Corporation · 1D/).waitFor({ timeout: 15_000 })
+  await button(/^Alerts/).click()
+  check(entries.length === 3 && entries[0].includes('AAPL') && entries[0].includes('Crossed'), `el historial no tiene las tres alertas: ${JSON.stringify(entries)}`)
+  check(entries.some((entry) => entry.includes('Day move beyond 2%')), 'el historial no tiene la alerta del indicador')
+  await history.getByRole('button').first().click()
+  await page.getByText(/Apple Inc\. · 1D/).waitFor({ timeout: 15_000 })
+  await button('Clear history').click()
+  await page.getByText('No alert has gone off yet').waitFor({ timeout: 5000 })
+  check((await savedState()).alertHistory.length === 0, 'el historial no se vació')
+  await page.keyboard.press('Escape')
+  await page.mouse.click(price.x + price.width * 0.15, price.y + price.height * 0.3)
+  await page.getByLabel('Alert until').fill(localDay(-1))
+  const [stale] = await levels()
+  const disarmedAlready = stale?.kind === 'hline' && stale.alert === undefined && stale.alertUntil === undefined
+  check(stale?.kind === 'hline' && (stale.alertUntil === localDay(-1) || disarmedAlready), `no se guardó el último día: ${JSON.stringify(stale)}`)
+  check((await feed(target - 1)) === 0, 'saltó una alerta caducada')
+  const deadline = Date.now() + 5000
+  let expired = await levels()
+  while (Date.now() < deadline && expired[0]?.kind === 'hline' && expired[0].alert) {
+    await page.waitForTimeout(200)
+    expired = await levels()
+  }
+  check(expired[0]?.kind === 'hline' && expired[0].alert === undefined && expired[0].alertUntil === undefined, `la alerta caducada no se desarmó: ${JSON.stringify(expired[0])}`)
+  await page.reload()
+  await waitForChart()
+  await page.mouse.click(price.x + price.width * 0.15, price.y + price.height * 0.3)
+  await page.keyboard.press('Delete')
+  check((await levels()).length === 0, 'la línea de la alerta no se borró')
+})
+
 await step('con la clave de reserva, Twelve Data entra cuando Yahoo falla tres veces seguidas y el gráfico lo dice', async () => {
   const before = (await savedState()).symbol
   await button('Settings').click()
@@ -1373,6 +1445,106 @@ await step('la cinta de mercados da precio y cambio del día, abre su gráfico, 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...latest, symbol: before.symbol, ticker: before.ticker }),
   })
+  await page.reload()
+  await waitForChart()
+})
+
+await step('importa una lista de TradingView con sus secciones, avisa de lo que no existe y la exporta en CSV y para TradingView', async () => {
+  const before = await savedState()
+  const file = join(outDir, 'Importada.txt')
+  await writeFile(file, '###Grandes,NASDAQ:AAPL,NYSE:BRK.B,###España,BME:SAN,FX:EURUSD,BINANCE:BTCUSDT,TVC:VIX,NASDAQ:ZZZZQX')
+  await button('Watchlists').click()
+  await page.getByLabel('Watchlist file').setInputFiles(file)
+  const dialog = page.getByRole('dialog', { name: 'Import list' })
+  await dialog.getByText('Imported 6 symbols into the new list “Importada”.').waitFor({ timeout: 90_000 })
+  check((await dialog.textContent())?.includes('Not found (1):NASDAQ:ZZZZQX') === true, `no avisa del símbolo que no existe: ${await dialog.textContent()}`)
+  await dialog.getByRole('button', { name: 'Close' }).click()
+  const imported = (await savedState()).watchlists.at(-1)
+  check(imported?.name === 'Importada' && (await savedState()).activeWatchlistId === imported.id, 'la lista importada no es la activa')
+  const shape = imported?.items.map((item) => ('kind' in item ? `#${item.title}` : item.symbol))
+  check(
+    JSON.stringify(shape) === JSON.stringify(['#Grandes', 'AAPL', 'BRK-B', '#España', 'SAN.MC', 'EURUSD=X', 'BTC-USD', '^VIX']),
+    `la lista importada no tiene lo esperado: ${JSON.stringify(shape)}`,
+  )
+  await row('SAN.MC').waitFor({ timeout: 10_000 })
+  const exported = async (label: string): Promise<{ name: string; text: string }> => {
+    await button('Watchlists').click()
+    const [download] = await Promise.all([page.waitForEvent('download', { timeout: 5000 }), button(label).click()])
+    const target = join(outDir, download.suggestedFilename())
+    await download.saveAs(target)
+    return { name: download.suggestedFilename(), text: await readFile(target, 'utf8') }
+  }
+  const csv = await exported('Export as CSV')
+  check(csv.name === 'Importada.csv', `nombre del CSV inesperado: ${csv.name}`)
+  const lines = csv.text.trim().split('\n')
+  check(lines[0] === 'Symbol,Name,Exchange,Section' && lines.length === 7, `CSV inesperado: ${csv.text}`)
+  check(lines.some((line) => line.startsWith('SAN.MC,') && line.endsWith(',España')), `el CSV no trae la sección: ${csv.text}`)
+  const tradingView = await exported('Export for TradingView')
+  check(tradingView.name === 'Importada.txt', `nombre del archivo de TradingView inesperado: ${tradingView.name}`)
+  check(
+    tradingView.text === '###Grandes,NASDAQ:AAPL,NYSE:BRK.B,###España,BME:SAN,FX:EURUSD,COINBASE:BTCUSD,TVC:VIX',
+    `archivo de TradingView inesperado: ${tradingView.text}`,
+  )
+  await button('Watchlists').click()
+  await button('Delete Importada').click()
+  await button('Confirm deleting Importada').click()
+  await page.keyboard.press('Escape')
+  const after = await savedState()
+  check(after.watchlists.length === before.watchlists.length, 'la lista importada no se borró')
+  if (after.activeWatchlistId !== before.activeWatchlistId) {
+    const name = before.watchlists.find((list) => list.id === before.activeWatchlistId)?.name ?? ''
+    await button('Watchlists').click()
+    await page.getByRole('menuitem', { name }).click()
+  }
+})
+
+await step('la lista se pliega con su botón o con Alt+W y se recuerda, y ? enseña los atajos', async () => {
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+  await page.keyboard.press('?')
+  const dialog = page.getByRole('dialog', { name: 'Keyboard shortcuts' })
+  await dialog.waitFor({ timeout: 5000 })
+  check((await dialog.getByRole('row').count()) >= 13, 'el cuadro de atajos no los trae todos')
+  await page.keyboard.press('Escape')
+  await dialog.waitFor({ state: 'detached', timeout: 5000 })
+  await button('Settings').click()
+  await button('Keyboard shortcuts').click()
+  await dialog.getByRole('button', { name: 'Close' }).click()
+  const chartWidth = async () => (await page.locator('[data-chart]').first().boundingBox())?.width ?? 0
+  const wide = await chartWidth()
+  await button('Hide watchlist').click()
+  await page.getByRole('complementary').waitFor({ state: 'detached', timeout: 5000 })
+  await page.waitForFunction((before) => (document.querySelector('[data-chart]')?.getBoundingClientRect().width ?? 0) > before + 100, wide, { timeout: 5000 })
+  check((await savedState()).listHidden === true, 'la lista plegada no se guardó')
+  await page.reload()
+  await waitForChart()
+  check((await page.getByRole('complementary').count()) === 0, 'la lista plegada volvió al recargar')
+  await page.keyboard.press('Alt+KeyW')
+  await page.getByRole('complementary').waitFor({ timeout: 5000 })
+  await button('Hide watchlist').waitFor({ timeout: 5000 })
+  const deadline = Date.now() + 5000
+  while (Date.now() < deadline && (await savedState()).listHidden) await page.waitForTimeout(200)
+  check((await savedState()).listHidden === false, 'Alt+W no volvió a enseñar la lista')
+  check(Math.abs((await chartWidth()) - wide) < 2, 'el gráfico no recuperó su ancho')
+})
+
+await step('escribir un ticker con el gráfico delante abre el buscador con esa letra y Enter abre el primero', async () => {
+  const before = (await savedState()).symbol
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+  await page.keyboard.press('k')
+  const field = page.getByPlaceholder('Search symbol or company')
+  await field.waitFor({ timeout: 5000 })
+  check((await field.inputValue()) === 'k', `el buscador no empezó con la letra: ${await field.inputValue()}`)
+  check(await field.evaluate((input) => input === document.activeElement), 'el buscador no quedó listo para seguir escribiendo')
+  await page.keyboard.type('o')
+  check((await field.inputValue()) === 'ko', `no se siguió escribiendo tras la letra: ${await field.inputValue()}`)
+  await page.getByRole('option').filter({ hasText: 'Coca-Cola' }).first().waitFor({ timeout: 15_000 })
+  await page.keyboard.press('Enter')
+  await page.getByText(/Coca-Cola Company · 1D/).waitFor({ timeout: 15_000 })
+  check((await savedState()).symbol === 'KO', 'Enter no abrió el primer resultado')
+  await page.getByPlaceholder('Search symbol or company').waitFor({ state: 'detached', timeout: 5000 })
+  await page.getByRole('region', { name: 'Market ticker' }).waitFor({ timeout: 5000 })
+  const state = await savedState()
+  await fetch(`${url}/api/state`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...state, symbol: before }) })
   await page.reload()
   await waitForChart()
 })

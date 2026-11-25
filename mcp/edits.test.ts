@@ -65,6 +65,12 @@ test('Should arm and disarm the alert of a trend line or a horizontal line', () 
   expect(levelArmed.ok && levelArmed.state.lines.KO[1]).toEqual({ ...level, alert: true })
 })
 
+test('Should keep how an armed alert repeats when the AI arms it again', () => {
+  const repeating = { ...state, lines: { ...state.lines, KO: [{ ...trend, alert: true, alertRepeat: true as const, alertUntil: '2026-12-31' }] } }
+  const again = setAlert(repeating, { symbol: 'KO', drawingId: 't', on: true })
+  expect(again.ok && again.state.lines.KO[0]).toEqual({ ...trend, alert: true, alertRepeat: true, alertUntil: '2026-12-31' })
+})
+
 test('Should refuse an alert on a drawing that does not exist or cannot carry one', () => {
   expect(setAlert(state, { symbol: 'KO', drawingId: 'zz', on: true })).toEqual({ ok: false, error: 'KO has no drawing with id "zz".' })
   const refused = { ok: false, error: 'Alerts work only on trend lines and horizontal lines drawn on the price.' }

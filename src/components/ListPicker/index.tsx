@@ -1,7 +1,8 @@
-import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
+import { type ChangeEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { LIST_NAME_MAX_LENGTH, MAX_LISTS } from '../../../shared/limits'
 import { LIST_ICON_GROUPS, toListIcon } from '../../../shared/listIcon'
 import type { SymbolList } from '../../../shared/types'
+import type { ListFormat } from '../../domain/listFiles'
 import * as Styles from './styles'
 
 type ListPickerProps = {
@@ -13,6 +14,8 @@ type ListPickerProps = {
   onDelete: (id: string) => void
   onDuplicate: (id: string) => void
   onIcon: (id: string, icon: string | null) => void
+  onImport?: (file: File) => void
+  onExport?: (format: ListFormat) => void
 }
 
 type Mode =
@@ -58,12 +61,13 @@ const TrashIcon = () => (
   </svg>
 )
 
-export const ListPicker = ({ lists, activeId, onSelect, onCreate, onRename, onDelete, onDuplicate, onIcon }: ListPickerProps) => {
+export const ListPicker = ({ lists, activeId, onSelect, onCreate, onRename, onDelete, onDuplicate, onIcon, onImport, onExport }: ListPickerProps) => {
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<Mode>(BROWSE)
   const [text, setText] = useState('')
   const rootRef = useRef<HTMLDivElement>(null)
   const iconButtonsRef = useRef(new Map<string, HTMLButtonElement>())
+  const fileRef = useRef<HTMLInputElement>(null)
   const active = lists.find((list) => list.id === activeId) ?? lists[0]
   const browsing = mode.kind === 'browse'
 
@@ -146,6 +150,19 @@ export const ListPicker = ({ lists, activeId, onSelect, onCreate, onRename, onDe
   const keepIconButton = (id: string) => (node: HTMLButtonElement | null) => {
     if (node) iconButtonsRef.current.set(id, node)
     else iconButtonsRef.current.delete(id)
+  }
+
+  const handleFile = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file || !onImport) return
+    onImport(file)
+    close()
+  }
+
+  const handleExport = (format: ListFormat) => {
+    onExport?.(format)
+    close()
   }
 
   const handleDelete = (id: string) => {
@@ -314,6 +331,34 @@ export const ListPicker = ({ lists, activeId, onSelect, onCreate, onRename, onDe
               </Styles.CreateButton>
             )}
           </Styles.Footer>
+          {(onImport || onExport) && (
+            <Styles.FileActions>
+              {onImport && (
+                <>
+                  <Styles.FileButton type="button" disabled={lists.length >= MAX_LISTS} onClick={() => fileRef.current?.click()}>
+                    Import list…
+                  </Styles.FileButton>
+                  <Styles.HiddenInput
+                    ref={fileRef}
+                    type="file"
+                    accept=".txt,.csv,text/plain,text/csv"
+                    aria-label="Watchlist file"
+                    onChange={handleFile}
+                  />
+                </>
+              )}
+              {onExport && (
+                <>
+                  <Styles.FileButton type="button" onClick={() => handleExport('csv')}>
+                    Export as CSV
+                  </Styles.FileButton>
+                  <Styles.FileButton type="button" onClick={() => handleExport('tradingview')}>
+                    Export for TradingView
+                  </Styles.FileButton>
+                </>
+              )}
+            </Styles.FileActions>
+          )}
         </Styles.Menu>
       )}
     </Styles.Root>

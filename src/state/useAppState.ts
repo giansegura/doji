@@ -97,5 +97,5 @@ export const useAppState = (api: StateApi = DEFAULT_API) => {
     tools.load()
   }, [tools])
 
-  return { state, dispatch, loadFailed, notice, retry, replaced }
+  return { state, dispatch, loadFailed, notice, retry, replaced, refresh: tools.refreshIfChanged }
 }

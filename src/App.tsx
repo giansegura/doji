@@ -12,7 +12,9 @@ import { FilterEditor } from './components/FilterEditor'
 import { LeftToolbar } from './components/LeftToolbar'
 import { MarketTicker } from './components/MarketTicker'
 import { ListPicker } from './components/ListPicker'
+import { ListImportDialog } from './components/ListImportDialog'
 import { AlertToasts } from './components/AlertToasts'
+import { AlertHistory } from './components/AlertHistory'
 import { ListResizer } from './components/ListResizer'
 import { ReplayBar } from './components/ReplayBar'
 import { CompanyPanel } from './components/CompanyPanel'
@@ -20,12 +22,14 @@ import { NewsPanel } from './components/NewsPanel'
 import { NotesPanel } from './components/NotesPanel'
 import { PositionPanel } from './components/PositionPanel'
 import { SymbolSearch } from './components/SymbolSearch'
+import { ShortcutsDialog } from './components/ShortcutsDialog'
 import { TimeframePicker } from './components/TimeframePicker'
 import { TopBar } from './components/TopBar'
 import { Watchlist } from './components/Watchlist'
 import { earningsDay } from './domain/companyProfile'
 import { configFileName, serializeConfig } from './domain/configFile'
 import { downloadText } from './domain/download'
+import { listFile } from './domain/listFiles'
 import { calendarItems, earningsSoon } from './domain/earningsCalendar'
 import { freshQuotes } from './domain/liveBar'
 import { newId } from './domain/newId'
@@ -49,6 +53,7 @@ import { useHistory } from './hooks/useHistory'
 import { useLivePrice } from './hooks/useLivePrice'
 import { usePrefetchHistories } from './hooks/usePrefetchHistories'
 import { useQuotes } from './hooks/useQuotes'
+import { useListImport } from './hooks/useListImport'
 import { useReplay } from './hooks/useReplay'
 import { useShortcuts } from './hooks/useShortcuts'
 import { type Action, type Tool, activeWatchlist } from './state/appReducer'
@@ -57,7 +62,13 @@ import * as Styles from './styles'
 import { GlobalStyle } from './theme/GlobalStyle'
 import { themes } from './theme/tokens'
 
-type WorkspaceProps = { state: AppState; dispatch: (action: Action) => void; notice: string | null; replaced: number }
+type WorkspaceProps = {
+  state: AppState
+  dispatch: (action: Action) => void
+  notice: string | null
+  replaced: number
+  refresh: () => void
+}
 
 const NO_BARS: Bar[] = []
 
@@ -75,10 +86,12 @@ const NEW_FILTER: Omit<SavedFilter, 'id'> = { name: '', scope: 'list', condition
 
 type FilterDraft = { filter: SavedFilter; editing: boolean }
 
-const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
+const Workspace = ({ state, dispatch, notice, replaced, refresh }: WorkspaceProps) => {
   const [tool, setTool] = useState<Tool>('cursor')
   const [searchMode, setSearchMode] = useState<SearchMode>(null)
+  const [searchText, setSearchText] = useState('')
   const [calendarOpen, setCalendarOpen] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [filterDraft, setFilterDraft] = useState<FilterDraft | null>(null)
   const [companyOpen, setCompanyOpen] = useState(false)
   const [newsOpen, setNewsOpen] = useState(false)
@@ -111,7 +124,8 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   const { quotes: tickerQuotes } = useQuotes(state.ticker.visible ? state.ticker.items.map((item) => item.symbol) : NO_FIELDS)
   const quotes = useMemo(() => freshQuotes(tracked, history), [tracked, history])
   const livePrice = useLivePrice(history, quotes[state.symbol])
-  const { fired, dismiss } = useAlerts()
+  const { fired, dismiss } = useAlerts({ onFired: refresh })
+  const listImport = useListImport((id, name, items) => dispatch({ type: 'createWatchlistWith', id, name, items }))
   const profile = useCompanyProfile(state.symbol, companyOpen)
   const news = useNews(state.symbol, newsOpen)
   const symbolEarnings = useEarnings(state.symbol)
@@ -126,7 +140,21 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   const soon = useMemo(() => earningsSoon(listEarnings.earnings, today), [listEarnings.earnings, today])
   const drawings = state.lines[state.symbol] ?? NO_DRAWINGS
   const symbolAlerts = state.indicatorAlerts[state.symbol] ?? NO_ALERTS
-  const { changeDrawings, forgetDrawings } = useShortcuts({ symbol: state.symbol, drawings, symbols: shownSymbols, dispatch, onTool: setTool })
+  const toggleList = () => dispatch({ type: 'setListHidden', on: !state.listHidden })
+  const openSearch = (text: string) => {
+    setSearchText(text)
+    setSearchMode('chart')
+  }
+  const { changeDrawings, forgetDrawings } = useShortcuts({
+    symbol: state.symbol,
+    drawings,
+    symbols: shownSymbols,
+    dispatch,
+    onTool: setTool,
+    onToggleList: toggleList,
+    onHelp: () => setShortcutsOpen(true),
+    onSearch: openSearch,
+  })
 
   useEffect(() => {
     forgetDrawings()
@@ -197,7 +225,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   }
 
   return (
-    <Styles.Layout $listWidth={state.listWidth} $ticker={state.ticker.visible}>
+    <Styles.Layout $listWidth={state.listWidth} $ticker={state.ticker.visible} $list={!state.listHidden}>
       <Styles.Top>
         <TopBar
           symbol={state.symbol}
@@ -205,7 +233,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
           theme={state.theme}
           indicators={state.indicators}
           notice={notice ?? fxNotice}
-          onOpenSearch={() => setSearchMode('chart')}
+          onOpenSearch={() => openSearch('')}
           onTimeframe={(timeframe) => dispatch({ type: 'setTimeframe', timeframe })}
           onTheme={(theme) => dispatch({ type: 'setTheme', theme })}
           onIndicators={(indicators) => dispatch({ type: 'setIndicators', indicators })}
@@ -226,22 +254,32 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
           onShareHoldings={(on) => dispatch({ type: 'setShareHoldings', on })}
           ticker={state.ticker.visible}
           onTicker={(on) => dispatch({ type: 'setTickerVisible', on })}
+          listHidden={state.listHidden}
+          onToggleList={toggleList}
+          onShowShortcuts={() => setShortcutsOpen(true)}
           armedAlerts={symbolAlerts.filter((alert) => alert.armed).length}
           alerts={
-            <IndicatorAlerts
-              symbol={state.symbol}
-              alerts={symbolAlerts}
-              averages={state.indicators.sma}
-              onAdd={(draft) => {
-                askToNotify()
-                dispatch({ type: 'addIndicatorAlert', symbol: state.symbol, alert: { ...draft, id: newId() } })
-              }}
-              onArm={(id, armed) => {
-                if (armed) askToNotify()
-                dispatch({ type: 'armIndicatorAlert', symbol: state.symbol, id, armed })
-              }}
-              onRemove={(id) => dispatch({ type: 'removeIndicatorAlert', symbol: state.symbol, id })}
-            />
+            <>
+              <IndicatorAlerts
+                symbol={state.symbol}
+                alerts={symbolAlerts}
+                averages={state.indicators.sma}
+                onAdd={(draft) => {
+                  askToNotify()
+                  dispatch({ type: 'addIndicatorAlert', symbol: state.symbol, alert: { ...draft, id: newId() } })
+                }}
+                onArm={(id, armed) => {
+                  if (armed) askToNotify()
+                  dispatch({ type: 'armIndicatorAlert', symbol: state.symbol, id, armed })
+                }}
+                onRemove={(id) => dispatch({ type: 'removeIndicatorAlert', symbol: state.symbol, id })}
+              />
+              <AlertHistory
+                events={state.alertHistory}
+                onPick={(symbol) => dispatch({ type: 'setSymbol', symbol })}
+                onClear={() => dispatch({ type: 'clearAlertHistory' })}
+              />
+            </>
           }
         />
       </Styles.Top>
@@ -297,90 +335,104 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
           />
         )}
       </Styles.Chart>
-      <Styles.List>
-        <ListResizer
-          width={state.listWidth}
-          extraColumns={columns.length}
-          onResize={(width) => dispatch({ type: 'setListWidth', width })}
-        />
-        <Watchlist
-          items={shownItems}
-          sort={state.watchlistSort}
-          onSort={(column) => dispatch({ type: 'setWatchlistSort', sort: nextSort(state.watchlistSort, column) })}
-          header={
-            <ListPicker
-              lists={state.watchlists}
-              activeId={list.id}
-              onSelect={(id) => dispatch({ type: 'selectWatchlist', id })}
-              onCreate={(name) => dispatch({ type: 'createWatchlist', id: newId(), name })}
-              onRename={(id, name) => dispatch({ type: 'renameWatchlist', id, name })}
-              onDelete={(id) => dispatch({ type: 'deleteWatchlist', id })}
-              onDuplicate={(id) => dispatch({ type: 'duplicateWatchlist', id, newId: newId() })}
-              onIcon={(id, icon) => dispatch({ type: 'setWatchlistIcon', id, icon })}
-            />
-          }
-          quotes={quotes}
-          live={live}
-          activeSymbol={state.symbol}
-          onSelect={(symbol) => dispatch({ type: 'setSymbol', symbol })}
-          onRemove={(symbol) => dispatch({ type: 'removeFromWatchlist', symbol })}
-          onMove={(from, to) => dispatch({ type: 'moveInWatchlist', from, to })}
-          onAdd={() => setSearchMode('watchlist')}
-          onAddSection={(title) => dispatch({ type: 'addSection', id: newId(), title })}
-          onRenameSection={(id, title) => dispatch({ type: 'renameSection', id, title })}
-          onRemoveSection={(id) => dispatch({ type: 'removeSection', id })}
-          earningsSoon={state.earningsBadge ? soon : undefined}
-          columns={columns}
-          onColumns={(picked) => dispatch({ type: 'setWatchlistColumns', columns: picked })}
-          metrics={metrics}
-          earnings={viewEarnings}
-          filtered={filter ? filter.scope : null}
-          holdings={state.holdings}
-          toolbar={
-            <FilterBar
-              filters={state.filters}
-              active={filter}
-              shown={symbolsOf(shownItems).length}
-              total={scopeSymbols.length}
-              onApply={(id) => dispatch({ type: 'applyFilter', id })}
-              onNew={() => setFilterDraft({ filter: { ...NEW_FILTER, id: newId() }, editing: false })}
-              onEdit={() => filter && setFilterDraft({ filter, editing: true })}
-              onSaveAsList={() => {
-                if (!filter) return
-                dispatch({ type: 'createWatchlistWith', id: newId(), name: filter.name, items: symbolsOf(shownItems) })
-                dispatch({ type: 'applyFilter', id: null })
-              }}
-            />
-          }
-          flags={state.flags}
-          onFlag={(symbol, color) => dispatch({ type: 'setFlag', symbol, color })}
-          onlyFlagged={state.onlyFlagged}
-          onOnlyFlagged={(on) => dispatch({ type: 'setOnlyFlagged', on })}
-        />
-        <PositionPanel
-          symbol={state.symbol}
-          holding={state.holdings[state.symbol]}
-          price={quotes[state.symbol]?.price ?? null}
-          currency={quotes[state.symbol]?.currency}
-          onChange={(holding) => dispatch({ type: 'setHolding', symbol: state.symbol, holding })}
-        />
-        <CompanyPanel
-          symbol={state.symbol}
-          open={companyOpen}
-          profile={profile}
-          nextEarnings={earningsDay(symbolEarnings)}
-          onToggle={() => setCompanyOpen((current) => !current)}
-        />
-        <NewsPanel symbol={state.symbol} open={newsOpen} news={news} now={Date.now()} onToggle={() => setNewsOpen((current) => !current)} />
-        <NotesPanel
-          symbol={state.symbol}
-          text={state.notes[state.symbol] ?? ''}
-          onChange={(text) => dispatch({ type: 'setNote', symbol: state.symbol, text })}
-        />
-      </Styles.List>
-      {searchMode && (
-        <SymbolSearch onPick={handlePick} onClose={() => setSearchMode(null)} stayOpen={searchMode === 'watchlist'} />
+      {!state.listHidden && (
+        <Styles.List>
+          <ListResizer
+            width={state.listWidth}
+            extraColumns={columns.length}
+            onResize={(width) => dispatch({ type: 'setListWidth', width })}
+          />
+          <Watchlist
+            items={shownItems}
+            sort={state.watchlistSort}
+            onSort={(column) => dispatch({ type: 'setWatchlistSort', sort: nextSort(state.watchlistSort, column) })}
+            header={
+              <ListPicker
+                lists={state.watchlists}
+                activeId={list.id}
+                onSelect={(id) => dispatch({ type: 'selectWatchlist', id })}
+                onCreate={(name) => dispatch({ type: 'createWatchlist', id: newId(), name })}
+                onRename={(id, name) => dispatch({ type: 'renameWatchlist', id, name })}
+                onDelete={(id) => dispatch({ type: 'deleteWatchlist', id })}
+                onDuplicate={(id) => dispatch({ type: 'duplicateWatchlist', id, newId: newId() })}
+                onIcon={(id, icon) => dispatch({ type: 'setWatchlistIcon', id, icon })}
+                onImport={(file) => void listImport.start(file)}
+                onExport={(format) => {
+                  const exported = listFile(list, format)
+                  downloadText(exported.text, exported.name, exported.type)
+                }}
+              />
+            }
+            quotes={quotes}
+            live={live}
+            activeSymbol={state.symbol}
+            onSelect={(symbol) => dispatch({ type: 'setSymbol', symbol })}
+            onRemove={(symbol) => dispatch({ type: 'removeFromWatchlist', symbol })}
+            onMove={(from, to) => dispatch({ type: 'moveInWatchlist', from, to })}
+            onAdd={() => setSearchMode('watchlist')}
+            onAddSection={(title) => dispatch({ type: 'addSection', id: newId(), title })}
+            onRenameSection={(id, title) => dispatch({ type: 'renameSection', id, title })}
+            onRemoveSection={(id) => dispatch({ type: 'removeSection', id })}
+            earningsSoon={state.earningsBadge ? soon : undefined}
+            columns={columns}
+            onColumns={(picked) => dispatch({ type: 'setWatchlistColumns', columns: picked })}
+            metrics={metrics}
+            earnings={viewEarnings}
+            filtered={filter ? filter.scope : null}
+            holdings={state.holdings}
+            toolbar={
+              <FilterBar
+                filters={state.filters}
+                active={filter}
+                shown={symbolsOf(shownItems).length}
+                total={scopeSymbols.length}
+                onApply={(id) => dispatch({ type: 'applyFilter', id })}
+                onNew={() => setFilterDraft({ filter: { ...NEW_FILTER, id: newId() }, editing: false })}
+                onEdit={() => filter && setFilterDraft({ filter, editing: true })}
+                onSaveAsList={() => {
+                  if (!filter) return
+                  dispatch({ type: 'createWatchlistWith', id: newId(), name: filter.name, items: symbolsOf(shownItems) })
+                  dispatch({ type: 'applyFilter', id: null })
+                }}
+              />
+            }
+            flags={state.flags}
+            onFlag={(symbol, color) => dispatch({ type: 'setFlag', symbol, color })}
+            onlyFlagged={state.onlyFlagged}
+            onOnlyFlagged={(on) => dispatch({ type: 'setOnlyFlagged', on })}
+          />
+          <PositionPanel
+            symbol={state.symbol}
+            holding={state.holdings[state.symbol]}
+            price={quotes[state.symbol]?.price ?? null}
+            currency={quotes[state.symbol]?.currency}
+            onChange={(holding) => dispatch({ type: 'setHolding', symbol: state.symbol, holding })}
+          />
+          <CompanyPanel
+            symbol={state.symbol}
+            open={companyOpen}
+            profile={profile}
+            nextEarnings={earningsDay(symbolEarnings)}
+            onToggle={() => setCompanyOpen((current) => !current)}
+          />
+          <NewsPanel symbol={state.symbol} open={newsOpen} news={news} now={Date.now()} onToggle={() => setNewsOpen((current) => !current)} />
+          <NotesPanel
+            symbol={state.symbol}
+            text={state.notes[state.symbol] ?? ''}
+            onChange={(text) => dispatch({ type: 'setNote', symbol: state.symbol, text })}
+          />
+        </Styles.List>
       )}
+      {searchMode && (
+        <SymbolSearch
+          onPick={handlePick}
+          onClose={() => setSearchMode(null)}
+          stayOpen={searchMode === 'watchlist'}
+          initialQuery={searchMode === 'chart' ? searchText : ''}
+        />
+      )}
+      {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
+      {listImport.progress && <ListImportDialog progress={listImport.progress} onClose={listImport.close} />}
       {filterDraft && (
         <FilterEditor
           filter={filterDraft.filter}
@@ -413,7 +465,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
 }
 
 export const App = () => {
-  const { state, dispatch, loadFailed, notice, retry, replaced } = useAppState()
+  const { state, dispatch, loadFailed, notice, retry, replaced, refresh } = useAppState()
 
   if (loadFailed) {
     return (
@@ -436,7 +488,7 @@ export const App = () => {
   return (
     <ThemeProvider theme={themes[state.theme]}>
       <GlobalStyle />
-      <Workspace state={state} dispatch={dispatch} notice={notice} replaced={replaced} />
+      <Workspace state={state} dispatch={dispatch} notice={notice} replaced={replaced} refresh={refresh} />
     </ThemeProvider>
   )
 }

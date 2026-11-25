@@ -489,6 +489,50 @@ test('Should keep the earnings warning of the watchlist off unless the configura
   expect(normalizeState({ earningsBadge: 'sí' }).earningsBadge).toBe(false)
 })
 
+test('Should keep how an armed alert repeats, until when it lasts and when it last went off', () => {
+  const saved = (extra: Record<string, unknown>) =>
+    normalizeState({
+      lines: {
+        KO: [{ id: 'h', kind: 'hline', pane: 'price', timeframe: 'D', color: '#fff', width: 1, value: 60, ...extra }],
+      },
+    }).lines.KO[0]
+  expect(saved({ alert: true, alertRepeat: true, alertUntil: '2026-12-31', alertFiredOn: '2026-11-25' })).toMatchObject({
+    alert: true,
+    alertRepeat: true,
+    alertUntil: '2026-12-31',
+    alertFiredOn: '2026-11-25',
+  })
+  const loose = saved({ alert: true, alertRepeat: 'yes', alertUntil: 'tomorrow', alertFiredOn: 3 })
+  expect(['alertRepeat', 'alertUntil', 'alertFiredOn'].filter((key) => key in loose)).toEqual([])
+  const off = saved({ alert: false, alertRepeat: true, alertUntil: '2026-12-31' })
+  expect(['alert', 'alertRepeat', 'alertUntil'].filter((key) => key in off)).toEqual([])
+})
+
+test('Should keep the repeat and the end date of the alerts of trend lines and positions', () => {
+  const point = (date: string) => ({ date, value: 1 })
+  const state = normalizeState({
+    lines: {
+      KO: [
+        { id: 't', pane: 'price', timeframe: 'D', color: '#fff', width: 1, p1: point('2026-11-02'), p2: point('2026-11-20'), extendRight: true, alert: true, alertRepeat: true },
+        { id: 'p', kind: 'position', side: 'long', pane: 'price', timeframe: 'D', color: '#fff', width: 1, p1: point('2026-11-02'), p2: point('2026-11-20'), stop: 1, target: 3, alert: true, alertUntil: '2026-12-01' },
+      ],
+    },
+  })
+  expect(state.lines.KO.map((drawing) => ('alertRepeat' in drawing ? 'repeat' : 'alertUntil' in drawing ? drawing.alertUntil : null))).toEqual(['repeat', '2026-12-01'])
+})
+
+test('Should keep the watchlist folded only when it was folded', () => {
+  expect(normalizeState({}).listHidden).toBe(false)
+  expect(normalizeState({ listHidden: true }).listHidden).toBe(true)
+  expect(normalizeState({ listHidden: 'yes' }).listHidden).toBe(false)
+})
+
+test('Should keep the history of alerts that went off', () => {
+  const event = { id: 'e', symbol: 'KO', level: 60, price: 60.2, direction: 'up', at: '2026-11-25T15:00:00.000Z', text: null }
+  expect(normalizeState({}).alertHistory).toEqual([])
+  expect(normalizeState({ alertHistory: [event, { id: 'bad' }] }).alertHistory).toEqual([event])
+})
+
 test('Should give the market ticker its six symbols when the saved state has none and keep a hidden one hidden', () => {
   expect(normalizeState({}).ticker.items.map((item) => item.symbol)).toEqual(['^GSPC', '^IXIC', '^VIX', 'EURUSD=X', 'GC=F', 'BTC-USD'])
   expect(normalizeState({ ticker: { visible: false, items: [{ symbol: 'AAPL', name: 'AAPL' }] } }).ticker).toEqual({

@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { type AppState, DEFAULT_STATE, type TrendLine } from '../../shared/types'
-import { getHistory, getKeptHistory, getWatchMetrics, putState } from './client'
+import { getHistory, getKeptHistory, getWatchMetrics, putState, resolveSymbols } from './client'
 
 const reply = (status: number, body: unknown) =>
   vi.fn(async () => ({ ok: status >= 200 && status < 300, status, json: async () => body }))
@@ -123,4 +123,13 @@ test('Should ask for the columns of a long list in batches the server takes and 
   expect(urls.every((url) => url.searchParams.get('level') === '1' && url.searchParams.get('all') === '1')).toBe(true)
   expect(Object.keys(answer.metrics)).toEqual(['S0', 'S200'])
   expect(answer.pending).toBe(250)
+})
+
+test('Should send each group of candidates to be checked and return what Yahoo knows', async () => {
+  const apple = { symbol: 'AAPL', name: 'Apple Inc.', exchange: 'NASDAQ' }
+  const fetchMock = reply(200, { found: [apple, null] })
+  vi.stubGlobal('fetch', fetchMock)
+  expect(await resolveSymbols([['AAPL'], ['MC.PA', 'MC.AS']])).toEqual([apple, null])
+  const url = (fetchMock.mock.calls[0] as unknown as [string])[0]
+  expect(new URL(url, 'http://doji').searchParams.get('symbols')).toBe('AAPL,MC.PA|MC.AS')
 })

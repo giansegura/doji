@@ -14,7 +14,7 @@ const alert = (over: Partial<AlertEvent> = {}): AlertEvent => ({
   ...over,
 })
 
-const setup = (notify = vi.fn()) => {
+const setup = (notify = vi.fn(), onFired = vi.fn()) => {
   const listeners: ((alerts: AlertEvent[]) => void)[] = []
   let closed = 0
   const openAlerts = (onAlerts: (alerts: AlertEvent[]) => void) => {
@@ -23,9 +23,9 @@ const setup = (notify = vi.fn()) => {
       closed += 1
     }
   }
-  const hook = renderHook(() => useAlerts({ notify, openAlerts }))
+  const hook = renderHook(() => useAlerts({ notify, openAlerts, onFired }))
   const fire = (alerts: AlertEvent[]) => act(() => listeners.forEach((listener) => listener(alerts)))
-  return { notify, fire, closed: () => closed, ...hook }
+  return { notify, onFired, fire, closed: () => closed, ...hook }
 }
 
 test('Should stay quiet until the server says an alert fired', () => {
@@ -78,4 +78,12 @@ test('Should name what an indicator alert watched', () => {
   fire([alert({ level: 30, price: 58.1, direction: 'down', label: 'RSI 14 crosses 30' })])
   expect(notify).toHaveBeenCalledWith('AAPL: RSI 14 crosses 30', 'Going down, now at 58.10')
   expect(result.current.fired[0].text).toBe('AAPL: RSI 14 crosses 30, going down')
+})
+
+test('Should say that alerts fired, so the saved state can be read again, but not for alerts already seen', () => {
+  const { onFired, fire } = setup()
+  fire([alert()])
+  expect(onFired).toHaveBeenCalledTimes(1)
+  fire([alert()])
+  expect(onFired).toHaveBeenCalledTimes(1)
 })

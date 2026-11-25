@@ -1,11 +1,19 @@
 import styled from 'styled-components'
 import { TICKER_HEIGHT } from './components/MarketTicker/styles'
 
-export const Layout = styled.div<{ $listWidth: number; $ticker?: boolean }>`
+type LayoutProps = { $listWidth: number; $ticker?: boolean; $list?: boolean }
+
+const areasOf = ({ $ticker = false, $list = true }: LayoutProps): string => {
+  const across = (name: string) => `'${Array.from({ length: $list ? 3 : 2 }, () => name).join(' ')}'`
+  const rows = [across('top'), ...($ticker ? [across('ticker')] : []), $list ? `'tools chart list'` : `'tools chart'`]
+  return rows.join(' ')
+}
+
+export const Layout = styled.div<LayoutProps>`
   display: grid;
-  grid-template-columns: 52px minmax(0, 1fr) min(${(props) => props.$listWidth}px, 60vw);
+  grid-template-columns: ${(props) => (props.$list === false ? '52px minmax(0, 1fr)' : `52px minmax(0, 1fr) min(${props.$listWidth}px, 60vw)`)};
   grid-template-rows: ${(props) => (props.$ticker ? `38px ${TICKER_HEIGHT}px minmax(0, 1fr)` : '38px minmax(0, 1fr)')};
-  grid-template-areas: ${(props) => (props.$ticker ? `'top top top' 'ticker ticker ticker' 'tools chart list'` : `'top top top' 'tools chart list'`)};
+  grid-template-areas: ${areasOf};
   gap: ${(props) => props.theme.ui.gap}px;
   height: 100%;
   background: ${(props) => props.theme.ui.separator};

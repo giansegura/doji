@@ -177,7 +177,7 @@ export const deleteDrawing = (state: AppState, request: DeleteRequest): Edit<{ i
 }
 
 const switched = (drawing: Drawing, on: boolean): Drawing => {
-  if (!canAlert(drawing)) return drawing
+  if (!canAlert(drawing) || (on && drawing.alert)) return drawing
   const quiet = withoutAlert(drawing)
   return on ? ({ ...quiet, alert: true } as Drawing) : quiet
 }

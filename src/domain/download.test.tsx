@@ -51,3 +51,9 @@ test('Should save text as a JSON file', async () => {
   expect(blobs[0].type).toBe('application/json')
   expect(await blobs[0].text()).toBe('{"a":1}')
 })
+
+test('Should save other text with the type it is given', async () => {
+  const { blobs } = capture()
+  downloadText('Symbol\nAAPL\n', 'lista.csv', 'text/csv')
+  expect(blobs[0].type).toBe('text/csv')
+})

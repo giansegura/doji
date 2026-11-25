@@ -17,11 +17,15 @@ const level = (id: string, value: number): Drawing => ({
 const setup = (drawings: Drawing[] = []) => {
   const dispatch = vi.fn()
   const onTool = vi.fn()
+  const onToggleList = vi.fn()
+  const onHelp = vi.fn()
+  const onSearch = vi.fn()
   const symbols = ['AAPL', 'MSFT', 'NVDA']
-  const hook = renderHook((props: { drawings: Drawing[]; symbol: string }) => useShortcuts({ ...props, symbols, dispatch, onTool }), {
-    initialProps: { drawings, symbol: 'MSFT' },
-  })
-  return { dispatch, onTool, ...hook }
+  const hook = renderHook(
+    (props: { drawings: Drawing[]; symbol: string }) => useShortcuts({ ...props, symbols, dispatch, onTool, onToggleList, onHelp, onSearch }),
+    { initialProps: { drawings, symbol: 'MSFT' } },
+  )
+  return { dispatch, onTool, onToggleList, onHelp, onSearch, ...hook }
 }
 
 test('Should save a change of drawings and give back the previous ones on Cmd+Z', () => {
@@ -70,7 +74,7 @@ test('Should arm a drawing tool with Alt and its letter', () => {
 test('Should keep the browser from also acting on a key it used, and leave the others alone', () => {
   setup()
   expect(fireEvent.keyDown(window, { code: 'ArrowDown', key: 'ArrowDown' })).toBe(false)
-  expect(fireEvent.keyDown(window, { code: 'KeyQ', key: 'q' })).toBe(true)
+  expect(fireEvent.keyDown(window, { code: 'Space', key: ' ' })).toBe(true)
 })
 
 test('Should ignore the keys typed into a field', () => {
@@ -94,4 +98,41 @@ test('Should have nothing to undo after the drawings are replaced from outside',
   dispatch.mockClear()
   fireEvent.keyDown(window, { code: 'KeyZ', key: 'z', metaKey: true })
   expect(dispatch).not.toHaveBeenCalled()
+})
+
+test('Should fold the watchlist with Alt+W and open the shortcuts with the question mark', () => {
+  const { onToggleList, onHelp } = setup()
+  fireEvent.keyDown(window, { code: 'KeyW', key: '∑', altKey: true })
+  expect(onToggleList).toHaveBeenCalledTimes(1)
+  fireEvent.keyDown(window, { code: 'Slash', key: '?', shiftKey: true })
+  expect(onHelp).toHaveBeenCalledTimes(1)
+})
+
+test('Should open the search with the character typed, unless a dialog is open', () => {
+  const { onSearch } = setup()
+  fireEvent.keyDown(window, { code: 'KeyK', key: 'k' })
+  expect(onSearch).toHaveBeenCalledWith('k')
+  const dialog = document.createElement('div')
+  dialog.setAttribute('role', 'dialog')
+  document.body.append(dialog)
+  fireEvent.keyDown(window, { code: 'KeyP', key: 'p' })
+  dialog.remove()
+  expect(onSearch).toHaveBeenCalledTimes(1)
+})
+
+test('Should leave the chart, the list and the drawings alone while a modal dialog is open', () => {
+  const { dispatch, onTool, onToggleList, onHelp } = setup([level('a', 1)])
+  const dialog = document.createElement('div')
+  dialog.setAttribute('role', 'dialog')
+  dialog.setAttribute('aria-modal', 'true')
+  document.body.append(dialog)
+  fireEvent.keyDown(window, { code: 'ArrowDown', key: 'ArrowDown' })
+  fireEvent.keyDown(window, { code: 'KeyH', key: '˙', altKey: true })
+  fireEvent.keyDown(window, { code: 'KeyW', key: '∑', altKey: true })
+  fireEvent.keyDown(window, { code: 'Slash', key: '?', shiftKey: true })
+  fireEvent.keyDown(window, { code: 'KeyZ', key: 'z', metaKey: true })
+  dialog.remove()
+  expect([dispatch, onTool, onToggleList, onHelp].map((handler) => handler.mock.calls.length)).toEqual([0, 0, 0, 0])
+  fireEvent.keyDown(window, { code: 'ArrowDown', key: 'ArrowDown' })
+  expect(dispatch).toHaveBeenCalledTimes(1)
 })

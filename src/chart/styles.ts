@@ -271,3 +271,26 @@ export const GoToField = styled.input`
   font: inherit;
   color-scheme: ${(props) => (props.theme.name === 'light' ? 'light' : 'dark')};
 `
+
+export const AlertRepeat = styled.select`
+  height: 26px;
+  padding: 0 4px;
+  font-size: 12px;
+  color: ${(props) => props.theme.ui.text};
+  background: ${(props) => props.theme.ui.panel};
+  border: 1px solid ${(props) => props.theme.ui.border};
+  border-radius: 4px;
+`
+
+export const AlertUntil = styled.input`
+  width: 122px;
+  height: 26px;
+  padding: 0 6px;
+  font: inherit;
+  font-size: 12px;
+  color: ${(props) => props.theme.ui.text};
+  background: ${(props) => props.theme.ui.panel};
+  border: 1px solid ${(props) => props.theme.ui.border};
+  border-radius: 4px;
+  color-scheme: ${(props) => (props.theme.name === 'light' ? 'light' : 'dark')};
+`

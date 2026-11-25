@@ -61,3 +61,23 @@ test('Should enter the list from a symbol that is not in it', () => {
   expect(stepSymbol(list, 'KO', -1)).toBe('NVDA')
   expect(stepSymbol([], 'KO', 1)).toBeNull()
 })
+
+test('Should fold or unfold the watchlist with Alt+W', () => {
+  expect(shortcutFor(key({ code: 'KeyW', key: '∑', altKey: true }), false)).toEqual({ kind: 'toggleList' })
+  expect(shortcutFor(key({ code: 'KeyW', key: 'w' }), false)).not.toEqual({ kind: 'toggleList' })
+})
+
+test('Should open the list of shortcuts with the question mark', () => {
+  expect(shortcutFor(key({ key: '?', code: 'Slash', shiftKey: true }), false)).toEqual({ kind: 'help' })
+  expect(shortcutFor(key({ key: '?', code: 'Minus', shiftKey: true }), true)).toBeNull()
+})
+
+test('Should open the search with the letter or digit typed outside a field', () => {
+  expect(shortcutFor(key({ key: 'k', code: 'KeyK' }), false)).toEqual({ kind: 'search', text: 'k' })
+  expect(shortcutFor(key({ key: 'K', code: 'KeyK', shiftKey: true }), false)).toEqual({ kind: 'search', text: 'K' })
+  expect(shortcutFor(key({ key: '7', code: 'Digit7' }), false)).toEqual({ kind: 'search', text: '7' })
+  expect(shortcutFor(key({ key: 'k', code: 'KeyK' }), true)).toBeNull()
+  expect(shortcutFor(key({ key: 'k', code: 'KeyK', metaKey: true }), false)).toBeNull()
+  expect(shortcutFor(key({ key: 'ñ', code: 'Semicolon' }), false)).toBeNull()
+  expect(shortcutFor(key({ key: ' ', code: 'Space' }), false)).toBeNull()
+})

@@ -444,6 +444,26 @@ test('Should save the symbols a filter shows as a new list and open it', () => {
   expect(out.activeWatchlistId).toBe('new')
 })
 
+test('Should fold and unfold the watchlist', () => {
+  const folded = appReducer(base, { type: 'setListHidden', on: true })
+  expect(folded.listHidden).toBe(true)
+  expect(appReducer(folded, { type: 'setListHidden', on: true })).toBe(folded)
+  expect(appReducer(folded, { type: 'setListHidden', on: false }).listHidden).toBe(false)
+})
+
+test('Should clear the history of alerts', () => {
+  const event = { id: 'e', symbol: 'KO', level: 60, price: 60.2, direction: 'up' as const, at: '2026-11-25T15:00:00.000Z', text: null }
+  const withEvents = { ...base, alertHistory: [event] }
+  expect(appReducer(withEvents, { type: 'clearAlertHistory' }).alertHistory).toEqual([])
+  expect(appReducer(base, { type: 'clearAlertHistory' })).toBe(base)
+})
+
+test('Should keep the sections of an imported list', () => {
+  const items = [{ kind: 'section' as const, id: 's1', title: 'Tech' }, { symbol: 'AAPL', name: 'Apple Inc.', exchange: 'NASDAQ' }]
+  const out = appReducer(base, { type: 'createWatchlistWith', id: 'imported', name: 'Tech', items })
+  expect(out.watchlists.at(-1)?.items).toEqual(items)
+})
+
 test('Should set, change and remove the position of a symbol', () => {
   const held = appReducer(base, { type: 'setHolding', symbol: 'KO', holding: { quantity: 100, price: 58.2 } })
   expect(held.holdings).toEqual({ KO: { quantity: 100, price: 58.2 } })

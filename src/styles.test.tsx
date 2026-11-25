@@ -28,6 +28,12 @@ test('Should leave a thin row under the top bar for the market ticker only while
   expect(styleOf('without').getPropertyValue('grid-template-areas')).not.toContain('ticker')
 })
 
+test('Should give the chart the whole width when the watchlist is folded', () => {
+  renderWithTheme(<Styles.Layout $listWidth={400} $ticker $list={false} data-testid="folded" />)
+  expect(styleOf('folded').getPropertyValue('grid-template-columns')).toBe('52px minmax(0, 1fr)')
+  expect(styleOf('folded').getPropertyValue('grid-template-areas')).toBe(`'top top' 'ticker ticker' 'tools chart'`)
+})
+
 test('Should paint everything around the chart black, like TradingView', () => {
   renderWithTheme(
     <>
