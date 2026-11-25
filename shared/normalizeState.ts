@@ -19,6 +19,7 @@ import {
 } from './limits'
 import { toListWidth } from './listWidth'
 import { WATCH_COLUMNS, toWatchColumns } from './watchColumns'
+import { toFlags } from './flags'
 import {
   type AppState,
   type ChartSettings,
@@ -357,7 +358,7 @@ const toChart = (raw: unknown): ChartSettings => {
   }
 }
 
-const SORT_COLUMNS: SortColumn[] = ['symbol', 'last', 'change', 'ext', ...WATCH_COLUMNS]
+const SORT_COLUMNS: SortColumn[] = ['symbol', 'last', 'change', 'ext', 'flag', ...WATCH_COLUMNS]
 
 const toSort = (raw: unknown): WatchlistSort | null => {
   const sort = asRecord(raw)
@@ -397,6 +398,8 @@ export const normalizeState = (raw: unknown): AppState => {
     secondChart: asTimeframe(source.secondChart),
     watchlistSort: toSort(source.watchlistSort),
     watchlistColumns: columns,
+    flags: toFlags(source.flags),
+    onlyFlagged: source.onlyFlagged === true,
     lineLooks: toLineLooks(source.lineLooks),
     earningsBadge: source.earningsBadge === true,
   }

@@ -4,7 +4,12 @@ import type { WatchColumn } from '../../../shared/types'
 import { WATCH_COLUMN_NAMES } from '../../domain/watchColumns'
 import * as Styles from './styles'
 
-type ColumnsPickerProps = { columns: WatchColumn[]; onColumns: (columns: WatchColumn[]) => void }
+type ColumnsPickerProps = {
+  columns: WatchColumn[]
+  onColumns: (columns: WatchColumn[]) => void
+  onlyFlagged: boolean
+  onOnlyFlagged?: (on: boolean) => void
+}
 
 const ColumnsIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">
@@ -13,7 +18,7 @@ const ColumnsIcon = () => (
   </svg>
 )
 
-export const ColumnsPicker = ({ columns, onColumns }: ColumnsPickerProps) => {
+export const ColumnsPicker = ({ columns, onColumns, onlyFlagged, onOnlyFlagged }: ColumnsPickerProps) => {
   const [open, setOpen] = useState(false)
   const pickerRef = useRef<HTMLDivElement>(null)
 
@@ -50,6 +55,15 @@ export const ColumnsPicker = ({ columns, onColumns }: ColumnsPickerProps) => {
               {WATCH_COLUMN_NAMES[column].name}
             </Styles.ColumnOption>
           ))}
+          {onOnlyFlagged && (
+            <>
+              <Styles.ColumnsTitle>View</Styles.ColumnsTitle>
+              <Styles.ColumnOption>
+                <input type="checkbox" checked={onlyFlagged} onChange={(event) => onOnlyFlagged(event.target.checked)} />
+                Only flagged symbols
+              </Styles.ColumnOption>
+            </>
+          )}
         </Styles.ColumnsMenu>
       )}
     </Styles.Picker>

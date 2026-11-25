@@ -27,7 +27,9 @@ export type SymbolList = { id: string; name: string; items: ListItem[]; icon?: s
 
 export type WatchColumn = 'rsi' | 'fromHigh' | 'relVolume' | 'earnings' | 'level'
 
-export type SortColumn = 'symbol' | 'last' | 'change' | 'ext' | WatchColumn
+export type FlagColor = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple'
+
+export type SortColumn = 'symbol' | 'last' | 'change' | 'ext' | 'flag' | WatchColumn
 
 export type WatchlistSort = { column: SortColumn; direction: 'asc' | 'desc' }
 
@@ -172,6 +174,8 @@ export type AppState = {
   secondChart: Timeframe | null
   watchlistSort: WatchlistSort | null
   watchlistColumns: WatchColumn[]
+  flags: Record<string, FlagColor>
+  onlyFlagged: boolean
   lineLooks: Partial<Record<DrawingKind, LineLook>>
   earningsBadge: boolean
 }
@@ -217,6 +221,8 @@ export const DEFAULT_STATE: AppState = {
   secondChart: null,
   watchlistSort: null,
   watchlistColumns: [],
+  flags: {},
+  onlyFlagged: false,
   lineLooks: {},
   earningsBadge: false,
 }

@@ -22,6 +22,7 @@ import { freshQuotes } from './domain/liveBar'
 import { newId } from './domain/newId'
 import { replayBars } from './domain/replay'
 import { tabTitle } from './domain/tabTitle'
+import { onlyFlagged } from './domain/flags'
 import { nextSort, sortItems } from './domain/watchlistSort'
 import { adjustLinesForSplits } from './domain/splits'
 import { useAlerts } from './hooks/useAlerts'
@@ -66,7 +67,8 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   const allSymbols = useMemo(() => calendarItems(state.watchlists).map((item) => item.symbol), [state.watchlists])
   const calendar = useEarningsCalendar(allSymbols, calendarOpen)
   const listEarnings = useEarningsCalendar(listSymbols, state.earningsBadge || columns.includes('earnings'))
-  const shownItems = sortItems(list.items, quotes, state.watchlistSort, { metrics, earnings: listEarnings.earnings })
+  const sortedItems = sortItems(list.items, quotes, state.watchlistSort, { metrics, earnings: listEarnings.earnings, flags: state.flags })
+  const shownItems = state.onlyFlagged ? onlyFlagged(sortedItems, state.flags) : sortedItems
   const shownSymbols = symbolsOf(shownItems).map((item) => item.symbol)
   const soon = useMemo(() => earningsSoon(listEarnings.earnings, today), [listEarnings.earnings, today])
   const drawings = state.lines[state.symbol] ?? NO_DRAWINGS
@@ -218,6 +220,10 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
           onColumns={(picked) => dispatch({ type: 'setWatchlistColumns', columns: picked })}
           metrics={metrics}
           earnings={listEarnings.earnings}
+          flags={state.flags}
+          onFlag={(symbol, color) => dispatch({ type: 'setFlag', symbol, color })}
+          onlyFlagged={state.onlyFlagged}
+          onOnlyFlagged={(on) => dispatch({ type: 'setOnlyFlagged', on })}
         />
         <NotesPanel
           symbol={state.symbol}

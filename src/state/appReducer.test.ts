@@ -376,3 +376,17 @@ test('Should not widen the list past its limit nor keep sorting by a column it h
   expect(hidden.listWidth).toBe(704)
   expect(appReducer(hidden, { type: 'setListWidth', width: 2000 }).listWidth).toBe(704)
 })
+
+test('Should flag a symbol in every list, change its colour and take the flag off', () => {
+  const red = appReducer(base, { type: 'setFlag', symbol: 'KO', color: 'red' })
+  expect(red.flags).toEqual({ KO: 'red' })
+  expect(appReducer(red, { type: 'setFlag', symbol: 'KO', color: 'blue' }).flags).toEqual({ KO: 'blue' })
+  expect(appReducer(red, { type: 'setFlag', symbol: 'KO', color: null }).flags).toEqual({})
+  expect(appReducer(red, { type: 'setFlag', symbol: 'KO', color: 'red' })).toBe(red)
+})
+
+test('Should switch between every symbol and the flagged ones only', () => {
+  const only = appReducer(base, { type: 'setOnlyFlagged', on: true })
+  expect(only.onlyFlagged).toBe(true)
+  expect(appReducer(only, { type: 'setOnlyFlagged', on: true })).toBe(only)
+})

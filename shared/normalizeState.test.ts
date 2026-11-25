@@ -529,3 +529,15 @@ test('Should let the watchlist grow wider for each extra column it shows', () =>
   expect(normalizeState({ listWidth: 900 }).listWidth).toBe(640)
   expect(normalizeState({ listWidth: 900, watchlistColumns: ['rsi', 'earnings'] }).listWidth).toBe(768)
 })
+
+test('Should keep the flag of each symbol in one of its six colours and drop the rest', () => {
+  expect(normalizeState({}).flags).toEqual({})
+  expect(normalizeState({ flags: { KO: 'red', PEP: 'pink', MSFT: 3, NVDA: 'purple' } }).flags).toEqual({ KO: 'red', NVDA: 'purple' })
+  expect(normalizeState({ flags: ['red'] }).flags).toEqual({})
+})
+
+test('Should show every symbol unless the configuration asks for the flagged ones only', () => {
+  expect(normalizeState({}).onlyFlagged).toBe(false)
+  expect(normalizeState({ onlyFlagged: true }).onlyFlagged).toBe(true)
+  expect(normalizeState({ onlyFlagged: 'yes' }).onlyFlagged).toBe(false)
+})

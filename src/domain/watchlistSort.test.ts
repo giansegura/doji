@@ -126,3 +126,10 @@ test('Should start with the soonest earnings and the nearest level, and with the
   expect(nextSort(null, 'level')).toEqual({ column: 'level', direction: 'asc' })
   expect(nextSort(null, 'rsi')).toEqual({ column: 'rsi', direction: 'desc' })
 })
+
+test('Should sort by flag in the order of the palette, with the symbols without one at the end', () => {
+  const flags = { KO: 'blue', PEP: 'red', MSFT: 'green' } as const
+  expect(symbols(sortItems(plain, quotes, { column: 'flag', direction: 'asc' }, { ...extras, flags }))).toEqual(['PEP', 'MSFT', 'KO', 'AAPL'])
+  expect(symbols(sortItems(plain, quotes, { column: 'flag', direction: 'desc' }, { ...extras, flags }))).toEqual(['KO', 'MSFT', 'PEP', 'AAPL'])
+  expect(nextSort(null, 'flag')).toEqual({ column: 'flag', direction: 'asc' })
+})

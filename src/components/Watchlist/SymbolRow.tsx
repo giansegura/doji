@@ -1,10 +1,11 @@
 import { useTheme } from 'styled-components'
 import { displaySymbol } from '../../../shared/symbols'
 import type { SymbolMetrics } from '../../../shared/symbolMetrics'
-import type { Earnings, ExtendedQuote, ExtendedSession, Quote, SymbolInfo, WatchColumn } from '../../../shared/types'
+import type { Earnings, ExtendedQuote, ExtendedSession, FlagColor, Quote, SymbolInfo, WatchColumn } from '../../../shared/types'
 import { formatPercent, formatPrice } from '../../chart/format'
 import { columnCell } from '../../domain/watchColumns'
 import { SymbolLogo } from '../SymbolLogo'
+import { FlagPicker } from './FlagPicker'
 import { LastPrice } from './LastPrice'
 import * as Styles from './styles'
 
@@ -16,6 +17,8 @@ type SymbolRowProps = {
   columns?: WatchColumn[]
   metrics?: SymbolMetrics
   earnings?: Earnings
+  flag?: FlagColor | null
+  onFlag?: (color: FlagColor | null) => void
   onSelect: () => void
   onRemove: () => void
 }
@@ -37,6 +40,8 @@ export const SymbolRow = ({
   columns = NO_COLUMNS,
   metrics,
   earnings,
+  flag = null,
+  onFlag,
   onSelect,
   onRemove,
 }: SymbolRowProps) => {
@@ -92,6 +97,7 @@ export const SymbolRow = ({
           )
         })}
       </Styles.RowButton>
+      {onFlag && <FlagPicker symbol={item.symbol} flag={flag} onFlag={onFlag} />}
       <Styles.RemoveButton type="button" aria-label={`Remove ${displaySymbol(item.symbol)}`} onClick={onRemove}>
         ×
       </Styles.RemoveButton>

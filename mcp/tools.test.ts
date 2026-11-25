@@ -54,6 +54,7 @@ const initial: AppState = {
   activeWatchlistId: 'main',
   lines: { KO: [trend] },
   notes: { KO: 'Tesis' },
+  flags: { PEP: 'green' },
 }
 
 const fakeApi = (
@@ -163,7 +164,7 @@ test('Should list the watchlists with their sections, the active one and what is
           { section: 'En cartera' },
           { symbol: 'KO', name: 'Coca-Cola' },
           { section: 'Vigilando' },
-          { symbol: 'PEP', name: 'PepsiCo' },
+          { symbol: 'PEP', name: 'PepsiCo', flag: 'green' },
         ],
       },
       { id: 'tech', name: 'Tech', icon: null, active: false, items: [{ symbol: 'NVDA', name: 'NVIDIA' }] },
@@ -203,6 +204,8 @@ test('Should scan the active watchlist row by row, keeping its sections', async 
     'PEP',
   ])
   expect(data.rows[1]).toMatchObject({ symbol: 'KO', alerts: 0, hasNote: true })
+  expect(data.rows[1].flag).toBeUndefined()
+  expect(data.rows[3]).toMatchObject({ symbol: 'PEP', flag: 'green' })
 })
 
 test('Should scan another watchlist named by its name in any case', async () => {

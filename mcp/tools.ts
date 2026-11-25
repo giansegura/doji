@@ -74,7 +74,11 @@ const describeLists = (state: AppState) => ({
     name: list.name,
     icon: list.icon ?? null,
     active: list.id === state.activeWatchlistId,
-    items: list.items.map((item) => (isSection(item) ? { section: item.title } : { symbol: item.symbol, name: item.name })),
+    items: list.items.map((item) => {
+      if (isSection(item)) return { section: item.title }
+      const flag = state.flags[item.symbol]
+      return { symbol: item.symbol, name: item.name, ...(flag ? { flag } : {}) }
+    }),
   })),
 })
 
@@ -125,7 +129,8 @@ export const createDojiServer = ({ api, newId, version, today = todayIso }: Serv
     const quotes = await quotesFor(api, symbols)
     const rowFor = async (symbol: string) => {
       try {
-        return scanRow(await chartOf(state, symbol, timeframe, 0, quotes[symbol.toUpperCase()] ?? null))
+        const flag = state.flags[symbol]
+        return { ...scanRow(await chartOf(state, symbol, timeframe, 0, quotes[symbol.toUpperCase()] ?? null)), ...(flag ? { flag } : {}) }
       } catch (error) {
         return { symbol, error: error instanceof Error ? error.message : String(error) }
       }
@@ -142,7 +147,8 @@ export const createDojiServer = ({ api, newId, version, today = todayIso }: Serv
     'get_watchlists',
     {
       title: 'Watchlists',
-      description: 'Lists every watchlist of the user with its symbols and section titles, which one is active, and the symbol and timeframe on screen.',
+      description:
+        'Lists every watchlist of the user with its symbols and section titles, the colour flag of each flagged symbol (a flag belongs to the symbol, so it is the same in every list), which one is active, and the symbol and timeframe on screen.',
       annotations: { readOnlyHint: true },
     },
     () => run(async () => describeLists(await api.getState())),
@@ -153,7 +159,7 @@ export const createDojiServer = ({ api, newId, version, today = todayIso }: Serv
     {
       title: 'Scan a watchlist',
       description:
-        'Reads every symbol of a watchlist in one go: close, change, extended-hours change, RSI 14, distance to SMA 50 and SMA 200, position in the 52-week range and distance below its high, MACD histogram, volume against its average, armed alerts, whether it has a note, and the distance to the nearest support and resistance. Use it to compare symbols or find the ones that meet a condition.',
+        'Reads every symbol of a watchlist in one go: close, change, extended-hours change, RSI 14, distance to SMA 50 and SMA 200, position in the 52-week range and distance below its high, MACD histogram, volume against its average, armed alerts, whether it has a note, the distance to the nearest support and resistance, and the colour flag when the user flagged it. Use it to compare symbols or find the ones that meet a condition.',
       inputSchema: {
         watchlist: z.string().optional().describe('Name or id of the watchlist. Defaults to the active one.'),
         timeframe: timeframeField.optional(),

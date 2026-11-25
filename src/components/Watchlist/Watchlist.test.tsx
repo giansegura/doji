@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import type { SymbolMetrics } from '../../../shared/symbolMetrics'
-import type { Earnings, ListItem, Quote, SymbolInfo, WatchColumn, WatchlistSort } from '../../../shared/types'
+import type { Earnings, FlagColor, ListItem, Quote, SymbolInfo, WatchColumn, WatchlistSort } from '../../../shared/types'
 import { ThemeProvider } from 'styled-components'
 import { renderWithTheme } from '../../test/render'
 import { themes } from '../../theme/tokens'
@@ -27,6 +27,8 @@ type Over = {
   columns?: WatchColumn[]
   metrics?: Record<string, SymbolMetrics>
   earnings?: Record<string, Earnings>
+  flags?: Record<string, FlagColor>
+  onlyFlagged?: boolean
 }
 
 const setup = (over: Over = {}) => {
@@ -40,6 +42,8 @@ const setup = (over: Over = {}) => {
     onRemoveSection: vi.fn(),
     onSort: vi.fn(),
     onColumns: vi.fn(),
+    onFlag: vi.fn(),
+    onOnlyFlagged: vi.fn(),
   }
   renderWithTheme(
     <Watchlist
@@ -51,6 +55,8 @@ const setup = (over: Over = {}) => {
       columns={over.columns ?? []}
       metrics={over.metrics ?? {}}
       earnings={over.earnings ?? {}}
+      flags={over.flags ?? {}}
+      onlyFlagged={over.onlyFlagged ?? false}
       {...handlers}
     />,
   )
@@ -325,6 +331,11 @@ test('Should not let the rows be dragged while the list is sorted', () => {
   expect(screen.getAllByRole('listitem').every((row) => row.getAttribute('draggable') === 'false')).toBe(true)
 })
 
+test('Should not let the rows be dragged while it only shows the flagged symbols', () => {
+  setup({ onlyFlagged: true, flags: { AAPL: 'red' } })
+  expect(screen.getAllByRole('listitem').every((row) => row.getAttribute('draggable') === 'false')).toBe(true)
+})
+
 test('Should let the rows be dragged in the order of the user', () => {
   setup()
   expect(screen.getAllByRole('listitem').every((row) => row.getAttribute('draggable') === 'true')).toBe(true)
@@ -514,4 +525,32 @@ test('Should pick the columns from the menu of the header', async () => {
   expect(handlers.onColumns).toHaveBeenLastCalledWith([])
   await user.keyboard('{Escape}')
   expect(screen.queryByRole('group', { name: 'Columns' })).toBeNull()
+})
+
+test('Should flag a symbol with a colour from its row and take the flag off', async () => {
+  const { handlers, user } = setup({ flags: { MSFT: 'red' } })
+  expect(screen.getByRole('button', { name: 'Flag AAPL' }).getAttribute('title')).toBe('Flag')
+  expect(screen.getByRole('button', { name: 'Flag MSFT' }).getAttribute('title')).toBe('Red flag')
+  await user.click(screen.getByRole('button', { name: 'Flag AAPL' }))
+  await user.click(within(screen.getByRole('group', { name: 'Flag colour' })).getByRole('button', { name: 'Blue' }))
+  expect(handlers.onFlag).toHaveBeenLastCalledWith('AAPL', 'blue')
+  expect(screen.queryByRole('group', { name: 'Flag colour' })).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Flag MSFT' }))
+  await user.click(screen.getByRole('button', { name: 'No flag' }))
+  expect(handlers.onFlag).toHaveBeenLastCalledWith('MSFT', null)
+  expect(handlers.onSelect).not.toHaveBeenCalled()
+})
+
+test('Should sort by flag and show only the flagged symbols from the header', async () => {
+  const { handlers, user } = setup({ onlyFlagged: false })
+  await user.click(screen.getByRole('button', { name: 'Sort by Flag' }))
+  expect(handlers.onSort).toHaveBeenCalledWith('flag')
+  await user.click(screen.getByRole('button', { name: 'Columns' }))
+  await user.click(screen.getByRole('checkbox', { name: 'Only flagged symbols' }))
+  expect(handlers.onOnlyFlagged).toHaveBeenLastCalledWith(true)
+})
+
+test('Should say when no symbol is flagged while it only shows the flagged ones', () => {
+  setup({ items: [], onlyFlagged: true })
+  expect(screen.getByText('No flagged symbols in this watchlist')).toBeTruthy()
 })

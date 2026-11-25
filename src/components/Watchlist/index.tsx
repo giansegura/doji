@@ -1,9 +1,10 @@
 import { type DragEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { isSection } from '../../../shared/listItems'
 import type { SymbolMetrics } from '../../../shared/symbolMetrics'
-import type { Earnings, ListItem, Quote, SortColumn, WatchColumn, WatchlistSort } from '../../../shared/types'
+import type { Earnings, FlagColor, ListItem, Quote, SortColumn, WatchColumn, WatchlistSort } from '../../../shared/types'
 import { WATCH_COLUMN_NAMES } from '../../domain/watchColumns'
 import { ColumnsPicker } from './ColumnsPicker'
+import { FlagIcon } from './FlagPicker'
 import { SectionField } from './SectionField'
 import { SectionRow } from './SectionRow'
 import { SymbolRow } from './SymbolRow'
@@ -29,6 +30,10 @@ type WatchlistProps = {
   onColumns?: (columns: WatchColumn[]) => void
   metrics?: Record<string, SymbolMetrics>
   earnings?: Record<string, Earnings>
+  flags?: Record<string, FlagColor>
+  onFlag?: (symbol: string, color: FlagColor | null) => void
+  onlyFlagged?: boolean
+  onOnlyFlagged?: (on: boolean) => void
 }
 
 type Editing = { kind: 'new' } | { kind: 'rename'; id: string } | null
@@ -50,6 +55,7 @@ const ARROWS = { asc: ' ▲', desc: ' ▼' }
 const NO_COLUMNS: WatchColumn[] = []
 const NO_METRICS: Record<string, SymbolMetrics> = {}
 const NO_EARNINGS: Record<string, Earnings> = {}
+const NO_FLAGS: Record<string, FlagColor> = {}
 
 const LIVE = 'Live prices'
 
@@ -93,6 +99,10 @@ export const Watchlist = ({
   onColumns,
   metrics = NO_METRICS,
   earnings = NO_EARNINGS,
+  flags = NO_FLAGS,
+  onFlag,
+  onlyFlagged = false,
+  onOnlyFlagged,
 }: WatchlistProps) => {
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [editing, setEditing] = useState<Editing>(null)
@@ -110,7 +120,7 @@ export const Watchlist = ({
 
   const handleDrop = (event: DragEvent, index: number) => {
     event.preventDefault()
-    if (sort === null && dragIndex !== null && dragIndex !== index) onMove(dragIndex, index)
+    if (sort === null && !onlyFlagged && dragIndex !== null && dragIndex !== index) onMove(dragIndex, index)
     setDragIndex(null)
   }
 
@@ -135,7 +145,7 @@ export const Watchlist = ({
         {header ?? <Styles.Title>Watchlist</Styles.Title>}
         <Styles.HeaderActions>
           <Styles.LiveMark role="img" aria-label={live ? LIVE : NOT_LIVE} title={live ? LIVE : NOT_LIVE} $live={live} />
-          {onColumns && <ColumnsPicker columns={columns} onColumns={onColumns} />}
+          {onColumns && <ColumnsPicker columns={columns} onColumns={onColumns} onlyFlagged={onlyFlagged} onOnlyFlagged={onOnlyFlagged} />}
           <Styles.IconButton type="button" aria-label="Add section" title="Add section" onClick={() => setEditing(NEW_SECTION)}>
             <SectionIcon />
           </Styles.IconButton>
@@ -145,6 +155,17 @@ export const Watchlist = ({
         </Styles.HeaderActions>
       </Styles.Header>
       <Styles.Columns $extra={columns.length}>
+        {onFlag && (
+          <Styles.FlagSort
+            type="button"
+            aria-label={sortLabel('flag', 'Flag', sort)}
+            title={sortLabel('flag', 'Flag', sort)}
+            $sorted={sort?.column === 'flag'}
+            onClick={() => onSort('flag')}
+          >
+            <FlagIcon />
+          </Styles.FlagSort>
+        )}
         {specs.map(({ column, label, header: shortLabel, right, wideOnly, widestOnly }) => (
           <Styles.ColumnLabel
             key={column}
@@ -163,13 +184,13 @@ export const Watchlist = ({
           </Styles.ColumnLabel>
         ))}
       </Styles.Columns>
-      {items.length === 0 && <Styles.Empty>This watchlist is empty</Styles.Empty>}
+      {items.length === 0 && <Styles.Empty>{onlyFlagged ? 'No flagged symbols in this watchlist' : 'This watchlist is empty'}</Styles.Empty>}
       <Styles.Rows>
         {items.map((item, index) => (
           <Styles.Row
             key={keyOf(item)}
             ref={!isSection(item) && item.symbol === activeSymbol ? activeRef : undefined}
-            draggable={editing === null && sort === null}
+            draggable={editing === null && sort === null && !onlyFlagged}
             $dragging={dragIndex === index}
             onDragStart={(event) => handleDragStart(event, index)}
             onDragOver={(event) => event.preventDefault()}
@@ -194,6 +215,8 @@ export const Watchlist = ({
                 columns={columns}
                 metrics={metrics[item.symbol.toUpperCase()]}
                 earnings={earnings[item.symbol.toUpperCase()]}
+                flag={flags[item.symbol] ?? null}
+                onFlag={onFlag ? (color) => onFlag(item.symbol, color) : undefined}
                 onSelect={() => onSelect(item.symbol)}
                 onRemove={() => onRemove(item.symbol)}
               />

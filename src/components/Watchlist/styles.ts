@@ -1,5 +1,6 @@
 import styled, { css, keyframes } from 'styled-components'
 import { WATCH_COLUMN_WIDTH } from '../../../shared/limits'
+import type { FlagColor } from '../../../shared/types'
 
 const COLUMNS = 'minmax(0, 1fr) 76px 72px 72px'
 const NO_EXTENDED_COLUMNS = 'minmax(0, 1fr) 76px 72px'
@@ -75,6 +76,7 @@ export const IconButton = styled.button`
 `
 
 export const Columns = styled.div<Extra>`
+  position: relative;
   display: grid;
   ${columns}
   gap: ${GAP}px;
@@ -335,5 +337,91 @@ export const ColumnOption = styled.label`
 
   &:hover {
     background: ${(props) => props.theme.ui.hover};
+  }
+`
+
+export const FLAG_HEX: Record<FlagColor, string> = {
+  red: '#E5484D',
+  orange: '#F76B15',
+  yellow: '#FFC53D',
+  green: '#30A46C',
+  blue: '#3E63DD',
+  purple: '#8E4EC6',
+}
+
+export const FlagButton = styled.button<{ $color: FlagColor | null }>`
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 18px;
+  transform: translateY(-50%);
+  color: ${(props) => (props.$color ? FLAG_HEX[props.$color] : props.theme.ui.textMuted)};
+  opacity: ${(props) => (props.$color ? 1 : 0)};
+
+  &:hover,
+  &:focus-visible,
+  &[aria-expanded='true'] {
+    opacity: 1;
+  }
+`
+
+export const FlagSort = styled.button<{ $sorted: boolean }>`
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 18px;
+  transform: translateY(-50%);
+  color: ${(props) => (props.$sorted ? props.theme.ui.text : 'inherit')};
+
+  &:hover {
+    color: ${(props) => props.theme.ui.text};
+  }
+`
+
+export const FlagPalette = styled.div`
+  position: absolute;
+  top: 50%;
+  left: 16px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  transform: translateY(-50%);
+  background: ${(props) => props.theme.ui.popup};
+  border: 1px solid ${(props) => props.theme.ui.border};
+  border-radius: 6px;
+  box-shadow: 0 2px 8px ${(props) => props.theme.ui.shadow};
+`
+
+export const Swatch = styled.button<{ $color: FlagColor }>`
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: ${(props) => FLAG_HEX[props.$color]};
+
+  &:hover,
+  &[aria-pressed='true'] {
+    outline: 2px solid ${(props) => props.theme.ui.text};
+    outline-offset: 1px;
+  }
+`
+
+export const NoFlag = styled.button`
+  padding: 0 4px;
+  color: ${(props) => props.theme.ui.textMuted};
+  font-size: 11px;
+  white-space: nowrap;
+
+  &:hover {
+    color: ${(props) => props.theme.ui.text};
   }
 `

@@ -18,6 +18,7 @@ import type {
   LineLook,
   WatchlistSort,
   WatchColumn,
+  FlagColor,
 } from '../../shared/types'
 
 export type Tool = 'cursor' | 'trendline' | 'hline' | 'channel' | 'rect' | 'measure' | 'long' | 'short'
@@ -48,6 +49,8 @@ export type Action =
   | { type: 'setSecondChart'; timeframe: Timeframe }
   | { type: 'setWatchlistSort'; sort: WatchlistSort | null }
   | { type: 'setWatchlistColumns'; columns: WatchColumn[] }
+  | { type: 'setFlag'; symbol: string; color: FlagColor | null }
+  | { type: 'setOnlyFlagged'; on: boolean }
   | { type: 'rememberLook'; kind: DrawingKind; look: LineLook }
   | { type: 'setEarningsBadge'; on: boolean }
 
@@ -164,6 +167,12 @@ const setListWidth = (state: AppState, raw: number): AppState => {
   return listWidth === state.listWidth ? state : { ...state, listWidth }
 }
 
+const setFlag = (state: AppState, symbol: string, color: FlagColor | null): AppState => {
+  const { [symbol]: previous, ...others } = state.flags
+  if ((previous ?? null) === color) return state
+  return { ...state, flags: color ? { ...others, [symbol]: color } : others }
+}
+
 const setWatchlistColumns = (state: AppState, raw: WatchColumn[]): AppState => {
   const watchlistColumns = toWatchColumns(raw)
   const added = watchlistColumns.length - state.watchlistColumns.length
@@ -251,6 +260,8 @@ export const appReducer = (state: AppState, action: Action): AppState => {
   if (action.type === 'setSecondChart') return setSecondChart(state, action.timeframe)
   if (action.type === 'setWatchlistSort') return { ...state, watchlistSort: action.sort }
   if (action.type === 'setWatchlistColumns') return setWatchlistColumns(state, action.columns)
+  if (action.type === 'setFlag') return setFlag(state, action.symbol, action.color)
+  if (action.type === 'setOnlyFlagged') return state.onlyFlagged === action.on ? state : { ...state, onlyFlagged: action.on }
   if (action.type === 'rememberLook') return rememberLook(state, action.kind, action.look)
   if (action.type === 'setEarningsBadge') return state.earningsBadge === action.on ? state : { ...state, earningsBadge: action.on }
   return setLines(state, action.symbol, action.lines)
