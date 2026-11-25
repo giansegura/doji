@@ -69,22 +69,32 @@ const exchangeName = (meta: Json): string => {
   return full.startsWith('Nasdaq') ? 'NASDAQ' : marketName(full)
 }
 
+const lastPriceOn = (meta: Json, toDate: (seconds: number) => string): { day: string; price: number } | null => {
+  const seconds = asNumber(meta.regularMarketTime)
+  const price = asNumber(meta.regularMarketPrice)
+  return seconds !== null && seconds > 0 && price !== null ? { day: toDate(seconds), price } : null
+}
+
 const parseBars = (result: Json, toDate: (seconds: number) => string): Bar[] => {
   const quote = asObject(asArray(asObject(result.indicators).quote)[0])
+  const timestamps = asArray(result.timestamp)
+  const lastPrice = lastPriceOn(asObject(result.meta), toDate)
   const opens = asArray(quote.open)
   const highs = asArray(quote.high)
   const lows = asArray(quote.low)
   const closes = asArray(quote.close)
   const volumes = asArray(quote.volume)
   const bars = new Map<string, Bar>()
-  asArray(result.timestamp).forEach((timestamp, index) => {
+  timestamps.forEach((timestamp, index) => {
     const seconds = asNumber(timestamp)
     const open = asNumber(opens[index])
     const high = asNumber(highs[index])
     const low = asNumber(lows[index])
-    const close = asNumber(closes[index])
-    if (seconds === null || open === null || high === null || low === null || close === null) return
+    if (seconds === null || open === null || high === null || low === null) return
     const time = toDate(seconds)
+    const unfilled = index === timestamps.length - 1 && lastPrice?.day === time ? lastPrice.price : null
+    const close = asNumber(closes[index]) ?? unfilled
+    if (close === null) return
     bars.set(time, { time, open, high, low, close, volume: asNumber(volumes[index]) ?? 0 })
   })
   return [...bars.values()].sort(byDate((bar) => bar.time))
