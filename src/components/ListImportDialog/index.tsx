@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react'
+import { focusedBefore, keepTabInside } from '../../domain/dialogFocus'
 import type { ImportProgress } from '../../hooks/useListImport'
 import * as Styles from './styles'
 
@@ -14,6 +15,19 @@ const Summary = ({ progress }: { progress: Extract<ImportProgress, { status: 'do
 
 export const ListImportDialog = ({ progress, onClose }: ListImportDialogProps) => {
   const working = progress.status === 'checking'
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const [opener] = useState(focusedBefore)
+
+  const holdFocus = (event: ReactKeyboardEvent) => {
+    if (event.key === 'Tab' && working) event.preventDefault()
+    keepTabInside(event, dialogRef.current)
+  }
+
+  useEffect(() => () => opener?.focus(), [opener])
+
+  useEffect(() => {
+    if (working) dialogRef.current?.focus()
+  }, [working])
 
   useEffect(() => {
     if (working) return undefined
@@ -27,7 +41,7 @@ export const ListImportDialog = ({ progress, onClose }: ListImportDialogProps) =
   if (progress.status === 'checking') {
     return (
       <Styles.Backdrop>
-        <Styles.Dialog role="dialog" aria-modal="true" aria-label="Import list">
+        <Styles.Dialog ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Import list" onKeyDown={holdFocus}>
           <Styles.Title>{`Importing “${progress.name}”`}</Styles.Title>
           <Styles.Text role="status">{`Checking the symbols with Yahoo… ${progress.done} of ${progress.total}`}</Styles.Text>
           <Styles.Track role="progressbar" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.done}>
@@ -40,7 +54,7 @@ export const ListImportDialog = ({ progress, onClose }: ListImportDialogProps) =
 
   return (
     <Styles.Backdrop>
-      <Styles.Dialog role="dialog" aria-modal="true" aria-label="Import list">
+      <Styles.Dialog ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Import list" onKeyDown={holdFocus}>
         <Styles.Title>{`Importing “${progress.name}”`}</Styles.Title>
         {progress.status === 'failed' && <Styles.Text role="alert">Could not check the symbols with Yahoo. Try again in a moment.</Styles.Text>}
         {progress.status === 'done' && <Summary progress={progress} />}

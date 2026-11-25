@@ -27,10 +27,21 @@ const parseTradingViewList = (text: string): ImportEntry[] =>
     .filter(Boolean)
     .map((entry) => (entry.startsWith(SECTION_MARK) ? { kind: 'section', title: sectionTitle(entry.slice(SECTION_MARK.length)) || 'Section' } : symbolEntry(entry)))
 
+const FORMULA_START = /^[=+\-@\t\r]/
+const PLAIN_MARK = "'"
+
 const delimiterOf = (text: string): string => {
-  const firstLine = text.split(/\r?\n/, 1)[0]
-  return (firstLine.match(/;/g)?.length ?? 0) > (firstLine.match(/,/g)?.length ?? 0) ? ';' : ','
+  const counts = { ';': 0, ',': 0 }
+  let quoted = false
+  for (const char of text) {
+    if (char === '"') quoted = !quoted
+    else if (!quoted && (char === '\n' || char === '\r')) break
+    else if (!quoted && (char === ';' || char === ',')) counts[char] += 1
+  }
+  return counts[';'] > counts[','] ? ';' : ','
 }
+
+const unmarked = (value: string): string => (value.startsWith(PLAIN_MARK) && FORMULA_START.test(value.slice(1)) ? value.slice(1) : value)
 
 const csvRows = (text: string): string[][] => {
   const delimiter = delimiterOf(text)
@@ -58,7 +69,7 @@ const csvRows = (text: string): string[][] => {
     }
   }
   rows.push([...row, cell])
-  return rows.map((cells) => cells.map((value) => value.trim())).filter((cells) => cells.some(Boolean))
+  return rows.map((cells) => cells.map((value) => unmarked(value.trim()))).filter((cells) => cells.some(Boolean))
 }
 
 const columnsOf = (rows: string[][]): { header: boolean; symbol: number; section: number } => {
@@ -71,17 +82,22 @@ const columnsOf = (rows: string[][]): { header: boolean; symbol: number; section
 const parseCsvList = (text: string): ImportEntry[] => {
   const rows = csvRows(text)
   const columns = columnsOf(rows)
-  const entries: ImportEntry[] = []
+  const loose: ImportEntry[] = []
+  const grouped: ImportEntry[] = []
   let current = ''
   for (const cells of columns.header ? rows.slice(1) : rows) {
     const symbol = cells[columns.symbol] ?? ''
     const section = columns.section >= 0 ? sectionTitle(cells[columns.section] ?? '') : ''
     if (!symbol) continue
-    if (section !== current && section) entries.push({ kind: 'section', title: section })
+    if (!section) {
+      loose.push(symbolEntry(symbol))
+      continue
+    }
+    if (section !== current) grouped.push({ kind: 'section', title: section })
     current = section
-    entries.push(symbolEntry(symbol))
+    grouped.push(symbolEntry(symbol))
   }
-  return entries
+  return [...loose, ...grouped]
 }
 
 export const parseListFile = (fileName: string, text: string): ImportEntry[] =>
@@ -133,7 +149,11 @@ export const importedItems = (
   return { items, notFound }
 }
 
-const csvCell = (value: string): string => (/[",\r\n]|^\s|\s$/.test(value) ? `"${value.replace(/"/g, '""')}"` : value)
+const plainText = (value: string): string => (FORMULA_START.test(value) ? `${PLAIN_MARK}${value}` : value)
+
+const quoted = (value: string): string => (/[",\r\n]|^\s|\s$/.test(value) ? `"${value.replace(/"/g, '""')}"` : value)
+
+const csvCell = (value: string): string => quoted(plainText(value))
 
 const withSections = (items: ListItem[]): [SymbolInfo, string][] => {
   let section = ''
@@ -152,7 +172,7 @@ export const listToCsv = (list: SymbolList): string =>
 
 export const listToTradingView = (list: SymbolList): string =>
   list.items
-    .map((item) => (isSection(item) ? `${SECTION_MARK}${item.title.replace(/\s*,\s*/g, ' ')}` : tradingViewSymbol(item)))
+    .map((item) => (isSection(item) ? `${SECTION_MARK}${item.title.replace(/\s*[,\r\n]+\s*/g, ' ')}` : tradingViewSymbol(item)))
     .join(',')
 
 export const listNameFromFile = (fileName: string): string =>

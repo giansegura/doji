@@ -1,8 +1,10 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { ThemeProvider } from 'styled-components'
 import { expect, test, vi } from 'vitest'
 import type { ImportProgress } from '../../hooks/useListImport'
 import { renderWithTheme } from '../../test/render'
+import { themes } from '../../theme/tokens'
 import { ListImportDialog } from '.'
 
 const setup = (progress: ImportProgress) => {
@@ -44,4 +46,28 @@ test('Should say the check failed and close with Escape', async () => {
   expect(screen.getByRole('alert').textContent).toBe('Could not check the symbols with Yahoo. Try again in a moment.')
   await user.keyboard('{Escape}')
   expect(onClose).toHaveBeenCalled()
+})
+
+test('Should hold the focus while it checks, keep Tab inside and give the focus back when it closes', async () => {
+  const opener = document.createElement('button')
+  document.body.append(opener)
+  opener.focus()
+  const view = renderWithTheme(<ListImportDialog progress={{ status: 'checking', name: 'Tech', done: 1, total: 60 }} onClose={vi.fn()} />)
+  const user = userEvent.setup()
+  const dialog = screen.getByRole('dialog', { name: 'Import list' })
+  expect(document.activeElement).toBe(dialog)
+  await user.tab()
+  expect(document.activeElement).toBe(dialog)
+  view.rerender(
+    <ThemeProvider theme={themes.midnight}>
+      <ListImportDialog progress={{ status: 'done', name: 'Tech', added: 60, notFound: [] }} onClose={vi.fn()} />
+    </ThemeProvider>,
+  )
+  const close = screen.getByRole('button', { name: 'Close' })
+  expect(document.activeElement).toBe(close)
+  await user.tab()
+  expect(document.activeElement).toBe(close)
+  view.unmount()
+  expect(document.activeElement).toBe(opener)
+  opener.remove()
 })

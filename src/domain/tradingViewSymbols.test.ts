@@ -86,3 +86,17 @@ describe('tradingViewSymbol', () => {
     expect(tradingViewSymbol({ symbol: '^XYZ', name: 'XYZ', exchange: 'Somewhere' })).toBe('XYZ')
   })
 })
+
+test('Should turn the share class of the Nordic markets between the TradingView underscore and the Yahoo hyphen', () => {
+  expect(yahooCandidates('OMXSTO:VOLV_B')).toEqual(['VOLV-B.ST'])
+  expect(yahooCandidates('OMXCOP:NOVO_B')).toEqual(['NOVO-B.CO'])
+  expect(tradingViewSymbol({ symbol: 'VOLV-B.ST', name: 'Volvo', exchange: 'Stockholm' })).toBe('OMXSTO:VOLV_B')
+  expect(tradingViewSymbol({ symbol: 'NOVO-B.CO', name: 'Novo Nordisk', exchange: 'Copenhagen' })).toBe('OMXCOP:NOVO_B')
+  expect(tradingViewSymbol({ symbol: 'BRK-B', name: 'Berkshire', exchange: 'NYSE' })).toBe('NYSE:BRK.B')
+})
+
+test('Should read a continuous future written without its exchange, as it is exported', () => {
+  expect(yahooCandidates('ES1!')).toEqual(['ES=F'])
+  expect(yahooCandidates(tradingViewSymbol({ symbol: 'CL=F', name: 'Crude Oil', exchange: 'NY Mercantile' }))).toEqual(['CL=F'])
+  expect(yahooCandidates('AAPL')).toEqual(['AAPL'])
+})

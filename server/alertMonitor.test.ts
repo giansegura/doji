@@ -241,7 +241,9 @@ test('Should keep a repeating alert armed, remember the day it fired and not fir
   await monitor.settled()
   box.send?.([tick('KO', 101)])
   await monitor.settled()
-  expect(box.state.lines.KO[0]).toMatchObject({ alert: true, alertRepeat: true, alertFiredOn: '2026-11-24' })
+  const moment = new Date('2026-11-24T15:00:00Z')
+  const localDay = `${moment.getFullYear()}-${String(moment.getMonth() + 1).padStart(2, '0')}-${String(moment.getDate()).padStart(2, '0')}`
+  expect(box.state.lines.KO[0]).toMatchObject({ alert: true, alertRepeat: true, alertFiredOn: localDay })
   box.send?.([tick('KO', 99)])
   await monitor.settled()
   box.send?.([tick('KO', 101)])
@@ -258,4 +260,16 @@ test('Should disarm an alert past its last day without firing it', async () => {
   expect(box.state.lines.KO[0]).not.toHaveProperty('alertUntil')
   expect(box.state.lines.KO[1]).toHaveProperty('alert', true)
   expect(box.announced).toEqual([])
+})
+
+test('Should disarm a crypto trend alert that fired, reading its level on the seven day calendar', async () => {
+  const trend = { id: 't', pane: 'price', timeframe: 'D', color: '#FFFFFF', width: 1, pricedAt: '2020-01-01', alert: true, extendRight: true, p1: { date: '2026-11-20', value: 100 }, p2: { date: '2026-11-23', value: 130 } } as Drawing
+  const { box, monitor } = harness(stateWith({ 'BTC-USD': [trend] }))
+  await monitor.start()
+  box.send?.([tick('BTC-USD', 139)])
+  await monitor.settled()
+  box.send?.([tick('BTC-USD', 141)])
+  await monitor.settled()
+  expect(box.announced.map((alert) => alert.level)).toEqual([140])
+  expect(box.state.lines['BTC-USD'][0]).not.toHaveProperty('alert')
 })

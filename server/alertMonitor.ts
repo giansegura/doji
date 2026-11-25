@@ -2,6 +2,7 @@ import { type FiredAlert, alertLevels, armedSymbols, createAlertWatcher, latestP
 import { withHistory } from '../shared/alertHistory'
 import { afterFiring, expiredAlert, withoutAlert } from '../shared/drawings'
 import { type IndicatorHit, createIndicatorWatcher, indicatorLabel, sessionDayOf, withLivePrice } from '../shared/indicatorAlerts'
+import { tradesEveryDay } from '../shared/symbols'
 import type { AlertEvent, AppState, Drawing, LiveTick, Quote } from '../shared/types'
 import type { SaveOutcome } from './stateStore'
 
@@ -38,7 +39,7 @@ const dayOf = (date: Date): string => `${date.getFullYear()}-${twoDigits(date.ge
 type Outcome = { hits: FiredAlert[]; indicatorHits: IndicatorHit[]; events: AlertEvent[]; today: string }
 
 const firedOn = (hit: FiredAlert, symbol: string, drawing: Drawing, today: string): boolean =>
-  hit.symbol === symbol && hit.drawingId === drawing.id && alertLevels(drawing, today).some((level) => level === hit.level)
+  hit.symbol === symbol && hit.drawingId === drawing.id && alertLevels(drawing, today, tradesEveryDay(symbol)).some((level) => level === hit.level)
 
 const hasExpired = (state: AppState, today: string): boolean =>
   Object.values(state.lines).some((drawings) => drawings.some((drawing) => expiredAlert(drawing, today)))

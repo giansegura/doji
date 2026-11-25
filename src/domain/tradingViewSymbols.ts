@@ -85,10 +85,11 @@ const FOREX_EXCHANGES = ['FX', 'FX_IDC', 'OANDA', 'FOREXCOM', 'SAXO', 'FXCM', 'I
 const CONTINUOUS_FUTURE = /^([A-Z0-9]+?)[12]!$/
 const FOREX_TICKER = /^[A-Z]{6}$/
 const HONG_KONG_DIGITS = 4
+const UNDERSCORE_CLASSES = ['OMXSTO', 'OMXCOP', 'OMXHEX', 'OMXICE', 'OSL']
 
 const valid = (symbol: string): string[] => (SYMBOL_PATTERN.test(symbol) ? [symbol] : [])
 
-const asYahooTicker = (ticker: string): string => ticker.replace(/\.+$/, '').replace(/\./g, '-')
+const asYahooTicker = (ticker: string): string => ticker.replace(/\.+$/, '').replace(/[._]/g, '-')
 
 const cryptoOf = (ticker: string): string[] => {
   const quote = CRYPTO_QUOTES.find(([suffix]) => ticker.endsWith(suffix) && ticker.length > suffix.length)
@@ -103,6 +104,8 @@ const withSuffixes = (exchange: string, ticker: string, suffixes: string[]): str
 export const yahooCandidates = (entry: string): string[] => {
   const text = entry.trim().toUpperCase()
   const colon = text.indexOf(':')
+  const bareFuture = CONTINUOUS_FUTURE.exec(text)
+  if (colon < 0 && bareFuture) return valid(`${bareFuture[1]}=F`)
   if (colon < 0) return valid(text)
   const exchange = text.slice(0, colon)
   const ticker = text.slice(colon + 1)
@@ -136,7 +139,7 @@ const fromSuffix = (symbol: string): string | null => {
   const euronext = SUFFIXES.EURONEXT.includes(suffix) ? 'EURONEXT' : null
   const market = euronext ?? exchange
   if (!market) return null
-  const ticker = symbol.slice(0, dot).replace(/-/g, '.')
+  const ticker = symbol.slice(0, dot).replace(/-/g, UNDERSCORE_CLASSES.includes(market) ? '_' : '.')
   return `${market}:${market === 'HKEX' ? String(Number(ticker)) : ticker}`
 }
 

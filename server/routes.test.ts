@@ -47,6 +47,7 @@ const makeApi = (over: Overrides = {}) => {
   const saved: AppState[] = []
   const requested: {
     history: string[]
+    notKept: string[]
     kept: string[]
     search: string[]
     quotes: string[][]
@@ -63,6 +64,7 @@ const makeApi = (over: Overrides = {}) => {
     warmed: [],
     telegram: [],
     history: [],
+    notKept: [],
     kept: [],
     search: [],
     quotes: [],
@@ -70,8 +72,9 @@ const makeApi = (over: Overrides = {}) => {
   }
   const api = createApi({
     history: {
-      get: async (symbol) => {
+      get: async (symbol, keep) => {
         requested.history.push(symbol)
+        if (keep === false) requested.notKept.push(symbol)
         return (over.getHistory ?? (async (s: string) => historyOf(s)))(symbol)
       },
       peek: async (symbol) => {
@@ -284,6 +287,7 @@ test('Should check imported symbols against Yahoo, trying each candidate in turn
     found: [historyOf('AAPL').info, historyOf('MC.PA').info, null, null],
   })
   expect(requested.history).toEqual(expect.arrayContaining(['AAPL', 'MC.AS', 'MC.PA', 'ZZZZ']))
+  expect([...requested.notKept].sort()).toEqual([...requested.history].sort())
 })
 
 test('Should refuse to check too many symbols at once and answer 502 when Yahoo fails', async () => {

@@ -17,6 +17,7 @@ type ShortcutsArgs = {
 }
 
 const DIALOG = '[role="dialog"]'
+const MODAL = '[role="dialog"][aria-modal="true"]'
 
 export const useShortcuts = (args: ShortcutsArgs) => {
   const [history] = useState(() => createLinesHistory({ now: () => Date.now() }))
@@ -30,7 +31,7 @@ export const useShortcuts = (args: ShortcutsArgs) => {
     const handleKey = (event: KeyboardEvent) => {
       const { symbol, drawings, symbols, dispatch, onTool, onToggleList, onHelp, onSearch } = latest.current
       const shortcut = shortcutFor(event, isTyping(event.target))
-      if (!shortcut || (shortcut.kind === 'search' && (!onSearch || document.querySelector(DIALOG)))) return
+      if (!shortcut || document.querySelector(MODAL) || (shortcut.kind === 'search' && (!onSearch || document.querySelector(DIALOG)))) return
       event.preventDefault()
       if (shortcut.kind === 'search') {
         onSearch?.(shortcut.text)

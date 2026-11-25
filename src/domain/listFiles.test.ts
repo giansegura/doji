@@ -32,10 +32,10 @@ describe('parseListFile', () => {
   test('Should read a CSV with a header, taking the symbol and section columns wherever they are', () => {
     const text = 'Name,Symbol,Section\nApple,AAPL,Tech\nMicrosoft,MSFT,Tech\nCoca-Cola,KO,\nRepsol,"BME:REP","Spain"\n'
     expect(parseListFile('mine.CSV', text)).toEqual([
+      { kind: 'symbol', text: 'KO', candidates: ['KO'] },
       { kind: 'section', title: 'Tech' },
       { kind: 'symbol', text: 'AAPL', candidates: ['AAPL'] },
       { kind: 'symbol', text: 'MSFT', candidates: ['MSFT'] },
-      { kind: 'symbol', text: 'KO', candidates: ['KO'] },
       { kind: 'section', title: 'Spain' },
       { kind: 'symbol', text: 'BME:REP', candidates: ['REP.MC'] },
     ])
@@ -133,5 +133,30 @@ describe('listFile', () => {
   test('Should give the text, name and type of each export', () => {
     expect(listFile(list, 'csv')).toEqual({ text: listToCsv(list), name: 'Tech - -Big-.csv', type: 'text/csv' })
     expect(listFile(list, 'tradingview')).toEqual({ text: listToTradingView(list), name: 'Tech - -Big-.txt', type: 'text/plain' })
+  })
+})
+
+describe('edge cases', () => {
+  const texts = (entries: ReturnType<typeof parseListFile>) => entries.map((entry) => (entry.kind === 'symbol' ? entry.text : `#${entry.title}`))
+
+  test('Should pick the separator of a CSV without counting the ones inside quotes', () => {
+    expect(texts(parseListFile('l.csv', 'AAPL,"Tech; growth; income"\nKO,Staples\n'))).toEqual(['#Tech; growth; income', 'AAPL', '#Staples', 'KO'])
+    expect(texts(parseListFile('l.csv', 'AAPL;"Tech, US"\nKO;Staples\n'))).toEqual(['#Tech, US', 'AAPL', '#Staples', 'KO'])
+  })
+
+  test('Should keep the symbols without a section out of the section before them', () => {
+    expect(texts(parseListFile('l.csv', 'Symbol,Section\nAAPL,Tech\nKO,\nMSFT,Tech\n'))).toEqual(['KO', '#Tech', 'AAPL', 'MSFT'])
+  })
+
+  test('Should write text that a spreadsheet would run as a formula as plain text, and read it back the same', () => {
+    const risky: SymbolList = { id: 'r', name: 'r', items: [{ kind: 'section', id: 's', title: '=1+1' }, { symbol: 'AAPL', name: '@Apple', exchange: 'NASDAQ' }] }
+    const csv = listToCsv(risky)
+    expect(csv).toBe("Symbol,Name,Exchange,Section\nAAPL,'@Apple,NASDAQ,'=1+1\n")
+    expect(texts(parseListFile('r.csv', csv))).toEqual(['#=1+1', 'AAPL'])
+  })
+
+  test('Should keep line breaks out of the section titles written for TradingView', () => {
+    const broken: SymbolList = { id: 'b', name: 'b', items: [{ kind: 'section', id: 's', title: 'Long\nMSFT\r\nidea' }, { symbol: 'AAPL', name: 'Apple', exchange: 'NASDAQ' }] }
+    expect(listToTradingView(broken)).toBe('###Long MSFT idea,NASDAQ:AAPL')
   })
 })

@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { focusedBefore, keepTabInside } from '../../domain/dialogFocus'
 import * as Styles from './styles'
 
 type ShortcutsDialogProps = { onClose: () => void }
@@ -45,6 +46,11 @@ const GROUPS: Group[] = [
 ]
 
 export const ShortcutsDialog = ({ onClose }: ShortcutsDialogProps) => {
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const [opener] = useState(focusedBefore)
+
+  useEffect(() => () => opener?.focus(), [opener])
+
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
@@ -55,7 +61,7 @@ export const ShortcutsDialog = ({ onClose }: ShortcutsDialogProps) => {
 
   return (
     <Styles.Backdrop onPointerDown={(event) => event.target === event.currentTarget && onClose()}>
-      <Styles.Dialog role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+      <Styles.Dialog ref={dialogRef} role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" onKeyDown={(event) => keepTabInside(event, dialogRef.current)}>
         <Styles.Title>Keyboard shortcuts</Styles.Title>
         <Styles.Groups>
           {GROUPS.map((group) => (

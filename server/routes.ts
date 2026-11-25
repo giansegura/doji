@@ -145,7 +145,7 @@ export const createApi = (deps: ApiDeps): Route => {
             .slice(0, MAX_CANDIDATES),
         )
       if (groups.length > MAX_RESOLVE_GROUPS) return fail(400, 'too_many_symbols')
-      return ok({ found: await resolveSymbols(groups, async (symbol) => (await deps.history.get(symbol)).info) })
+      return ok({ found: await resolveSymbols(groups, async (symbol) => (await deps.history.get(symbol, false)).info) })
     },
     'GET /api/logo': async ({ query }) => {
       const symbol = query.get('symbol') ?? ''
