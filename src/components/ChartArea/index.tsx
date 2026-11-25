@@ -16,6 +16,8 @@ type ChartAreaProps = {
   settings: ChartSettings
   live?: LivePrice | null
   viewId?: string
+  asOf?: string | null
+  onPickBar?: (time: string) => void
   screenshotRef?: RefObject<(() => void) | null>
   lines: Drawing[]
   tool: Tool
@@ -42,6 +44,8 @@ export const ChartArea = ({
   settings,
   live = null,
   viewId = 'main',
+  asOf = null,
+  onPickBar,
   screenshotRef,
   lines,
   tool,
@@ -83,6 +87,8 @@ export const ChartArea = ({
         settings={settings}
         live={live}
         viewId={viewId}
+        asOf={asOf}
+        onPickBar={onPickBar}
         screenshotRef={screenshotRef}
         lines={loading ? NO_LINES : lines}
         tool={loading ? 'cursor' : tool}

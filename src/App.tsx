@@ -2,13 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ThemeProvider } from 'styled-components'
 import { todayIso } from '../shared/dates'
 import { symbolsOf } from '../shared/listItems'
-import type { AppState, Drawing, DrawingKind, LineLook, SymbolInfo } from '../shared/types'
+import type { AppState, Bar, Drawing, DrawingKind, LineLook, SymbolInfo } from '../shared/types'
 import { ChartArea } from './components/ChartArea'
 import { EarningsCalendar } from './components/EarningsCalendar'
 import { LeftToolbar } from './components/LeftToolbar'
 import { ListPicker } from './components/ListPicker'
 import { AlertToasts } from './components/AlertToasts'
 import { ListResizer } from './components/ListResizer'
+import { ReplayBar } from './components/ReplayBar'
 import { NotesPanel } from './components/NotesPanel'
 import { SymbolSearch } from './components/SymbolSearch'
 import { TimeframePicker } from './components/TimeframePicker'
@@ -19,6 +20,7 @@ import { downloadText } from './domain/download'
 import { calendarItems, earningsSoon } from './domain/earningsCalendar'
 import { freshQuotes } from './domain/liveBar'
 import { newId } from './domain/newId'
+import { replayBars } from './domain/replay'
 import { tabTitle } from './domain/tabTitle'
 import { nextSort, sortItems } from './domain/watchlistSort'
 import { adjustLinesForSplits } from './domain/splits'
@@ -28,6 +30,7 @@ import { useHistory } from './hooks/useHistory'
 import { useLivePrice } from './hooks/useLivePrice'
 import { usePrefetchHistories } from './hooks/usePrefetchHistories'
 import { useQuotes } from './hooks/useQuotes'
+import { useReplay } from './hooks/useReplay'
 import { useShortcuts } from './hooks/useShortcuts'
 import { type Action, type Tool, activeWatchlist } from './state/appReducer'
 import { useAppState } from './state/useAppState'
@@ -36,6 +39,8 @@ import { GlobalStyle } from './theme/GlobalStyle'
 import { themes } from './theme/tokens'
 
 type WorkspaceProps = { state: AppState; dispatch: (action: Action) => void; notice: string | null; replaced: number }
+
+const NO_BARS: Bar[] = []
 
 type SearchMode = 'chart' | 'watchlist' | null
 
@@ -79,14 +84,23 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
     if (adjusted.changed) dispatch({ type: 'setLines', symbol: state.symbol, lines: adjusted.lines })
   }, [history, state.symbol, state.lines, dispatch])
 
+  const replayer = useReplay({ bars: history?.bars ?? NO_BARS, timeframe: state.timeframe, symbol: state.symbol })
+  const { replay } = replayer
+  const replayAt = replay.status === 'on' ? replay.cutoff : null
+  const shownHistory = useMemo(
+    () => (history && replayAt ? { ...history, bars: replayBars(history.bars, replayAt) } : history),
+    [history, replayAt],
+  )
   const chartProps = {
     symbol: state.symbol,
     status,
-    history,
+    history: shownHistory,
     errorCode,
     indicators: state.indicators,
     settings: state.chart,
-    live: livePrice,
+    live: replay.status === 'off' ? livePrice : null,
+    asOf: replayAt,
+    onPickBar: replay.status === 'picking' ? replayer.pick : undefined,
     lines: drawings,
     tool,
     onLinesChange: changeDrawings,
@@ -122,6 +136,8 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
           onChart={(chart) => dispatch({ type: 'setChart', chart })}
           onScreenshot={() => screenshotRef.current?.()}
           onOpenCalendar={() => setCalendarOpen(true)}
+          onReplay={replay.status === 'off' ? replayer.start : replayer.exit}
+          replaying={replay.status !== 'off'}
           onExportConfig={() => downloadText(serializeConfig(state), configFileName(todayIso()))}
           onImportConfig={(config) => {
             forgetDrawings()
@@ -151,6 +167,16 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
           )}
         </Styles.Panes>
         <AlertToasts fired={fired} onDismiss={dismiss} />
+        {replay.status !== 'off' && (
+          <ReplayBar
+            replay={replay}
+            onPickAgain={replayer.start}
+            onStep={replayer.step}
+            onTogglePlay={replayer.togglePlay}
+            onSpeed={replayer.setSpeed}
+            onExit={replayer.exit}
+          />
+        )}
       </Styles.Chart>
       <Styles.List>
         <ListResizer width={state.listWidth} onResize={(width) => dispatch({ type: 'setListWidth', width })} />
