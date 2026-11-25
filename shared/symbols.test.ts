@@ -35,7 +35,11 @@ test('Should give other symbols two decimals, or four under one', () => {
 test('Should tell the cryptocurrencies that trade every day from stocks with a class letter', () => {
   expect(tradesEveryDay('BTC-USD')).toBe(true)
   expect(tradesEveryDay('ETH-EUR')).toBe(true)
+  expect(tradesEveryDay('BTC-CAD')).toBe(true)
+  expect(tradesEveryDay('SOL-USDT')).toBe(true)
   expect(tradesEveryDay('BRK-B')).toBe(false)
+  expect(tradesEveryDay('BAC-PL')).toBe(false)
+  expect(tradesEveryDay('REI-UN.TO')).toBe(false)
   expect(tradesEveryDay('AAPL')).toBe(false)
 })
 

@@ -11,6 +11,7 @@ const KEEP_MS = 15 * 60_000
 
 export const createBackupHistory = (deps: { backup: BackupSource; now: () => Date }): BackupHistory => {
   const kept = new Map<string, Kept>()
+  const pending = new Map<string, Promise<History | null>>()
   let failures = 0
 
   const fromBackup = async (symbol: string): Promise<History | null> => {
@@ -18,13 +19,18 @@ export const createBackupHistory = (deps: { backup: BackupSource; now: () => Dat
     const known = kept.get(key)
     const now = deps.now().getTime()
     if (known && now - known.at < KEEP_MS) return known.history
-    try {
-      const history = await deps.backup.history(symbol)
-      kept.set(key, { at: now, history })
-      return history
-    } catch {
-      return null
-    }
+    const asked = pending.get(key)
+    if (asked) return asked
+    const request = deps.backup
+      .history(symbol)
+      .then((history) => {
+        kept.set(key, { at: now, history })
+        return history
+      })
+      .catch(() => null)
+      .finally(() => pending.delete(key))
+    pending.set(key, request)
+    return request
   }
 
   const serve = async (symbol: string, primary: () => Promise<History>): Promise<History> => {

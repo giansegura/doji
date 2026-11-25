@@ -2,7 +2,7 @@ export const SYMBOL_PATTERN = /^[A-Za-z0-9^][A-Za-z0-9.\-^=]{0,14}$/
 
 const FOREX_PAIR = /^([A-Z]{3})([A-Z]{3})?=X$/i
 const FOREX_WIDE_ABOVE = 20
-const CRYPTO = /^[A-Z0-9]{2,10}-(USD|USDT|USDC|EUR|GBP|JPY|BTC|ETH)$/i
+const CRYPTO = /^[A-Z0-9]{2,10}-[A-Z]{3,4}$/i
 const TINY = 0.0001
 const SMALL = 0.01
 

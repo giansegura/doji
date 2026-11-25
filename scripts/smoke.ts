@@ -1293,18 +1293,21 @@ await step('con la clave de reserva, Twelve Data entra cuando Yahoo falla tres v
   const yahoo = (down: boolean) =>
     fetch(`${url}/api/test/yahoo`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ down }) })
   await yahoo(true)
-  const sources: (string | null)[] = []
-  for (const symbol of ['IBM', 'ORCL', 'INTC', 'CSCO']) {
-    const response = await fetch(`${url}/api/history?symbol=${symbol}`)
-    sources.push(response.ok ? ((await response.json()) as { source?: string }).source ?? 'Yahoo' : null)
+  try {
+    const sources: (string | null)[] = []
+    for (const symbol of ['IBM', 'ORCL', 'INTC', 'CSCO']) {
+      const response = await fetch(`${url}/api/history?symbol=${symbol}`)
+      sources.push(response.ok ? ((await response.json()) as { source?: string }).source ?? 'Yahoo' : null)
+    }
+    const switched = sources.indexOf('Twelve Data')
+    check(switched > 0 && sources.slice(0, switched).every((source) => source === null), `la reserva no entró tras los fallos de Yahoo: ${JSON.stringify(sources)}`)
+    const state = await savedState()
+    await fetch(`${url}/api/state`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...state, symbol: 'CSCO' }) })
+    await page.reload()
+    await page.getByText('Data from Twelve Data: Yahoo is not answering').waitFor({ timeout: 15_000 })
+  } finally {
+    await yahoo(false)
   }
-  const switched = sources.indexOf('Twelve Data')
-  check(switched > 0 && sources.slice(0, switched).every((source) => source === null), `la reserva no entró tras los fallos de Yahoo: ${JSON.stringify(sources)}`)
-  const state = await savedState()
-  await fetch(`${url}/api/state`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...state, symbol: 'CSCO' }) })
-  await page.reload()
-  await page.getByText('Data from Twelve Data: Yahoo is not answering').waitFor({ timeout: 15_000 })
-  await yahoo(false)
   const latest = await savedState()
   await fetch(`${url}/api/state`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...latest, symbol: before }) })
   await page.reload()

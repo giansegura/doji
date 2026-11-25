@@ -59,7 +59,12 @@ export const createTwelveData = (deps: { fetch: TwelveFetch; apiUrl: string; key
     const query = new URLSearchParams({ symbol: wanted, interval: '1day', outputsize: String(OUTPUT_SIZE), order: 'asc', apikey: key })
     const answer = await deps.fetch(`${deps.apiUrl}/time_series?${query}`).catch(() => null)
     if (!answer || answer.status !== 200) throw providerError('unavailable', 'Twelve Data did not answer')
-    const json = JSON.parse(await answer.text()) as { status?: unknown }
+    const json = await answer
+      .text()
+      .then((text) => JSON.parse(text) as { status?: unknown })
+      .catch(() => {
+        throw providerError('unavailable', 'Twelve Data sent a broken answer')
+      })
     if (json.status !== 'ok') throw providerError('unavailable', 'Twelve Data refused the request')
     return parseTwelveSeries(json, symbol, (deps.now ?? (() => new Date()))().toISOString())
   }

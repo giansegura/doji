@@ -55,3 +55,8 @@ test('Should fail clearly when Twelve Data answers with an error', async () => {
   })
   await expect(twelve.history('AAPL')).rejects.toMatchObject({ kind: 'unavailable' })
 })
+
+test('Should fail as unavailable when Twelve Data answers with a broken body', async () => {
+  const twelve = createTwelveData({ fetch: async () => ({ status: 200, text: async () => '{"status": "ok", "val' }), apiUrl: 'x', key: async () => 'k' })
+  await expect(twelve.history('AAPL')).rejects.toMatchObject({ kind: 'unavailable' })
+})

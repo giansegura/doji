@@ -78,3 +78,12 @@ test('Should not count an unknown symbol as a failure and keep what Yahoo had wh
   expect((await served.serve('AAPL', stale)).stale).toBe(true)
   await expect(served.serve('MSFT', down)).rejects.toMatchObject({ kind: 'unavailable' })
 })
+
+test('Should ask the backup once for a symbol requested again while its answer is on the way', async () => {
+  const { served, asked } = setup()
+  await served.serve('MSFT', stale)
+  await served.serve('MSFT', stale)
+  const both = await Promise.all([served.serve('AAPL', stale), served.serve('aapl', stale)])
+  expect(both.map((history) => history.source)).toEqual(['Twelve Data', 'Twelve Data'])
+  expect(asked).toEqual(['AAPL'])
+})
