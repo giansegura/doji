@@ -226,6 +226,9 @@ export const ChartView = ({
           Auto
         </Styles.AutoFit>
       )}
+      {history.source && !history.stale && (
+        <Styles.Notice role="status">{`Data from ${history.source}: Yahoo is not answering`}</Styles.Notice>
+      )}
       {history.stale && (
         <Styles.Notice role="status">Data from {formatFetchedAt(history.fetchedAt)}: no connection to the source</Styles.Notice>
       )}

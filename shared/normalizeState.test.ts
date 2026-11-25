@@ -489,6 +489,14 @@ test('Should keep the earnings warning of the watchlist off unless the configura
   expect(normalizeState({ earningsBadge: 'sí' }).earningsBadge).toBe(false)
 })
 
+test('Should give the market ticker its six symbols when the saved state has none and keep a hidden one hidden', () => {
+  expect(normalizeState({}).ticker.items.map((item) => item.symbol)).toEqual(['^GSPC', '^IXIC', '^VIX', 'EURUSD=X', 'GC=F', 'BTC-USD'])
+  expect(normalizeState({ ticker: { visible: false, items: [{ symbol: 'AAPL', name: 'AAPL' }] } }).ticker).toEqual({
+    visible: false,
+    items: [{ symbol: 'AAPL', name: 'AAPL' }],
+  })
+})
+
 const position = {
   kind: 'position',
   id: 'p',

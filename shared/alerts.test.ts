@@ -166,3 +166,9 @@ test('Should not watch a line drawn in euros, since prices arrive in the currenc
   expect(alertLevels(level({ currency: 'EUR' }), '2026-11-20')).toEqual([])
   expect(alertLevels(level(), '2026-11-20')).toEqual([100])
 })
+
+test('Should read a trend line of a cryptocurrency by every day gone since it starts', () => {
+  const line = trend({ p1: { date: '2026-11-20', value: 100 }, p2: { date: '2026-11-22', value: 102 } })
+  expect(alertLevel(line, '2026-11-21', true)).toBe(101)
+  expect(alertLevel(line, '2026-11-21')).toBe(102)
+})

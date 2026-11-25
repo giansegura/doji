@@ -115,3 +115,11 @@ test('Should extrapolate monthly dates after the last bar and before the first',
 test('Should round-trip every monthly index in range', () => {
   ;[0, 1, 2].forEach((index) => expect(monthly.dateToIndex(monthly.indexToDate(index))).toBe(index))
 })
+
+test('Should count every day ahead and behind for a history that trades on weekends', () => {
+  const everyDay = createTimeIndex(['2026-11-20', '2026-11-21', '2026-11-22', '2026-11-23'], 'D')
+  expect(everyDay.dateToIndex('2026-11-25')).toBe(5)
+  expect(everyDay.indexToDate(6)).toBe('2026-11-26')
+  expect(everyDay.dateToIndex('2026-11-28')).toBe(8)
+  expect(everyDay.dateToIndex('2026-11-18')).toBe(-2)
+})

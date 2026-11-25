@@ -34,6 +34,8 @@ const historyOf = (symbol: string): History => ({
 })
 
 type Overrides = {
+  backup?: { serve: (symbol: string, primary: () => Promise<History>) => Promise<History> }
+  testYahoo?: (down: boolean) => void
   telegram?: Partial<Telegram>
   testPrices?: (prices: Record<string, number>) => Promise<unknown>
   getHistory?: (symbol: string) => Promise<History>
@@ -53,7 +55,9 @@ const makeApi = (over: Overrides = {}) => {
     warmed: string[][]
     telegram: string[]
     metrics: string[]
+    backupKey: string[]
   } = {
+    backupKey: [],
     metrics: [],
     earnings: [],
     warmed: [],
@@ -132,6 +136,21 @@ const makeApi = (over: Overrides = {}) => {
       ...over.telegram,
     },
     ...(over.testPrices ? { testPrices: over.testPrices } : {}),
+    ...(over.backup ? { backup: over.backup } : {}),
+    ...(over.testYahoo ? { testYahoo: over.testYahoo } : {}),
+    backupKey: {
+      status: async () => ({ configured: requested.backupKey.length > 0, source: 'Twelve Data' }),
+      set: async (key) => {
+        if (key === 'bad') throw Object.assign(new Error('invalid_key'), { name: 'BackupKeyError' })
+        requested.backupKey.push(key)
+        return { configured: true, source: 'Twelve Data' }
+      },
+      clear: async () => {
+        requested.backupKey.splice(0)
+        return { configured: false, source: 'Twelve Data' }
+      },
+      get: async () => requested.backupKey[0] ?? null,
+    },
     logos: {
       get: async (symbol) => {
         requested.logos.push(symbol)
@@ -502,4 +521,34 @@ test('Should take test prices only when the server was started for tests', async
   expect(await call('PUT', '/api/test/prices', { AAPL: 190.5, bad: 'x' })).toEqual({ status: 200, body: { fired: [] } })
   expect(fed).toEqual([{ AAPL: 190.5 }])
   expect((await makeApi().call('PUT', '/api/test/prices', { AAPL: 1 })).status).toBe(404)
+})
+
+test('Should serve the history through the backup when there is one', async () => {
+  const served: string[] = []
+  const { call } = makeApi({
+    backup: {
+      serve: async (symbol, primary) => {
+        served.push(symbol)
+        return { ...(await primary()), source: 'Twelve Data' }
+      },
+    },
+  })
+  expect(bodyOf(await call('GET', '/api/history?symbol=AAPL'))).toMatchObject({ source: 'Twelve Data' })
+  expect(served).toEqual(['AAPL'])
+})
+
+test('Should keep the key of the backup source without ever handing it back', async () => {
+  const { call } = makeApi()
+  expect(await call('GET', '/api/backup')).toEqual({ status: 200, body: { configured: false, source: 'Twelve Data' } })
+  expect(await call('PUT', '/api/backup', { key: 'abcdef0123456789' })).toEqual({ status: 200, body: { configured: true, source: 'Twelve Data' } })
+  expect(await call('PUT', '/api/backup', { key: 'bad' })).toEqual({ status: 400, body: { error: 'invalid_key' } })
+  expect(await call('DELETE', '/api/backup')).toEqual({ status: 200, body: { configured: false, source: 'Twelve Data' } })
+})
+
+test('Should let the tests take Yahoo down only when the test hooks are on', async () => {
+  const downs: boolean[] = []
+  expect((await makeApi().call('PUT', '/api/test/yahoo', { down: true })).status).toBe(404)
+  const { call } = makeApi({ testYahoo: (down) => void downs.push(down) })
+  expect(await call('PUT', '/api/test/yahoo', { down: true })).toEqual({ status: 200, body: { down: true } })
+  expect(downs).toEqual([true])
 })

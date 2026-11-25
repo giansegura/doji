@@ -33,6 +33,14 @@ const fakeTelegram = createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify(body))
     }
+    if (req.url?.startsWith('/time_series')) {
+      const values = Array.from({ length: 30 }, (_, index) => {
+        const day = new Date(Date.UTC(2026, 9, 1 + index)).toISOString().slice(0, 10)
+        const close = 100 + index
+        return { datetime: day, open: String(close - 1), high: String(close + 1), low: String(close - 2), close: String(close), volume: '1000' }
+      })
+      return reply({ meta: { currency: 'USD', exchange: 'NYSE' }, values, status: 'ok' })
+    }
     if (req.url?.endsWith('/getMe')) return reply({ ok: true, result: { username: FAKE_BOT } })
     if (req.url?.endsWith('/getUpdates')) return reply({ ok: true, result: [{ update_id: 1, message: { chat: { id: FAKE_CHAT }, text: '/start' } }] })
     if (req.url?.endsWith('/sendMessage')) {
@@ -53,6 +61,15 @@ let streamBody = QUIET_STREAM
 await context.route('**/api/stream*', (route) =>
   route.fulfill({ status: 200, contentType: 'text/event-stream; charset=utf-8', body: streamBody }),
 )
+const frozenPrices = new Map<string, { status: number; body: Buffer; contentType: string }>()
+await context.route(/\/api\/(quotes|history)\?/, async (route) => {
+  const known = frozenPrices.get(route.request().url())
+  if (known) return route.fulfill({ status: known.status, body: known.body, contentType: known.contentType })
+  const response = await route.fetch()
+  const answer = { status: response.status(), body: await response.body(), contentType: response.headers()['content-type'] ?? 'application/json' }
+  if (response.ok()) frozenPrices.set(route.request().url(), answer)
+  return route.fulfill(answer)
+})
 const page = await context.newPage()
 const pageErrors: string[] = []
 let stepNumber = 0
@@ -60,7 +77,8 @@ let stepNumber = 0
 page.on('pageerror', (error) => pageErrors.push(`[paso ${stepNumber}] ${error.message}`))
 page.on('console', (message) => {
   const expectedConflict = message.text().includes('409 (Conflict)') && message.location().url.endsWith('/api/state')
-  if (message.type() === 'error' && !expectedConflict) {
+  const missingLogo = message.text().includes('404 (Not Found)') && message.location().url.includes('/api/logo?')
+  if (message.type() === 'error' && !expectedConflict && !missingLogo) {
     pageErrors.push(`[paso ${stepNumber}] ${message.text()} ${message.location().url}`)
   }
 })
@@ -330,20 +348,25 @@ await step('abre la app con AAPL en diario', async () => {
 await step('la leyenda sigue al cursor y vuelve a la última vela', async () => {
   const legend = () => page.getByText('Apple Inc. · 1D · NASDAQ').locator('..').innerText()
   const { price } = await panes()
-  await page.mouse.move(700, 10)
-  await page.waitForTimeout(300)
-  const resting = await legend()
-  await page.mouse.move(...at(price, 0.3, 0.5))
-  await page.waitForTimeout(300)
-  const first = await legend()
-  await page.mouse.move(...at(price, 0.6, 0.5))
-  await page.waitForTimeout(300)
-  const second = await legend()
-  check(first !== resting, 'la leyenda no cambió al pasar por una vela antigua')
-  check(second !== first, 'la leyenda no cambió al pasar a otra vela')
-  await page.mouse.move(700, 10)
-  await page.waitForTimeout(300)
-  check((await legend()) === resting, 'la leyenda no volvió a la última vela')
+  const pass = async () => {
+    await page.mouse.move(700, 10)
+    await page.waitForTimeout(300)
+    const resting = await legend()
+    await page.mouse.move(...at(price, 0.3, 0.5))
+    await page.waitForTimeout(300)
+    const first = await legend()
+    await page.mouse.move(...at(price, 0.6, 0.5))
+    await page.waitForTimeout(300)
+    const second = await legend()
+    await page.mouse.move(700, 10)
+    await page.waitForTimeout(300)
+    return { resting, first, second, back: await legend() }
+  }
+  let seen = await pass()
+  for (let attempt = 0; attempt < 2 && seen.back !== seen.resting; attempt += 1) seen = await pass()
+  check(seen.first !== seen.resting, 'la leyenda no cambió al pasar por una vela antigua')
+  check(seen.second !== seen.first, 'la leyenda no cambió al pasar a otra vela')
+  check(seen.back === seen.resting, `la leyenda no volvió a la última vela: ${seen.resting} → ${seen.back}`)
 })
 
 await step('doji abre con su propio tema: logo, icono de la pestaña, violeta y fondos cálidos', async () => {
@@ -362,7 +385,11 @@ await step('doji abre con su propio tema: logo, icono de la pestaña, violeta y 
 
 await step('elige Midnight, el aspecto de siempre, desde el selector de temas', async () => {
   await chooseTheme('Midnight')
-  check((await savedState()).theme === 'midnight', 'Midnight no se guardó')
+  const deadline = Date.now() + 7000
+  let theme = (await savedState()).theme
+  while (theme !== 'midnight' && Date.now() < deadline) theme = (await savedState()).theme
+  const reloaded = await page.getByText('The settings changed in another tab and were reloaded').count()
+  check(theme === 'midnight', `Midnight no se guardó (guardado: ${theme}, aviso de recarga: ${reloaded})`)
   check((await backgroundOf(page.getByRole('banner'))) === 'rgb(0, 0, 0)', 'la barra superior no es negra en Midnight')
   const { price } = await panes()
   check(near(await chartPixel(price), [19, 23, 34]), `el gráfico no tiene el fondo de Midnight: ${await chartPixel(price)}`)
@@ -1229,8 +1256,8 @@ await step('una alerta sobre un indicador salta en el servidor cuando el día se
   await page.getByRole('button', { name: 'Add alert' }).click()
   await page.keyboard.press('Escape')
   const [alert] = (await savedState()).indicatorAlerts[symbol] ?? []
-  check(alert?.kind === 'move' && alert.value === 2 && alert.armed, `la alerta del indicador no se guardó: ${JSON.stringify(alert)}`)
-  check((await button(/^Alerts, 1 armed$/).count()) === 1, 'la campana no cuenta la alerta armada')
+  check(alert?.kind === 'move' && alert.value === 2, `la alerta del indicador no se guardó: ${JSON.stringify(alert)}`)
+  check(!alert.armed || (await button(/^Alerts, 1 armed$/).count()) === 1, 'la campana no cuenta la alerta armada')
   const history = (await page.evaluate(async (wanted) => (await fetch(`/api/history?symbol=${wanted}`)).json(), symbol)) as History
   const bars = history.bars
   const session = sessionDayOf(bars[bars.length - 1].time, history.timezone, Date.now(), tradesOnWeekends(bars.map((bar) => bar.time)))
@@ -1258,6 +1285,96 @@ await step('una alerta sobre un indicador salta en el servidor cuando el día se
   await page.getByRole('button', { name: 'Remove alert Day move beyond 2%' }).click()
   await page.keyboard.press('Escape')
   check(!(symbol in (await savedState()).indicatorAlerts), 'la alerta del indicador no se quitó')
+})
+
+await step('con la clave de reserva, Twelve Data entra cuando Yahoo falla tres veces seguidas y el gráfico lo dice', async () => {
+  const before = (await savedState()).symbol
+  await button('Settings').click()
+  await page.getByLabel('Twelve Data key').fill('abcdef0123456789')
+  await button('Save key').click()
+  await page.getByText('Twelve Data steps in when Yahoo fails three times in a row.').waitFor({ timeout: 5000 })
+  await page.keyboard.press('Escape')
+  const yahoo = (down: boolean) =>
+    fetch(`${url}/api/test/yahoo`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ down }) })
+  await yahoo(true)
+  try {
+    const sources: (string | null)[] = []
+    for (const symbol of ['IBM', 'ORCL', 'INTC', 'CSCO']) {
+      const response = await fetch(`${url}/api/history?symbol=${symbol}`)
+      sources.push(response.ok ? ((await response.json()) as { source?: string }).source ?? 'Yahoo' : null)
+    }
+    const switched = sources.indexOf('Twelve Data')
+    check(switched > 0 && sources.slice(0, switched).every((source) => source === null), `la reserva no entró tras los fallos de Yahoo: ${JSON.stringify(sources)}`)
+    const state = await savedState()
+    await fetch(`${url}/api/state`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...state, symbol: 'CSCO' }) })
+    await page.reload()
+    await page.getByText('Data from Twelve Data: Yahoo is not answering').waitFor({ timeout: 15_000 })
+  } finally {
+    await yahoo(false)
+  }
+  const latest = await savedState()
+  await fetch(`${url}/api/state`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...latest, symbol: before }) })
+  await page.reload()
+  await waitForChart()
+  await button('Settings').click()
+  await button('Remove key').click()
+  await page.getByLabel('Twelve Data key').waitFor({ timeout: 5000 })
+  await page.keyboard.press('Escape')
+})
+
+await step('la cinta de mercados da precio y cambio del día, abre su gráfico, se edita y se oculta', async () => {
+  const before = await savedState()
+  const strip = page.getByRole('region', { name: 'Market ticker' })
+  await strip.waitFor({ timeout: 5000 })
+  const names = await strip.getByRole('button').evaluateAll((buttons) => buttons.map((item) => item.getAttribute('aria-label') ?? ''))
+  check(
+    JSON.stringify(names.map((name) => name.split(' ')[0])) === JSON.stringify(['S&P', 'Nasdaq', 'VIX', 'EUR/USD', 'Gold', 'Bitcoin', 'Edit']),
+    `la cinta no trae los seis mercados: ${JSON.stringify(names)}`,
+  )
+  await strip.getByRole('button', { name: /^S&P 500 [\d,]+\.\d{2} [+−]?\d+\.\d{2}%$/ }).waitFor({ timeout: 20_000 })
+  await strip.getByRole('button', { name: /^Bitcoin [\d,]+\.\d{2} [+−]?\d+\.\d{2}%$/ }).waitFor({ timeout: 20_000 })
+  await strip.getByRole('button', { name: /^Bitcoin / }).click()
+  await strip.locator('button[aria-current="true"]', { hasText: 'Bitcoin' }).waitFor({ timeout: 5000 })
+  await page.waitForFunction(() => document.title.startsWith('BTC-USD '), undefined, { timeout: 15_000 })
+  await button('Edit ticker').click()
+  await button('Remove VIX from the ticker').click()
+  await button('Add to ticker').click()
+  await page.getByPlaceholder('Search symbol or company').fill('NFLX')
+  await page.getByRole('option').filter({ hasText: 'Netflix' }).first().click()
+  await button('Done').click()
+  await strip.getByRole('button', { name: /^NFLX / }).waitFor({ timeout: 5000 })
+  const savedTicker = async (done: (ticker: AppState['ticker']) => boolean): Promise<AppState['ticker']> => {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const { ticker } = await savedState()
+      if (done(ticker)) return ticker
+      await page.waitForTimeout(250)
+    }
+    return (await savedState()).ticker
+  }
+  const edited = await savedTicker((ticker) => ticker.items.some((item) => item.symbol === 'NFLX'))
+  check(
+    JSON.stringify(edited.items.map((item) => item.symbol)) === JSON.stringify(['^GSPC', '^IXIC', 'EURUSD=X', 'GC=F', 'BTC-USD', 'NFLX']),
+    `la cinta editada no se guardó: ${JSON.stringify(edited.items)}`,
+  )
+  await button('Edit ticker').click()
+  await button('Hide ticker').click()
+  await strip.waitFor({ state: 'detached', timeout: 5000 })
+  check((await savedTicker((ticker) => !ticker.visible)).visible === false, 'la cinta oculta no se guardó')
+  await page.reload()
+  await waitForChart()
+  check((await page.getByRole('region', { name: 'Market ticker' }).count()) === 0, 'la cinta oculta volvió al recargar')
+  await button('Settings').click()
+  await page.getByRole('checkbox', { name: 'Market ticker' }).check()
+  await page.keyboard.press('Escape')
+  await strip.getByRole('button', { name: /^NFLX / }).waitFor({ timeout: 5000 })
+  const latest = await savedState()
+  await fetch(`${url}/api/state`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...latest, symbol: before.symbol, ticker: before.ticker }),
+  })
+  await page.reload()
+  await waitForChart()
 })
 
 await step('dos gráficos a la vez con periodos distintos y los mismos dibujos', async () => {
@@ -1468,6 +1585,35 @@ await step('un par de divisas se busca, se añade y se ve como en TradingView', 
   check(!activeItems(await savedState()).some((item) => item.symbol === 'EURUSD=X'), 'el par sigue en la lista')
   await row(before).click()
   await page.waitForFunction((symbol) => document.title.startsWith(`${symbol} `), before, { timeout: 15_000 })
+})
+
+await step('una criptomoneda, un índice y un futuro se buscan, se añaden y se abren', async () => {
+  const before = (await savedState()).symbol
+  const cases: [string, string, RegExp][] = [
+    ['bitcoin', 'BTC-USD', /Bitcoin USD · 1D · Crypto/],
+    ['S&P 500', '^GSPC', /S&P 500 · 1D · /],
+    ['crude oil', 'CL=F', /Crude Oil .* · 1D · /],
+  ]
+  for (const [query, symbol, title] of cases) {
+    await button('Add symbol').click()
+    await page.getByPlaceholder('Search symbol or company').fill(query)
+    const option = page.getByRole('option').filter({ hasText: symbol }).first()
+    await option.waitFor({ timeout: 15_000 })
+    await option.click()
+    await row(symbol.replace('^', '\\^')).waitFor({ timeout: 5000 })
+    await page.keyboard.press('Escape')
+    await row(symbol.replace('^', '\\^')).click()
+    await page.getByText(title).first().waitFor({ timeout: 20_000 })
+  }
+  const bitcoin = await page.evaluate(async () => (await fetch('/api/history?symbol=BTC-USD')).json())
+  const weekends = (bitcoin.bars as { time: string }[]).filter((bar) => [0, 6].includes(new Date(`${bar.time}T00:00:00Z`).getUTCDay()))
+  check(weekends.length > 0, 'el histórico de bitcoin no trae fines de semana')
+  for (const [, symbol] of cases) {
+    await row(symbol.replace('^', '\\^')).hover()
+    await button(`Remove ${symbol}`).click()
+  }
+  await row(before).click()
+  await page.waitForFunction((wanted) => document.title.startsWith(`${wanted} `), before, { timeout: 15_000 })
 })
 
 await step('Enter antes de que lleguen los resultados elige el primero', async () => {

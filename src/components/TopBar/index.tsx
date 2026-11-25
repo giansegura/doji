@@ -18,6 +18,7 @@ import { SMA_WIDTHS, addSma } from '../../domain/smaConfig'
 import { THEME_OPTIONS, themes } from '../../theme/tokens'
 import { Logo } from '../Logo'
 import { ConfigPanel } from './ConfigPanel'
+import { BackupPanel } from './BackupPanel'
 import { TelegramPanel } from './TelegramPanel'
 import { StudiesPanel } from './StudiesPanel'
 import { NumberField } from './NumberField'
@@ -43,6 +44,8 @@ type TopBarProps = {
   onImportConfig: (config: AppState) => void
   shareHoldings?: boolean
   onShareHoldings?: (on: boolean) => void
+  ticker?: boolean
+  onTicker?: (on: boolean) => void
   alerts?: ReactNode
   armedAlerts?: number
   split: boolean
@@ -160,6 +163,8 @@ export const TopBar = ({
   onImportConfig,
   shareHoldings = false,
   onShareHoldings,
+  ticker = true,
+  onTicker,
   alerts,
   armedAlerts = 0,
   split,
@@ -470,7 +475,14 @@ export const TopBar = ({
                 <Styles.RowLabel>Share positions with the AI</Styles.RowLabel>
               </Styles.MenuRow>
             )}
+            {onTicker && (
+              <Styles.MenuRow>
+                <input type="checkbox" checked={ticker} onChange={(event) => onTicker(event.target.checked)} />
+                <Styles.RowLabel>Market ticker</Styles.RowLabel>
+              </Styles.MenuRow>
+            )}
             <TelegramPanel />
+            <BackupPanel />
           </Styles.Menu>
         )}
       </Styles.MenuAnchor>

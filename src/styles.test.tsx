@@ -15,6 +15,19 @@ test('Should separate the areas with four-pixel bands of the grey of TradingView
   expect(styleOf('layout').backgroundColor).toBe('rgb(34, 34, 34)')
 })
 
+test('Should leave a thin row under the top bar for the market ticker only while it is shown', () => {
+  renderWithTheme(
+    <>
+      <Styles.Layout $listWidth={400} $ticker data-testid="with" />
+      <Styles.Layout $listWidth={400} $ticker={false} data-testid="without" />
+    </>,
+  )
+  expect(styleOf('with').getPropertyValue('grid-template-rows')).toBe('38px 26px minmax(0, 1fr)')
+  expect(styleOf('with').getPropertyValue('grid-template-areas')).toContain('ticker ticker ticker')
+  expect(styleOf('without').getPropertyValue('grid-template-rows')).toBe('38px minmax(0, 1fr)')
+  expect(styleOf('without').getPropertyValue('grid-template-areas')).not.toContain('ticker')
+})
+
 test('Should paint everything around the chart black, like TradingView', () => {
   renderWithTheme(
     <>

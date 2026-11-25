@@ -1,12 +1,11 @@
 import styled from 'styled-components'
+import { TICKER_HEIGHT } from './components/MarketTicker/styles'
 
-export const Layout = styled.div<{ $listWidth: number }>`
+export const Layout = styled.div<{ $listWidth: number; $ticker?: boolean }>`
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr) min(${(props) => props.$listWidth}px, 60vw);
-  grid-template-rows: 38px minmax(0, 1fr);
-  grid-template-areas:
-    'top top top'
-    'tools chart list';
+  grid-template-rows: ${(props) => (props.$ticker ? `38px ${TICKER_HEIGHT}px minmax(0, 1fr)` : '38px minmax(0, 1fr)')};
+  grid-template-areas: ${(props) => (props.$ticker ? `'top top top' 'ticker ticker ticker' 'tools chart list'` : `'top top top' 'tools chart list'`)};
   gap: ${(props) => props.theme.ui.gap}px;
   height: 100%;
   background: ${(props) => props.theme.ui.separator};
@@ -14,6 +13,11 @@ export const Layout = styled.div<{ $listWidth: number }>`
 
 export const Top = styled.div`
   grid-area: top;
+  min-width: 0;
+`
+
+export const Ticker = styled.div`
+  grid-area: ticker;
   min-width: 0;
 `
 

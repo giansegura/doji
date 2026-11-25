@@ -339,3 +339,13 @@ test('Should say which drawings the user hid', () => {
   const drawings: Drawing[] = [{ ...base, id: 'h', kind: 'hline', value: 230, hidden: true }]
   expect(summarizeChart(input({ drawings })).drawings).toEqual([{ id: 'h', kind: 'horizontal', pane: 'price', level: 230, alert: false, hidden: true }])
 })
+
+test('Should read where a trend line of a cryptocurrency stands today counting every day', () => {
+  const days = ['2026-11-20', '2026-11-21', '2026-11-22', '2026-11-23']
+  const bars: Bar[] = days.map((time, index) => ({ time, open: 100 + index, high: 101 + index, low: 99 + index, close: 100 + index, volume: 1 }))
+  const history: History = { info: { symbol: 'BTC-USD', name: 'Bitcoin USD', exchange: 'Crypto' }, bars, splits: [], fetchedAt: 'x', stale: false }
+  const base = { pane: 'price' as const, timeframe: 'D' as const, color: '#2962FF', width: 2, pricedAt: '2020-01-01' }
+  const line: Drawing = { ...base, id: 't', p1: { date: '2026-11-20', value: 100 }, p2: { date: '2026-11-22', value: 102 }, extendRight: true }
+  const [described] = summarizeChart({ ...input(), history, drawings: [line] }).drawings
+  expect(described).toMatchObject({ id: 't', levelToday: 103 })
+})

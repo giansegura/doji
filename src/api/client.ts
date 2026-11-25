@@ -51,6 +51,20 @@ export const telegramApi: TelegramApi = {
   disconnect: () => request('/api/telegram', { method: 'DELETE' }),
 }
 
+export type BackupStatus = { configured: boolean; source: string }
+
+export type BackupApi = {
+  status: () => Promise<BackupStatus>
+  save: (key: string) => Promise<BackupStatus>
+  remove: () => Promise<BackupStatus>
+}
+
+export const backupApi: BackupApi = {
+  status: () => request('/api/backup'),
+  save: (key) => request('/api/backup', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) }),
+  remove: () => request('/api/backup', { method: 'DELETE' }),
+}
+
 export const getHistory = (symbol: string): Promise<History> =>
   request(`/api/history?symbol=${encodeURIComponent(symbol)}`)
 
