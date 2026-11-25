@@ -39,6 +39,24 @@ test('Should place each dividend on the bar of its day, above an earnings mark o
   ])
 })
 
+test('Should tell whether each past report beat or missed what was expected', () => {
+  const earnings = {
+    past: ['2026-11-03', '2026-11-04', '2026-11-05'],
+    next: null,
+    nextIsEstimate: false,
+    results: { '2026-11-03': { actual: 2, estimate: 1.8 }, '2026-11-04': { actual: 1.5, estimate: 1.6 }, '2026-11-05': { actual: 1, estimate: null } },
+  }
+  expect(earningsMarks(earnings, daily, toX, 400)).toEqual([
+    { x: 110, kind: 'past', tone: 'beat' },
+    { x: 120, kind: 'past', tone: 'miss' },
+    { x: 130, kind: 'past' },
+  ])
+})
+
+test('Should give the expected earnings per share of the next report', () => {
+  expect(nextEarningsLabel({ past: [], next: '2027-01-28', nextIsEstimate: false, nextEstimate: 2.91 })).toBe('Earnings Jan 28, 2027 · EPS est. 2.91')
+})
+
 test('Should tell when the next report comes and whether its date is only an estimate', () => {
   expect(nextEarningsLabel({ past: [], next: '2027-01-28', nextIsEstimate: false })).toBe('Earnings Jan 28, 2027')
   expect(nextEarningsLabel({ past: [], next: '2027-01-28', nextIsEstimate: true })).toBe('Earnings ~Jan 28, 2027')
@@ -67,8 +85,10 @@ test('Should paint a filled mark for a past report and a dividend and a hollow o
       { x: 120, kind: 'past' },
       { x: 180, kind: 'next' },
       { x: 120, kind: 'dividend', row: 1 },
+      { x: 240, kind: 'past', tone: 'beat' },
+      { x: 260, kind: 'past', tone: 'miss' },
     ],
-    colors: () => ({ past: '#8F897E', next: '#7C5CFF', background: '#151412', text: '#151412' }),
+    colors: () => ({ past: '#8F897E', next: '#7C5CFF', background: '#151412', text: '#151412', beat: '#00AA00', miss: '#DD0000' }),
   })
   primitive.paneViews?.()[0].renderer()?.draw({
     useMediaCoordinateSpace: (callback: (scope: unknown) => void) => callback({ context, mediaSize: { width: 400, height: 300 } }),
@@ -84,5 +104,11 @@ test('Should paint a filled mark for a past report and a dividend and a hollow o
     'arc 120,273 r7',
     'fill #8F897E',
     'text D 120,273 #151412',
+    'arc 240,290 r7',
+    'fill #00AA00',
+    'text E 240,290 #151412',
+    'arc 260,290 r7',
+    'fill #DD0000',
+    'text E 260,290 #151412',
   ])
 })

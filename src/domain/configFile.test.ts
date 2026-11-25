@@ -19,7 +19,7 @@ const state: AppState = {
     rsi: { visible: true, length: 21, showMa: false },
     sma: [{ id: 's1', length: 50, color: '#FF9800', width: 2 }],
   },
-  chart: { type: 'line', scale: 'log', invert: true, cursor: 'magnet' },
+  chart: { type: 'line', scale: 'log', invert: true, cursor: 'magnet', currency: 'original' },
   lines: {
     KO: [
       {

@@ -231,6 +231,7 @@ export const summarizeChart = ({ history, timeframe, bars: count, averages, draw
     drawings: adjustLinesForSplits(drawings, history.splits).lines.map((drawing) => ({
       ...describeDrawing(drawing, last.time, digits),
       ...(drawing.by === 'ai' ? { madeByAi: true } : {}),
+      ...(drawing.currency ? { currency: drawing.currency } : {}),
     })),
     note,
   }

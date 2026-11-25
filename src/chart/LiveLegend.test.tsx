@@ -106,3 +106,24 @@ test('Should name the dividend of the hovered bar, and of the last bar while not
   act(() => hover.set(1))
   expect(text()).not.toContain('Dividend')
 })
+
+test('Should name the earnings per share of the report on the hovered bar', () => {
+  const hover = createHoverStore()
+  render(
+    <ThemeProvider theme={themes.midnight}>
+      <LiveLegend
+        hover={hover}
+        data={dataOf([101, 102, 103])}
+        info={info}
+        timeframe="D"
+        indicators={DEFAULT_STATE.indicators}
+        rsiPaneTop={null}
+        macdPaneTop={null}
+        reports={{ past: ['2026-11-17'], next: null, nextIsEstimate: false, results: { '2026-11-17': { actual: 2, estimate: 1.6 } } }}
+      />
+    </ThemeProvider>,
+  )
+  expect(text()).not.toContain('EPS')
+  act(() => hover.set(1))
+  expect(text()).toContain('EPS 2.00 vs 1.60 est. (+25.00%)')
+})

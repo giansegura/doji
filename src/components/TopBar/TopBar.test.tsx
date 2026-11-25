@@ -646,3 +646,11 @@ test('Should start a replay from its button and mark it while a replay is on', a
   await user.click(replay)
   expect(handlers.onReplay).toHaveBeenCalledTimes(1)
 })
+
+test('Should show the chart in euros or in the currency of the symbol from the chart menu', async () => {
+  const { handlers, user } = setup()
+  await user.click(screen.getByRole('button', { name: 'Chart' }))
+  expect((screen.getByRole('radio', { name: 'Symbol currency' }) as HTMLInputElement).checked).toBe(true)
+  await user.click(screen.getByRole('radio', { name: 'Euros' }))
+  expect(handlers.onChart).toHaveBeenLastCalledWith({ ...DEFAULT_STATE.chart, currency: 'EUR' })
+})

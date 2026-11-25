@@ -49,6 +49,7 @@ export type History = {
   fetchedAt: string
   stale: boolean
   tradedAt?: number
+  currency?: string
 }
 
 export type CompanyProfile = {
@@ -118,6 +119,7 @@ export type DrawingBase = {
   lineStyle?: Exclude<LineStyle, 'solid'>
   opacity?: number
   by?: 'ai'
+  currency?: 'EUR'
 }
 
 export type TrendLine = DrawingBase & {
@@ -163,7 +165,16 @@ export type AlertEvent = {
 
 export type EarningsTiming = 'pre' | 'post'
 
-export type Earnings = { past: string[]; next: string | null; nextIsEstimate: boolean; timing?: Record<string, EarningsTiming> }
+export type EarningsResult = { actual: number; estimate: number | null }
+
+export type Earnings = {
+  past: string[]
+  next: string | null
+  nextIsEstimate: boolean
+  timing?: Record<string, EarningsTiming>
+  results?: Record<string, EarningsResult>
+  nextEstimate?: number
+}
 
 export type DrawingKind = 'trend' | 'hline' | 'channel' | 'rect' | 'position'
 
@@ -189,7 +200,9 @@ export type ScaleMode = 'normal' | 'log' | 'percent' | 'indexed'
 
 export type CursorMode = 'normal' | 'magnet' | 'magnetOhlc'
 
-export type ChartSettings = { type: ChartType; scale: ScaleMode; invert: boolean; cursor: CursorMode }
+export type ChartCurrency = 'original' | 'EUR'
+
+export type ChartSettings = { type: ChartType; scale: ScaleMode; invert: boolean; cursor: CursorMode; currency: ChartCurrency }
 
 export type AppState = {
   version: 1
@@ -251,7 +264,7 @@ export const DEFAULT_STATE: AppState = {
     levels: { visible: false, perSide: 3 },
     marks: { earnings: true, dividends: true },
   },
-  chart: { type: 'candles', scale: 'normal', invert: false, cursor: 'normal' },
+  chart: { type: 'candles', scale: 'normal', invert: false, cursor: 'normal', currency: 'original' },
   listWidth: LIST_DEFAULT_WIDTH,
   lines: {},
   notes: {},

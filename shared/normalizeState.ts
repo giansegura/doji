@@ -217,6 +217,7 @@ const toBase = (item: Raw): DrawingBase | null => {
     ...toLineStyle(item.lineStyle),
     ...toOpacity(item.opacity),
     ...(item.by === 'ai' ? { by: 'ai' as const } : {}),
+    ...(item.currency === 'EUR' ? { currency: 'EUR' as const } : {}),
   }
 }
 
@@ -358,6 +359,7 @@ const toChart = (raw: unknown): ChartSettings => {
     scale: oneOf(SCALE_MODES, chart.scale, DEFAULT_STATE.chart.scale),
     invert: asBoolean(chart.invert, DEFAULT_STATE.chart.invert),
     cursor: oneOf(CURSOR_MODES, chart.cursor, DEFAULT_STATE.chart.cursor),
+    currency: chart.currency === 'EUR' ? 'EUR' : 'original',
   }
 }
 

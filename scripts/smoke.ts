@@ -833,7 +833,7 @@ await step('el perfil de volumen aparece a la derecha del gráfico y se quita', 
 })
 
 await step('la leyenda dice cuándo son los próximos resultados', async () => {
-  await page.getByText(/^Earnings ~?[A-Z][a-z]{2} \d{1,2}, \d{4}$/).waitFor({ timeout: 15_000 })
+  await page.getByText(/^Earnings ~?[A-Z][a-z]{2} \d{1,2}, \d{4}( · EPS est\. [−-]?\d+\.\d{2})?$/).waitFor({ timeout: 15_000 })
   const earnings = await page.evaluate(async () => (await fetch('/api/earnings?symbol=AAPL')).json())
   check(Array.isArray(earnings.past) && earnings.past.length > 0, `no llegaron resultados pasados: ${JSON.stringify(earnings)}`)
 })
@@ -860,6 +860,17 @@ await step('los dividendos se marcan con una D, la leyenda dice su importe y se 
   await page.keyboard.press('Escape')
   check((await savedState()).indicators.marks.dividends, 'volver a enseñar los dividendos no se guardó')
   check((await regionShot(strip)) === marked, 'las marcas de dividendos no volvieron igual')
+})
+
+await step('la vela de unos resultados dice el beneficio por acción real, el esperado y la sorpresa', async () => {
+  const { price } = await panes()
+  let named = false
+  for (let x = price.x + 4; x < price.x + price.width - 90 && !named; x += 3) {
+    await page.mouse.move(x, price.y + price.height * 0.5)
+    named = (await page.getByText(/^EPS [−-]?\d+\.\d{2}( vs [−-]?\d+\.\d{2} est\.( \([+−]?\d+\.\d{2}%\))?)?$/).count()) > 0
+  }
+  check(named, 'la leyenda no dijo el beneficio por acción de ninguna presentación')
+  await page.mouse.move(700, 10)
 })
 
 await step('el calendario de resultados enseña la última presentación de una acción y abre su gráfico', async () => {
@@ -1038,8 +1049,12 @@ await step('una alerta la decide el servidor: avisa en pantalla y por Telegram y
         (await fetch('/api/test/prices', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(prices) })).json(),
       { AAPL: value },
     )
-  await feed(target - 1)
-  const answer = (await feed(target + 1)) as { fired: unknown[] }
+  let answer = { fired: [] as unknown[] }
+  for (let attempt = 0; attempt < 3 && answer.fired.length === 0; attempt += 1) {
+    const down = (await feed(target - 1)) as { fired: unknown[] }
+    const up = (await feed(target + 1)) as { fired: unknown[] }
+    answer = down.fired.length > 0 ? down : up
+  }
   check(answer.fired.length === 1, `el servidor no hizo saltar la alerta: ${JSON.stringify(answer)}`)
   await page.getByRole('status').filter({ hasText: 'AAPL crossed' }).first().waitFor({ timeout: 10_000 })
   const deadline = Date.now() + 10_000
@@ -1481,6 +1496,67 @@ await step('las noticias de la acción se abren en otra pestaña', async () => {
   check((await first.getAttribute('target')) === '_blank', 'el titular no se abre en otra pestaña')
   check((await page.getByText(/ · (just now|\d+[mhd] ago|[A-Z][a-z]{2} \d{1,2})$/).count()) > 0, 'los titulares no dicen su medio y cuándo salieron')
   await button(`News for ${symbol}`).click()
+})
+
+await step('el gráfico se ve en euros con el cambio de cada día y sus dibujos son aparte', async () => {
+  const before = await savedState()
+  const symbol = before.symbol
+  const closeShown = async (at?: { x: number; y: number }): Promise<number> => {
+    await page.mouse.move(at?.x ?? 700, at?.y ?? 10)
+    await page.waitForTimeout(400)
+    const row = (await page.getByText(/ · 1[DWM] · /).first().locator('..').innerText()).replace(/\s+/g, '')
+    return Number((row.match(/C([\d,.]+)/)?.[1] ?? 'NaN').replace(/,/g, ''))
+  }
+  const pastBar = await (async () => {
+    const { price } = await panes()
+    return { x: price.x + price.width * 0.3, y: price.y + price.height * 0.5 }
+  })()
+  const dollars = await closeShown()
+  const pastDollars = await closeShown(pastBar)
+  await button('Chart').click()
+  await page.getByRole('radio', { name: 'Euros' }).check()
+  await page.keyboard.press('Escape')
+  await page.getByText(/ · in EUR$/).waitFor({ timeout: 20_000 })
+  check((await savedState()).chart.currency === 'EUR', 'la moneda del gráfico no se guardó')
+  const euros = await closeShown()
+  const rates = await page.evaluate(async () => (await fetch('/api/history?symbol=EURUSD=X')).json())
+  const rate = rates.bars.at(-1).close
+  check(Math.abs(euros - dollars / rate) / euros < 0.02, `el cierre en euros no cuadra: ${dollars} / ${rate} ≠ ${euros}`)
+  const existing = (await drawingsOf(symbol)).map((drawing) => drawing.id)
+  const { price } = await panes()
+  await button('Horizontal line').click()
+  await page.mouse.click(price.x + price.width * 0.5, price.y + price.height * 0.4)
+  await page.waitForTimeout(500)
+  const drawn = (await drawingsOf(symbol)).find((drawing) => !existing.includes(drawing.id))
+  check(drawn?.currency === 'EUR', `la línea hecha en euros no quedó marcada: ${JSON.stringify(drawn)}`)
+  check((await page.getByRole('button', { name: 'Alert' }).count()) === 0, 'una línea en euros ofrece alerta')
+  await page.keyboard.press('Delete')
+  await button('Chart').click()
+  await page.getByRole('radio', { name: 'Symbol currency' }).check()
+  await page.keyboard.press('Escape')
+  check((await page.getByText(/ · in EUR$/).count()) === 0, 'la leyenda sigue diciendo euros')
+  check(Math.abs((await closeShown(pastBar)) - pastDollars) < 0.01, 'el gráfico no volvió a la moneda de la acción')
+  const after = await savedState()
+  check(after.chart.currency === 'original' && (after.lines[symbol] ?? []).length === existing.length, 'no quedó todo como estaba')
+})
+
+await step('los rangos rápidos cambian el tramo y ir a una fecha centra el gráfico en ella', async () => {
+  await button('Show 1 month').click()
+  const month = await timeAxisPixels()
+  await button('Show 5 years').click()
+  const years = await timeAxisPixels()
+  check(month !== years, 'el eje de fechas no cambió entre 1M y 5Y')
+  await button('Show 1 year').click()
+  const year = await timeAxisPixels()
+  const field = page.getByLabel('Go to date')
+  await field.fill('2020-03-16')
+  await field.press('Enter')
+  const past = await timeAxisPixels()
+  check(past !== year, 'ir a una fecha no movió el gráfico')
+  await button('Show all').click()
+  check((await timeAxisPixels()) !== past, 'All no enseñó toda la historia')
+  await button('Show 1 year').click()
+  check((await timeAxisPixels()) === year, '1Y no volvió al mismo tramo')
 })
 
 await step('oculta y muestra el RSI', async () => {

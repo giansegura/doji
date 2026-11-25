@@ -321,3 +321,8 @@ test('Should arm an alert on a position and offer no text on it', () => {
   expect(screen.getByRole('button', { name: 'Alert' })).toBeTruthy()
   expect(screen.queryByRole('textbox', { name: 'Text on the line' })).toBeNull()
 })
+
+test('Should not offer an alert on a line drawn in euros', () => {
+  setup({ currency: 'EUR' })
+  expect(screen.queryByRole('button', { name: 'Alert' })).toBeNull()
+})

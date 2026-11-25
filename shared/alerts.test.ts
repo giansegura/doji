@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import type { Drawing, HorizontalLine, Position, TrendLine } from './types'
-import { alertLevel, armedSymbols, createAlertWatcher, latestPrice, sideChange } from './alerts'
+import { alertLevel, alertLevels, armedSymbols, createAlertWatcher, latestPrice, sideChange } from './alerts'
 
 const base = { id: 'a', pane: 'price' as const, timeframe: 'D' as const, color: '#2962FF', width: 2, pricedAt: '2020-01-01' }
 
@@ -160,4 +160,9 @@ test('Should fire an armed position when the price reaches its target or its sto
   early.check({ KO: [position({ p1: { date: '2026-12-01', value: 100 } })] }, { KO: 105 }, '2026-11-24')
   expect(early.check({ KO: [position({ p1: { date: '2026-12-01', value: 100 } })] }, { KO: 111 }, '2026-11-24')).toEqual([])
   expect(armedSymbols({ KO: [position()], PEP: [position({ alert: false })] })).toEqual(['KO'])
+})
+
+test('Should not watch a line drawn in euros, since prices arrive in the currency of the symbol', () => {
+  expect(alertLevels(level({ currency: 'EUR' }), '2026-11-20')).toEqual([])
+  expect(alertLevels(level(), '2026-11-20')).toEqual([100])
 })

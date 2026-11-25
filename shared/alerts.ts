@@ -30,6 +30,7 @@ export const alertLevel = (drawing: Drawing, today: string): number | null => {
 }
 
 export const alertLevels = (drawing: Drawing, today: string): number[] => {
+  if (drawing.currency) return []
   if (drawing.kind === 'position') return today >= drawing.p1.date ? [drawing.target, drawing.stop] : []
   const level = alertLevel(drawing, today)
   return level === null ? [] : [level]

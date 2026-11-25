@@ -9,6 +9,9 @@ import { askToNotify } from '../hooks/useAlerts'
 import { useEarnings } from '../hooks/useEarnings'
 import type { Tool } from '../state/appReducer'
 import { LineToolbar } from './LineToolbar'
+import { RangeBar } from './RangeBar'
+import { type RangeKey, centerOn, rangeOf } from './rangeButtons'
+import { todayIso } from '../../shared/dates'
 import { LiveLegend } from './LiveLegend'
 import { nextEarningsLabel } from './earningsMarks'
 import { imageName, saveChartImage } from './screenshot'
@@ -43,11 +46,14 @@ type ChartViewProps = {
   onToolDone: () => void
   holding?: Holding
   currency?: string
+  inEuros?: boolean
 }
 
 const NO_LOOKS: Partial<Record<DrawingKind, LineLook>> = {}
 
 const NO_DIVIDENDS: Dividend[] = []
+
+const DEFAULT_SPAN = 150
 
 const READ_ONLY_VIEWS: ViewStore = { get: (key) => sharedViewStore.get(key), set: () => undefined }
 
@@ -72,6 +78,7 @@ export const ChartView = ({
   onToolDone,
   holding,
   currency,
+  inEuros = false,
 }: ChartViewProps) => {
   const theme = useTheme()
   const { containerRef, handles, data, rsiPaneTop, macdPaneTop, hover } = useChart({
@@ -83,6 +90,7 @@ export const ChartView = ({
     live,
     viewId,
     views: asOf ? READ_ONLY_VIEWS : sharedViewStore,
+    inEuros,
   })
   const { manual, release, fit } = useAutoFit(handles, history.info.symbol)
   const levels = useLevels({ handles, history, settings: indicators.levels, lines, color: theme.chart.levels })
@@ -133,9 +141,33 @@ export const ChartView = ({
     handles,
     earnings,
     dividends,
-    colors: { past: theme.ui.textMuted, next: theme.ui.textMuted, background: theme.chart.bg, text: theme.chart.bg },
+    colors: {
+      past: theme.ui.textMuted,
+      next: theme.ui.textMuted,
+      background: theme.chart.bg,
+      text: theme.chart.bg,
+      beat: theme.chart.up,
+      miss: theme.chart.down,
+    },
   })
   const symbol = history.info.symbol
+
+  const showRange = (key: RangeKey) => {
+    if (!handles) return
+    fit()
+    handles.chart.timeScale().setVisibleLogicalRange(rangeOf(key, data.bars.map((bar) => bar.time), todayIso()))
+  }
+
+  const goTo = (date: string) => {
+    if (!handles) return
+    const shown = handles.chart.timeScale().getVisibleLogicalRange()
+    const target = centerOn(
+      date,
+      data.bars.map((bar) => bar.time),
+      shown ? shown.to - shown.from : DEFAULT_SPAN,
+    )
+    if (target) handles.chart.timeScale().setVisibleLogicalRange(target)
+  }
 
   const changeLine = (line: Drawing) => {
     const look = selectedLine ? changedLook(selectedLine, line) : null
@@ -164,7 +196,10 @@ export const ChartView = ({
         macdPaneTop={macdPaneTop}
         earnings={earnings ? nextEarningsLabel(earnings) : null}
         dividends={dividends}
+        reports={earnings}
+        inEuros={inEuros}
       />
+      <RangeBar onRange={showRange} onGoTo={goTo} />
       {selectedLine && <LineToolbar line={selectedLine} onChange={changeLine} onDelete={deleteSelected} onArm={askToNotify} />}
       {manual && (
         <Styles.AutoFit type="button" title="Fit the price to the screen again" onClick={fit}>

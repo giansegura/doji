@@ -417,3 +417,9 @@ test('Should keep the trade time of the cached bars when the tail brings no bars
   const cached = { ...history(full.bars), tradedAt: 1_000 }
   expect(mergeHistory(cached, { ...history([]), tradedAt: 2_000 }).tradedAt).toBe(1_000)
 })
+
+test('Should keep the currency of the symbol when merging, taking the one of the tail when it brings it', () => {
+  expect(mergeHistory({ ...full, currency: 'USD' }, tail).currency).toBe('USD')
+  expect(mergeHistory({ ...full, currency: 'USD' }, { ...tail, currency: 'EUR' }).currency).toBe('EUR')
+  expect(mergeHistory(full, tail).currency).toBeUndefined()
+})

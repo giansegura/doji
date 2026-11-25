@@ -135,6 +135,7 @@ export const parseHistory = (json: unknown, fetchedAt: string): History => {
   const formatter = formatterFor(asString(meta.exchangeTimezoneName) ?? 'UTC')
   const toDate = (seconds: number): string => formatter.format(new Date(seconds * 1000))
   const tradedAt = tradeTimeOf(meta)
+  const currency = asString(meta.currency)
   return {
     info: {
       symbol,
@@ -147,6 +148,7 @@ export const parseHistory = (json: unknown, fetchedAt: string): History => {
     fetchedAt,
     stale: false,
     ...(tradedAt === null ? {} : { tradedAt }),
+    ...(currency === null ? {} : { currency }),
   }
 }
 
