@@ -61,6 +61,15 @@ let streamBody = QUIET_STREAM
 await context.route('**/api/stream*', (route) =>
   route.fulfill({ status: 200, contentType: 'text/event-stream; charset=utf-8', body: streamBody }),
 )
+const frozenPrices = new Map<string, { status: number; body: Buffer; contentType: string }>()
+await context.route(/\/api\/(quotes|history)\?/, async (route) => {
+  const known = frozenPrices.get(route.request().url())
+  if (known) return route.fulfill({ status: known.status, body: known.body, contentType: known.contentType })
+  const response = await route.fetch()
+  const answer = { status: response.status(), body: await response.body(), contentType: response.headers()['content-type'] ?? 'application/json' }
+  if (response.ok()) frozenPrices.set(route.request().url(), answer)
+  return route.fulfill(answer)
+})
 const page = await context.newPage()
 const pageErrors: string[] = []
 let stepNumber = 0
