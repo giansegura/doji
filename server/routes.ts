@@ -6,6 +6,8 @@ import { SYMBOL_PATTERN } from '../shared/symbols'
 import type { HistoryCache } from './historyCache'
 import type { Logo, LogoStore } from './logoStore'
 import type { EarningsSource } from './provider/earnings'
+import type { BackupHistory } from './backupHistory'
+import { type BackupKey, isBackupKeyError } from './backupKey'
 import type { NewsCache } from './newsCache'
 import type { ProfileSource } from './provider/profile'
 import { type Telegram, type TelegramErrorKind, isTelegramError } from './telegram'
@@ -28,6 +30,9 @@ type ApiDeps = {
   profiles: ProfileSource
   news: NewsCache
   testPrices?: (prices: Record<string, number>) => Promise<unknown>
+  backup?: BackupHistory
+  backupKey: BackupKey
+  testYahoo?: (down: boolean) => void
 }
 
 type Route = (request: ApiRequest) => Promise<ApiResult>
@@ -108,7 +113,9 @@ export const createApi = (deps: ApiDeps): Route => {
     'GET /api/history': async ({ query }) => {
       const symbol = query.get('symbol') ?? ''
       if (!SYMBOL_PATTERN.test(symbol)) return fail(400, 'invalid_symbol')
-      return ok(await (query.get('cached') === '1' ? deps.history.peek(symbol) : deps.history.get(symbol)))
+      if (query.get('cached') === '1') return ok(await deps.history.peek(symbol))
+      const backup = deps.backup
+      return ok(await (backup ? backup.serve(symbol, () => deps.history.get(symbol)) : deps.history.get(symbol)))
     },
     'GET /api/search': async ({ query }) => {
       const text = (query.get('q') ?? '').trim()
@@ -173,6 +180,24 @@ export const createApi = (deps: ApiDeps): Route => {
       return ok({ ok: true })
     },
     'DELETE /api/telegram': async () => ok(await deps.telegram.disconnect()),
+    'GET /api/backup': async () => ok(await deps.backupKey.status()),
+    'PUT /api/backup': async ({ body }) => {
+      const key = (body as { key?: unknown } | null)?.key
+      if (typeof key !== 'string') return fail(400, 'invalid_key')
+      try {
+        return ok(await deps.backupKey.set(key))
+      } catch (error) {
+        if (isBackupKeyError(error)) return fail(400, 'invalid_key')
+        throw error
+      }
+    },
+    'DELETE /api/backup': async () => ok(await deps.backupKey.clear()),
+    'PUT /api/test/yahoo': async ({ body }) => {
+      if (!deps.testYahoo) return fail(404, 'not_found')
+      const down = (body as { down?: unknown } | null)?.down === true
+      deps.testYahoo(down)
+      return ok({ down })
+    },
     'PUT /api/test/prices': async ({ body }) => {
       if (!deps.testPrices) return fail(404, 'not_found')
       const prices = Object.fromEntries(

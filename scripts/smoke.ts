@@ -33,6 +33,14 @@ const fakeTelegram = createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify(body))
     }
+    if (req.url?.startsWith('/time_series')) {
+      const values = Array.from({ length: 30 }, (_, index) => {
+        const day = new Date(Date.UTC(2026, 9, 1 + index)).toISOString().slice(0, 10)
+        const close = 100 + index
+        return { datetime: day, open: String(close - 1), high: String(close + 1), low: String(close - 2), close: String(close), volume: '1000' }
+      })
+      return reply({ meta: { currency: 'USD', exchange: 'NYSE' }, values, status: 'ok' })
+    }
     if (req.url?.endsWith('/getMe')) return reply({ ok: true, result: { username: FAKE_BOT } })
     if (req.url?.endsWith('/getUpdates')) return reply({ ok: true, result: [{ update_id: 1, message: { chat: { id: FAKE_CHAT }, text: '/start' } }] })
     if (req.url?.endsWith('/sendMessage')) {
@@ -1259,6 +1267,44 @@ await step('una alerta sobre un indicador salta en el servidor cuando el día se
   await page.getByRole('button', { name: 'Remove alert Day move beyond 2%' }).click()
   await page.keyboard.press('Escape')
   check(!(symbol in (await savedState()).indicatorAlerts), 'la alerta del indicador no se quitó')
+})
+
+await step('con la clave de reserva, Twelve Data entra cuando Yahoo falla tres veces seguidas y el gráfico lo dice', async () => {
+  const before = (await savedState()).symbol
+  await button('Settings').click()
+  await page.getByLabel('Twelve Data key').fill('abcdef0123456789')
+  await button('Save key').click()
+  await page.getByText('Twelve Data steps in when Yahoo fails three times in a row.').waitFor({ timeout: 5000 })
+  await page.keyboard.press('Escape')
+  const yahoo = (down: boolean) =>
+    page.evaluate(
+      async (value) => (await fetch('/api/test/yahoo', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ down: value }) })).json(),
+      down,
+    )
+  await yahoo(true)
+  const sources: (string | null)[] = []
+  for (const symbol of ['IBM', 'ORCL', 'INTC', 'CSCO']) {
+    const answer = await page.evaluate(async (wanted) => {
+      const response = await fetch(`/api/history?symbol=${wanted}`)
+      return response.ok ? (await response.json()).source ?? 'Yahoo' : null
+    }, symbol)
+    sources.push(answer)
+  }
+  const switched = sources.indexOf('Twelve Data')
+  check(switched > 0 && sources.slice(0, switched).every((source) => source === null), `la reserva no entró tras los fallos de Yahoo: ${JSON.stringify(sources)}`)
+  const state = await savedState()
+  await fetch(`${url}/api/state`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...state, symbol: 'CSCO' }) })
+  await page.reload()
+  await page.getByText('Data from Twelve Data: Yahoo is not answering').waitFor({ timeout: 15_000 })
+  await yahoo(false)
+  const latest = await savedState()
+  await fetch(`${url}/api/state`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...latest, symbol: before }) })
+  await page.reload()
+  await waitForChart()
+  await button('Settings').click()
+  await button('Remove key').click()
+  await page.getByLabel('Twelve Data key').waitFor({ timeout: 5000 })
+  await page.keyboard.press('Escape')
 })
 
 await step('dos gráficos a la vez con periodos distintos y los mismos dibujos', async () => {

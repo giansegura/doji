@@ -15,7 +15,7 @@ import { withTimeout } from './net'
 import { LOGO_SOURCES_VERSION, fallbackLogoUrl, finnhubLogoUrl, isUsableLogo } from './logoSources'
 import { type ImageFetchLike, createImageFetcher, createLogoStore } from './logoStore'
 import { type EarningsFetch, createEarningsSource } from './provider/earnings'
-import { type FetchLike, createYahooProvider } from './provider/yahoo'
+import { type DataProvider, type FetchLike, createYahooProvider, providerError } from './provider/yahoo'
 import { type SocketLike, createYahooStream } from './provider/yahooStream'
 import { createQuoteCache } from './quoteCache'
 import { createApi, expectsBody, isLocalHost, isOwnRequest, parseRequestUrl } from './routes'
@@ -25,6 +25,9 @@ import { type TelegramFetch, createTelegram } from './telegram'
 import { removeFile, testHooksOn } from './serverEnv'
 import { createWatchMetrics } from './watchMetrics'
 import { createProfileSource } from './provider/profile'
+import { createTwelveData } from './provider/twelveData'
+import { createBackupHistory } from './backupHistory'
+import { createBackupKey } from './backupKey'
 import { createNewsCache } from './newsCache'
 import { createYahooSummary } from './provider/yahooSummary'
 
@@ -49,10 +52,43 @@ const networkImageFetch: ImageFetchLike = withTimeout((url, init) => fetch(url, 
 
 const fetchLogo = createImageFetcher(process.env.DOJI_OFFLINE ? offlineImageFetch : networkImageFetch)
 
-const provider = createYahooProvider({
+const yahoo = createYahooProvider({
   fetch: process.env.DOJI_OFFLINE ? offlineFetch : networkFetch,
   sleep: (ms) => new Promise((done) => setTimeout(done, ms)),
   now: () => new Date(),
+})
+
+const testYahoo = { down: false }
+
+const provider: DataProvider = process.env.DOJI_TEST_HOOKS
+  ? {
+      ...yahoo,
+      history: async (symbol, fromDate) => {
+        if (testYahoo.down) throw providerError('unavailable', 'Yahoo is down for the test')
+        return yahoo.history(symbol, fromDate)
+      },
+    }
+  : yahoo
+
+const backupFile = join(dataDir, 'backup.json')
+
+const backupKey = createBackupKey({
+  store: {
+    load: async () => JSON.parse(await readFile(backupFile, 'utf8')),
+    save: async (data) => {
+      await mkdir(dataDir, { recursive: true })
+      await writeAtomic(backupFile, JSON.stringify(data))
+    },
+    clear: async () => {
+      await unlink(backupFile).catch(() => undefined)
+    },
+  },
+})
+
+const twelveData = createTwelveData({
+  fetch: (url) => fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) }),
+  apiUrl: process.env.DOJI_TWELVE_API ?? 'https://api.twelvedata.com',
+  key: backupKey.get,
 })
 
 const quotes = createQuoteCache({ fetch: provider.quotes, now: () => new Date() })
@@ -139,6 +175,15 @@ const api = createApi({
   telegram,
   ...(testHooksOn(process.env) ? { testPrices: (prices: Record<string, number>) => alertMonitor.check(prices) } : {}),
   news: createNewsCache({ fetchNews: provider.news, now: () => new Date() }),
+  backupKey,
+  backup: createBackupHistory({ backup: twelveData, now: () => new Date() }),
+  ...(process.env.DOJI_TEST_HOOKS
+    ? {
+        testYahoo: (down: boolean) => {
+          testYahoo.down = down
+        },
+      }
+    : {}),
   profiles: createProfileSource({
     summary,
     now: () => new Date(),

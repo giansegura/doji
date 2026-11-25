@@ -51,6 +51,7 @@ export type History = {
   tradedAt?: number
   currency?: string
   timezone?: string
+  source?: string
 }
 
 export type CompanyProfile = {

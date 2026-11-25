@@ -53,6 +53,9 @@ Para otro puerto: `PORT=4790 npm start`.
   - Los dibujos se ven solo en la moneda en que se hicieron: una línea en 100 dólares no es un nivel fijo en euros. Los dibujos hechos en euros no llevan alerta, porque el servidor vigila los precios en la moneda de la acción, y la línea de tu posición no sale en euros.
   - Las velas anteriores a los datos del cambio (2003 para el dólar) no se ven en euros. Una acción que ya cotiza en euros se ve igual.
   - El cambio se vuelve a pedir cada minuto, así que un gráfico abierto mucho rato en euros usa el del momento. Si no llega, el gráfico sigue en la moneda de la acción y la barra de arriba lo avisa hasta que llega. Cada moneda recuerda su propia vista; al cambiar de moneda, la escala de precios vuelve a encajarse sola.
+- **Fuente de reserva:** en "Settings", "Backup data" guarda una clave gratuita de Twelve Data (twelvedata.com). Si Yahoo falla tres veces seguidas al pedir un histórico, doji pide a Twelve Data el histórico diario y el gráfico lo avisa ("Data from Twelve Data: Yahoo is not answering"); en cuanto Yahoo responde, vuelve a él. Lo que da Twelve Data se guarda 15 minutos aparte y nunca se mezcla con la caché de Yahoo.
+  - En esta primera versión cubre acciones y ETF de EE. UU., criptomonedas y divisas; las de otras bolsas, índices y futuros siguen solo con Yahoo. Los precios en vivo, el buscador, los resultados y la ficha siguen dependiendo de Yahoo. Sus históricos no traen splits ni dividendos.
+  - La clave se guarda en `data/backup.json`, en tu ordenador, y no sale en la configuración que exportas. Stooq, la opción sin clave, ahora pide verificar un navegador y no se usa.
 - **Configuración:** el menú "Settings" exporta todo (listas, líneas, indicadores, tema y ajustes del gráfico) a un archivo `doji-config-AAAA-MM-DD.json` y lo vuelve a importar. Importar reemplaza la configuración actual entera, por eso pide confirmación.
 - **Mover el gráfico:** arrastra para desplazarlo en el tiempo; el precio se encaja solo a la pantalla. Si empiezas el arrastre hacia arriba o hacia abajo, el gráfico se mueve también en vertical y deja de encajarse: desde ese momento se arrastra libre en cualquier dirección. El botón "Auto" de la esquina inferior derecha, o un doble clic en el eje de precios, lo vuelve a encajar; al cambiar de acción se encaja solo.
 - **Rangos rápidos e ir a una fecha:** bajo el gráfico, 1M, 3M, 6M, YTD (desde el 1 de enero), 1Y, 5Y y All enseñan ese tramo hasta hoy, con el margen de siempre a la derecha, y vuelven a encajar el precio. El campo de fecha de la derecha ("Go to date") centra el gráfico en ese día al pulsar `Enter`, sin cambiar el zoom. El tramo que dejan se recuerda como uno puesto a mano.
@@ -225,10 +228,10 @@ npm test        # tests
 npm run smoke -- http://127.0.0.1:4780 /tmp/capturas   # prueba completa en Chrome; necesita la app en marcha
 ```
 
-La prueba completa dibuja y borra líneas y cambia el tema y la lista: ejecútala contra una carpeta de datos de prueba (`DOJI_DATA_DIR`), no contra la tuya. Arranca esa app con `DOJI_TEST_HOOKS=1` (activa `PUT /api/test/prices`, que da precios inventados al vigilante de alertas) y `DOJI_TELEGRAM_API=http://127.0.0.1:4799` (la prueba levanta ahí un Telegram falso):
+La prueba completa dibuja y borra líneas y cambia el tema y la lista: ejecútala contra una carpeta de datos de prueba (`DOJI_DATA_DIR`), no contra la tuya. Arranca esa app con `DOJI_TEST_HOOKS=1` (activa `PUT /api/test/prices`, que da precios inventados al vigilante de alertas, y `PUT /api/test/yahoo`, que simula que Yahoo no responde), `DOJI_TELEGRAM_API=http://127.0.0.1:4799` y `DOJI_TWELVE_API=http://127.0.0.1:4799` (la prueba levanta ahí un Telegram y un Twelve Data falsos):
 
 ```bash
-DOJI_TEST_HOOKS=1 DOJI_TELEGRAM_API=http://127.0.0.1:4799 DOJI_DATA_DIR=/tmp/doji-prueba PORT=4781 npm start
+DOJI_TEST_HOOKS=1 DOJI_TELEGRAM_API=http://127.0.0.1:4799 DOJI_TWELVE_API=http://127.0.0.1:4799 DOJI_DATA_DIR=/tmp/doji-prueba PORT=4781 npm start
 npm run smoke -- http://127.0.0.1:4781 /tmp/capturas
 ```
 
