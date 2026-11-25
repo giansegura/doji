@@ -60,7 +60,7 @@ const yahoo = createYahooProvider({
 
 const testYahoo = { down: false }
 
-const provider: DataProvider = process.env.DOJI_TEST_HOOKS
+const provider: DataProvider = testHooksOn(process.env)
   ? {
       ...yahoo,
       history: async (symbol, fromDate) => {
@@ -79,9 +79,7 @@ const backupKey = createBackupKey({
       await mkdir(dataDir, { recursive: true })
       await writeAtomic(backupFile, JSON.stringify(data))
     },
-    clear: async () => {
-      await unlink(backupFile).catch(() => undefined)
-    },
+    clear: () => removeFile(backupFile),
   },
 })
 
@@ -177,7 +175,7 @@ const api = createApi({
   news: createNewsCache({ fetchNews: provider.news, now: () => new Date() }),
   backupKey,
   backup: createBackupHistory({ backup: twelveData, now: () => new Date() }),
-  ...(process.env.DOJI_TEST_HOOKS
+  ...(testHooksOn(process.env)
     ? {
         testYahoo: (down: boolean) => {
           testYahoo.down = down
