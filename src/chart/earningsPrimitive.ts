@@ -1,7 +1,7 @@
 import type { IPrimitivePaneRenderer, IPrimitivePaneView, ISeriesPrimitive, Time } from 'lightweight-charts'
 import type { EarningsMark } from './earningsMarks'
 
-export type EarningsColors = { past: string; next: string; background: string; text: string }
+export type EarningsColors = { past: string; next: string; background: string; text: string; beat?: string; miss?: string }
 
 type EarningsSource = { marks: () => EarningsMark[]; colors: () => EarningsColors }
 
@@ -26,12 +26,12 @@ export const createEarningsPrimitive = (source: EarningsSource): EarningsPrimiti
         context.textAlign = 'center'
         context.textBaseline = 'middle'
         context.lineWidth = 1.5
-        source.marks().forEach(({ x, kind, row = 0 }) => {
+        source.marks().forEach(({ x, kind, row = 0, tone }) => {
           const top = y - row * ROW_GAP
           const hollow = kind === 'next'
           context.beginPath()
           context.arc(x, top, RADIUS, 0, FULL_CIRCLE)
-          context.fillStyle = hollow ? colors.background : colors.past
+          context.fillStyle = hollow ? colors.background : ((tone && colors[tone]) ?? colors.past)
           context.fill()
           if (hollow) {
             context.strokeStyle = colors.next

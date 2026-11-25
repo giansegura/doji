@@ -140,7 +140,14 @@ export const ChartView = ({
     handles,
     earnings,
     dividends,
-    colors: { past: theme.ui.textMuted, next: theme.ui.textMuted, background: theme.chart.bg, text: theme.chart.bg },
+    colors: {
+      past: theme.ui.textMuted,
+      next: theme.ui.textMuted,
+      background: theme.chart.bg,
+      text: theme.chart.bg,
+      beat: theme.chart.up,
+      miss: theme.chart.down,
+    },
   })
   const symbol = history.info.symbol
 
@@ -188,6 +195,7 @@ export const ChartView = ({
         macdPaneTop={macdPaneTop}
         earnings={earnings ? nextEarningsLabel(earnings) : null}
         dividends={dividends}
+        reports={earnings}
         inEuros={inEuros}
       />
       <RangeBar onRange={showRange} onGoTo={goTo} />

@@ -9,7 +9,7 @@ const NOW = new Date('2026-11-24T12:00:00Z')
 const TIMING = { '2026-01-29': 'post', '2026-04-30': 'post', '2026-07-30': 'post', '2026-11-02': 'post', '2027-01-28': 'post' }
 
 test('Should read the last reported dates and the next one from a Yahoo answer', () => {
-  expect(parseEarnings(aapl, NOW)).toEqual({
+  expect(parseEarnings(aapl, NOW)).toMatchObject({
     past: ['2026-01-29', '2026-04-30', '2026-07-30', '2026-11-02'],
     next: '2027-01-28',
     nextIsEstimate: false,
@@ -34,6 +34,30 @@ test('Should tell a report before the opening from one after the close, and say 
   const during = Date.parse('2026-04-29T15:00:00Z') / 1000
   const dayOnly = Date.parse('2026-01-28T00:00:00Z') / 1000
   expect(parseEarnings(answerAt([before, after, during, dayOnly]), NOW).timing).toEqual({ '2026-07-29': 'pre', '2026-10-28': 'post' })
+})
+
+test('Should read the actual and the expected earnings per share of each report and the expected one of the next', () => {
+  const quarter = (date: string, actual: number | null, estimate: number | null) => ({
+    reportedDate: { raw: Date.parse(`${date}T21:00:00Z`) / 1000, fmt: date },
+    actual: actual === null ? {} : { raw: actual },
+    estimate: estimate === null ? {} : { raw: estimate },
+  })
+  const answer = {
+    quoteSummary: {
+      result: [
+        {
+          calendarEvents: { earnings: { earningsDate: [{ raw: 1801170000, fmt: '2027-01-28' }], earningsAverage: { raw: 2.91 } } },
+          earnings: { earningsChart: { quarterly: [quarter('2026-07-30', 2.02, 1.89), quarter('2026-10-29', 1.5, 1.6), quarter('2026-11-02', null, 2)] } },
+        },
+      ],
+    },
+  }
+  const earnings = parseEarnings(answer, NOW)
+  expect(earnings.results).toEqual({
+    '2026-07-30': { actual: 2.02, estimate: 1.89 },
+    '2026-10-29': { actual: 1.5, estimate: 1.6 },
+  })
+  expect(earnings.nextEstimate).toBe(2.91)
 })
 
 test('Should drop a next date that has already gone by and read an answer without earnings as none', () => {
@@ -134,8 +158,8 @@ test('Should not hand out as next a date that went by while it was kept, and cou
     nextIsEstimate: false,
     timing: TIMING,
   }
-  expect(await source.get('AAPL')).toEqual(moved)
-  expect(source.peek('AAPL')).toEqual(moved)
+  expect(await source.get('AAPL')).toMatchObject(moved)
+  expect(source.peek('AAPL')).toMatchObject(moved)
 })
 
 test('Should ask Yahoo once when the same symbol is asked for twice at the same time', async () => {

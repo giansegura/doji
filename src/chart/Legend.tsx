@@ -15,6 +15,7 @@ export type LegendProps = {
   macdPaneTop: number | null
   earnings?: string | null
   dividend?: string | null
+  report?: string | null
   inEuros?: boolean
 }
 
@@ -35,6 +36,7 @@ export const Legend = ({
   macdPaneTop,
   earnings = null,
   dividend = null,
+  report = null,
   inEuros = false,
 }: LegendProps) => {
   const theme = useTheme()
@@ -62,6 +64,7 @@ export const Legend = ({
           <Styles.LegendTitle>{title}</Styles.LegendTitle>
           {earnings && <Styles.LegendEarnings>{earnings}</Styles.LegendEarnings>}
           {dividend && <Styles.LegendEarnings>{dividend}</Styles.LegendEarnings>}
+          {report && <Styles.LegendEarnings>{report}</Styles.LegendEarnings>}
           {bar &&
             PRICE_FIELDS.map(([label, field]) => (
               <Styles.LegendPair key={field}>

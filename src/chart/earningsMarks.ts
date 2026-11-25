@@ -1,7 +1,7 @@
 import type { Dividend, Earnings } from '../../shared/types'
 import type { TimeIndex } from './timeIndex'
 
-export type EarningsMark = { x: number; kind: 'past' | 'next' | 'dividend'; row?: number }
+export type EarningsMark = { x: number; kind: 'past' | 'next' | 'dividend'; row?: number; tone?: 'beat' | 'miss' }
 
 const SHARED_BAR_PX = 14
 
@@ -19,7 +19,10 @@ export const earningsMarks = (
   ]
   return dated.flatMap(({ date, kind }) => {
     const x = toX(timeIndex.dateToIndex(date))
-    return x !== null && x >= 0 && x <= width ? [{ x, kind }] : []
+    if (x === null || x < 0 || x > width) return []
+    const result = kind === 'past' ? earnings.results?.[date] : undefined
+    const tone = result && result.estimate !== null ? (result.actual >= result.estimate ? 'beat' : 'miss') : null
+    return [tone ? { x, kind, tone } : { x, kind }]
   })
 }
 
@@ -40,5 +43,6 @@ export const dividendMarks = (
 export const nextEarningsLabel = (earnings: Earnings): string | null => {
   if (!earnings.next) return null
   const day = DAY_FORMAT.format(new Date(`${earnings.next}T00:00:00Z`))
-  return `Earnings ${earnings.nextIsEstimate ? '~' : ''}${day}`
+  const estimate = earnings.nextEstimate === undefined ? '' : ` · EPS est. ${earnings.nextEstimate.toFixed(2)}`
+  return `Earnings ${earnings.nextIsEstimate ? '~' : ''}${day}${estimate}`
 }

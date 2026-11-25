@@ -296,7 +296,8 @@ export const createDojiServer = ({ api, newId, version, today = todayIso }: Serv
     'get_earnings',
     {
       title: 'Earnings dates',
-      description: 'Gives the last reported earnings dates of a symbol and the next one, saying whether Yahoo only estimates the next date.',
+      description:
+        'Gives the last reported earnings dates of a symbol and the next one, saying whether Yahoo only estimates the next date, with the actual and the expected earnings per share of each recent report (results, by date) and the expected earnings per share of the next one (nextEstimate).',
       inputSchema: { symbol: symbolField },
       annotations: { readOnlyHint: true },
     },

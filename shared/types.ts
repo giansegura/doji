@@ -165,7 +165,16 @@ export type AlertEvent = {
 
 export type EarningsTiming = 'pre' | 'post'
 
-export type Earnings = { past: string[]; next: string | null; nextIsEstimate: boolean; timing?: Record<string, EarningsTiming> }
+export type EarningsResult = { actual: number; estimate: number | null }
+
+export type Earnings = {
+  past: string[]
+  next: string | null
+  nextIsEstimate: boolean
+  timing?: Record<string, EarningsTiming>
+  results?: Record<string, EarningsResult>
+  nextEstimate?: number
+}
 
 export type DrawingKind = 'trend' | 'hline' | 'channel' | 'rect' | 'position'
 

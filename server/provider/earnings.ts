@@ -59,9 +59,17 @@ const dateOf = (value: unknown): string | null => {
 
 const notNull = <T>(value: T | null): value is T => value !== null
 
+const rawNumber = (value: unknown): number | null => {
+  const raw = typeof value === 'number' ? value : (value as { raw?: unknown } | null)?.raw
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : null
+}
+
 export const parseEarnings = (raw: unknown, now: Date): Earnings => {
   const result = (raw as { quoteSummary?: { result?: unknown[] | null } } | null)?.quoteSummary?.result?.[0] as
-    | { calendarEvents?: { earnings?: { earningsDate?: unknown[]; isEarningsDateEstimate?: unknown } }; earnings?: { earningsChart?: { quarterly?: { reportedDate?: unknown }[] } } }
+    | {
+        calendarEvents?: { earnings?: { earningsDate?: unknown[]; isEarningsDateEstimate?: unknown; earningsAverage?: unknown } }
+        earnings?: { earningsChart?: { quarterly?: { reportedDate?: unknown; actual?: unknown; estimate?: unknown }[] } }
+      }
     | undefined
   if (!result) return NO_EARNINGS
   const today = now.toISOString().slice(0, 10)
@@ -78,14 +86,30 @@ export const parseEarnings = (raw: unknown, now: Date): Earnings => {
       return date && when && (past.includes(date) || date === next) ? [[date, when]] : []
     }),
   )
-  return { past, next, nextIsEstimate: next !== null && result.calendarEvents?.earnings?.isEarningsDateEstimate === true, timing }
+  const results = Object.fromEntries(
+    (result.earnings?.earningsChart?.quarterly ?? []).flatMap((quarter) => {
+      const date = dateOf(quarter.reportedDate)
+      const actual = rawNumber(quarter.actual)
+      return date && actual !== null && past.includes(date) ? [[date, { actual, estimate: rawNumber(quarter.estimate) }]] : []
+    }),
+  )
+  const nextEstimate = next ? rawNumber(result.calendarEvents?.earnings?.earningsAverage) : null
+  return {
+    past,
+    next,
+    nextIsEstimate: next !== null && result.calendarEvents?.earnings?.isEarningsDateEstimate === true,
+    timing,
+    ...(Object.keys(results).length > 0 ? { results } : {}),
+    ...(nextEstimate === null ? {} : { nextEstimate }),
+  }
 }
 
 const asOf = (earnings: Earnings, now: Date): Earnings => {
   const today = now.toISOString().slice(0, 10)
   if (!earnings.next || earnings.next >= today) return earnings
   const past = earnings.nextIsEstimate ? earnings.past : [...earnings.past, earnings.next]
-  return { ...earnings, past, next: null, nextIsEstimate: false }
+  const { nextEstimate: _gone, ...kept } = earnings
+  return { ...kept, past, next: null, nextIsEstimate: false }
 }
 
 export const createEarningsSource = (deps: {
