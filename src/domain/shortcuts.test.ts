@@ -61,3 +61,13 @@ test('Should enter the list from a symbol that is not in it', () => {
   expect(stepSymbol(list, 'KO', -1)).toBe('NVDA')
   expect(stepSymbol([], 'KO', 1)).toBeNull()
 })
+
+test('Should fold or unfold the watchlist with Alt+W', () => {
+  expect(shortcutFor(key({ code: 'KeyW', key: '∑', altKey: true }), false)).toEqual({ kind: 'toggleList' })
+  expect(shortcutFor(key({ code: 'KeyW', key: 'w' }), false)).not.toEqual({ kind: 'toggleList' })
+})
+
+test('Should open the list of shortcuts with the question mark', () => {
+  expect(shortcutFor(key({ key: '?', code: 'Slash', shiftKey: true }), false)).toEqual({ kind: 'help' })
+  expect(shortcutFor(key({ key: '?', code: 'Minus', shiftKey: true }), true)).toBeNull()
+})

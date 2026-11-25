@@ -11,6 +11,8 @@ type ShortcutsArgs = {
   symbols: string[]
   dispatch: (action: Action) => void
   onTool: (tool: Tool) => void
+  onToggleList?: () => void
+  onHelp?: () => void
 }
 
 export const useShortcuts = (args: ShortcutsArgs) => {
@@ -23,10 +25,18 @@ export const useShortcuts = (args: ShortcutsArgs) => {
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      const { symbol, drawings, symbols, dispatch, onTool } = latest.current
+      const { symbol, drawings, symbols, dispatch, onTool, onToggleList, onHelp } = latest.current
       const shortcut = shortcutFor(event, isTyping(event.target))
       if (!shortcut) return
       event.preventDefault()
+      if (shortcut.kind === 'toggleList') {
+        onToggleList?.()
+        return
+      }
+      if (shortcut.kind === 'help') {
+        onHelp?.()
+        return
+      }
       if (shortcut.kind === 'tool') {
         onTool(shortcut.tool)
         return

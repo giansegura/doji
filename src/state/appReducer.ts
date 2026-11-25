@@ -73,6 +73,7 @@ export type Action =
   | { type: 'addToTicker'; symbol: string }
   | { type: 'removeFromTicker'; symbol: string }
   | { type: 'clearAlertHistory' }
+  | { type: 'setListHidden'; on: boolean }
 
 const COPY_SUFFIXES = [' (copy)', ...Array.from({ length: MAX_LISTS }, (_, index) => ` (copy ${index + 2})`)]
 
@@ -337,6 +338,7 @@ export const appReducer = (state: AppState, action: Action): AppState => {
   if (action.type === 'setOnlyFlagged') return state.onlyFlagged === action.on ? state : { ...state, onlyFlagged: action.on }
   if (action.type === 'rememberLook') return rememberLook(state, action.kind, action.look)
   if (action.type === 'setEarningsBadge') return state.earningsBadge === action.on ? state : { ...state, earningsBadge: action.on }
+  if (action.type === 'setListHidden') return state.listHidden === action.on ? state : { ...state, listHidden: action.on }
   if (action.type === 'clearAlertHistory') return state.alertHistory.length === 0 ? state : { ...state, alertHistory: [] }
   if (action.type === 'setTickerVisible') return state.ticker.visible === action.on ? state : { ...state, ticker: { ...state.ticker, visible: action.on } }
   if (action.type === 'addToTicker' || action.type === 'removeFromTicker') {

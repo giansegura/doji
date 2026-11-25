@@ -1498,6 +1498,35 @@ await step('importa una lista de TradingView con sus secciones, avisa de lo que 
   }
 })
 
+await step('la lista se pliega con su botón o con Alt+W y se recuerda, y ? enseña los atajos', async () => {
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+  await page.keyboard.press('?')
+  const dialog = page.getByRole('dialog', { name: 'Keyboard shortcuts' })
+  await dialog.waitFor({ timeout: 5000 })
+  check((await dialog.getByRole('row').count()) >= 13, 'el cuadro de atajos no los trae todos')
+  await page.keyboard.press('Escape')
+  await dialog.waitFor({ state: 'detached', timeout: 5000 })
+  await button('Settings').click()
+  await button('Keyboard shortcuts').click()
+  await dialog.getByRole('button', { name: 'Close' }).click()
+  const chartWidth = async () => (await page.locator('[data-chart]').first().boundingBox())?.width ?? 0
+  const wide = await chartWidth()
+  await button('Hide watchlist').click()
+  await page.getByRole('complementary').waitFor({ state: 'detached', timeout: 5000 })
+  await page.waitForFunction((before) => (document.querySelector('[data-chart]')?.getBoundingClientRect().width ?? 0) > before + 100, wide, { timeout: 5000 })
+  check((await savedState()).listHidden === true, 'la lista plegada no se guardó')
+  await page.reload()
+  await waitForChart()
+  check((await page.getByRole('complementary').count()) === 0, 'la lista plegada volvió al recargar')
+  await page.keyboard.press('Alt+KeyW')
+  await page.getByRole('complementary').waitFor({ timeout: 5000 })
+  await button('Hide watchlist').waitFor({ timeout: 5000 })
+  const deadline = Date.now() + 5000
+  while (Date.now() < deadline && (await savedState()).listHidden) await page.waitForTimeout(200)
+  check((await savedState()).listHidden === false, 'Alt+W no volvió a enseñar la lista')
+  check(Math.abs((await chartWidth()) - wide) < 2, 'el gráfico no recuperó su ancho')
+})
+
 await step('dos gráficos a la vez con periodos distintos y los mismos dibujos', async () => {
   const charts = page.locator('.tv-lightweight-charts')
   const picker = page.getByRole('group', { name: 'Second chart timeframe' })

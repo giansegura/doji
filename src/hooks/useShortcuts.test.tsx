@@ -17,11 +17,14 @@ const level = (id: string, value: number): Drawing => ({
 const setup = (drawings: Drawing[] = []) => {
   const dispatch = vi.fn()
   const onTool = vi.fn()
+  const onToggleList = vi.fn()
+  const onHelp = vi.fn()
   const symbols = ['AAPL', 'MSFT', 'NVDA']
-  const hook = renderHook((props: { drawings: Drawing[]; symbol: string }) => useShortcuts({ ...props, symbols, dispatch, onTool }), {
-    initialProps: { drawings, symbol: 'MSFT' },
-  })
-  return { dispatch, onTool, ...hook }
+  const hook = renderHook(
+    (props: { drawings: Drawing[]; symbol: string }) => useShortcuts({ ...props, symbols, dispatch, onTool, onToggleList, onHelp }),
+    { initialProps: { drawings, symbol: 'MSFT' } },
+  )
+  return { dispatch, onTool, onToggleList, onHelp, ...hook }
 }
 
 test('Should save a change of drawings and give back the previous ones on Cmd+Z', () => {
@@ -94,4 +97,12 @@ test('Should have nothing to undo after the drawings are replaced from outside',
   dispatch.mockClear()
   fireEvent.keyDown(window, { code: 'KeyZ', key: 'z', metaKey: true })
   expect(dispatch).not.toHaveBeenCalled()
+})
+
+test('Should fold the watchlist with Alt+W and open the shortcuts with the question mark', () => {
+  const { onToggleList, onHelp } = setup()
+  fireEvent.keyDown(window, { code: 'KeyW', key: '∑', altKey: true })
+  expect(onToggleList).toHaveBeenCalledTimes(1)
+  fireEvent.keyDown(window, { code: 'Slash', key: '?', shiftKey: true })
+  expect(onHelp).toHaveBeenCalledTimes(1)
 })

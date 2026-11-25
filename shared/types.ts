@@ -256,6 +256,7 @@ export type AppState = {
   earningsBadge: boolean
   ticker: Ticker
   alertHistory: AlertEvent[]
+  listHidden: boolean
 }
 
 export const DEFAULT_STATE: AppState = {
@@ -315,4 +316,5 @@ export const DEFAULT_STATE: AppState = {
   earningsBadge: false,
   ticker: DEFAULT_TICKER,
   alertHistory: [],
+  listHidden: false,
 }

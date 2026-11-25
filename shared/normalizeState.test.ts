@@ -521,6 +521,12 @@ test('Should keep the repeat and the end date of the alerts of trend lines and p
   expect(state.lines.KO.map((drawing) => ('alertRepeat' in drawing ? 'repeat' : 'alertUntil' in drawing ? drawing.alertUntil : null))).toEqual(['repeat', '2026-12-01'])
 })
 
+test('Should keep the watchlist folded only when it was folded', () => {
+  expect(normalizeState({}).listHidden).toBe(false)
+  expect(normalizeState({ listHidden: true }).listHidden).toBe(true)
+  expect(normalizeState({ listHidden: 'yes' }).listHidden).toBe(false)
+})
+
 test('Should keep the history of alerts that went off', () => {
   const event = { id: 'e', symbol: 'KO', level: 60, price: 60.2, direction: 'up', at: '2026-11-25T15:00:00.000Z', text: null }
   expect(normalizeState({}).alertHistory).toEqual([])

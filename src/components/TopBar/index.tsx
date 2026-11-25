@@ -46,6 +46,9 @@ type TopBarProps = {
   onShareHoldings?: (on: boolean) => void
   ticker?: boolean
   onTicker?: (on: boolean) => void
+  listHidden?: boolean
+  onToggleList?: () => void
+  onShowShortcuts?: () => void
   alerts?: ReactNode
   armedAlerts?: number
   split: boolean
@@ -127,6 +130,12 @@ const SplitIcon = () => (
   </svg>
 )
 
+const PanelIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+    <path d="M2.5 3.5h13v11h-13zM11.5 3.5v11" strokeLinejoin="round" />
+  </svg>
+)
+
 const SearchIcon = () => (
   <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
     <circle cx="8" cy="8" r="5" />
@@ -165,6 +174,9 @@ export const TopBar = ({
   onShareHoldings,
   ticker = true,
   onTicker,
+  listHidden = false,
+  onToggleList,
+  onShowShortcuts,
   alerts,
   armedAlerts = 0,
   split,
@@ -481,6 +493,17 @@ export const TopBar = ({
                 <Styles.RowLabel>Market ticker</Styles.RowLabel>
               </Styles.MenuRow>
             )}
+            {onShowShortcuts && (
+              <Styles.MenuAction
+                type="button"
+                onClick={() => {
+                  setOpenMenu(null)
+                  onShowShortcuts()
+                }}
+              >
+                Keyboard shortcuts
+              </Styles.MenuAction>
+            )}
             <TelegramPanel />
             <BackupPanel />
           </Styles.Menu>
@@ -554,6 +577,17 @@ export const TopBar = ({
           </Styles.Menu>
         )}
       </Styles.MenuAnchor>
+      {onToggleList && (
+        <Styles.Button
+          type="button"
+          title={listHidden ? 'Show watchlist (Alt+W)' : 'Hide watchlist (Alt+W)'}
+          aria-label={listHidden ? 'Show watchlist' : 'Hide watchlist'}
+          aria-pressed={!listHidden}
+          onClick={onToggleList}
+        >
+          <PanelIcon />
+        </Styles.Button>
+      )}
     </Styles.Bar>
   )
 }

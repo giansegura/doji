@@ -462,5 +462,6 @@ export const normalizeState = (raw: unknown): AppState => {
     earningsBadge: source.earningsBadge === true,
     ticker: toTicker(source.ticker),
     alertHistory: toAlertHistory(source.alertHistory),
+    listHidden: source.listHidden === true,
   }
 }

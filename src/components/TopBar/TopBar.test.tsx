@@ -21,6 +21,8 @@ const setup = (indicators: Indicators = DEFAULT_STATE.indicators) => {
     onSplit: vi.fn(),
     onShareHoldings: vi.fn(),
     onTicker: vi.fn(),
+    onToggleList: vi.fn(),
+    onShowShortcuts: vi.fn(),
   }
   renderWithTheme(
     <TopBar
@@ -33,6 +35,7 @@ const setup = (indicators: Indicators = DEFAULT_STATE.indicators) => {
       split={false}
       shareHoldings={false}
       ticker={false}
+      listHidden={false}
       alerts={<div>Panel de alertas</div>}
       armedAlerts={2}
       {...handlers}
@@ -358,6 +361,20 @@ test('Should bring back the hidden market ticker from the settings', async () =>
   expect(ticker.checked).toBe(false)
   await user.click(ticker)
   expect(handlers.onTicker).toHaveBeenCalledWith(true)
+})
+
+test('Should fold the watchlist from its button', async () => {
+  const { handlers, user } = setup()
+  await user.click(screen.getByRole('button', { name: 'Hide watchlist' }))
+  expect(handlers.onToggleList).toHaveBeenCalledTimes(1)
+})
+
+test('Should open the list of shortcuts from the settings', async () => {
+  const { handlers, user } = setup()
+  await openConfigMenu(user)
+  await user.click(screen.getByRole('button', { name: 'Keyboard shortcuts' }))
+  expect(handlers.onShowShortcuts).toHaveBeenCalledTimes(1)
+  expect(screen.queryByRole('button', { name: 'Keyboard shortcuts' })).toBeNull()
 })
 
 test('Should ask for the configuration to be exported', async () => {
