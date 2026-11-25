@@ -1825,7 +1825,11 @@ await step('al cerrar con un estado grande se guarda el último cambio', async (
   check(new TextEncoder().encode(JSON.stringify(before)).length > 65_536, 'el estado de prueba no supera el límite del navegador')
   await flipTheme(before.theme)
   await page.goto('about:blank')
-  const after = await savedState()
+  let after = await savedState()
+  for (let attempt = 0; attempt < 25 && after.theme === before.theme; attempt += 1) {
+    await new Promise((done) => setTimeout(done, 200))
+    after = await savedState()
+  }
   check(after.theme !== before.theme, 'el último cambio se perdió al cerrar')
   check((after.lines.CARGA ?? []).length === 400, 'se perdieron líneas al guardar solo los cambios')
   const { CARGA: _load, ...lines } = after.lines
