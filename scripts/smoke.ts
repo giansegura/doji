@@ -704,6 +704,28 @@ await step('la regla mide entre dos puntos sin guardar nada y se quita con Esc',
   await page.keyboard.press('Escape')
 })
 
+await step('el perfil de volumen aparece a la derecha del gráfico y se quita', async () => {
+  const { price } = await panes()
+  const side = { x: price.x + price.width * 0.72, y: price.y + 10, width: price.width * 0.2, height: price.height * 0.6 }
+  const clean = await regionShot(side)
+  await button('Indicators').click()
+  await page.getByRole('checkbox', { name: 'Volume profile' }).click()
+  await page.keyboard.press('Escape')
+  check((await savedState()).indicators.volumeProfile.visible, 'el perfil de volumen no se guardó')
+  check((await regionShot(side)) !== clean, 'el perfil de volumen no se ve')
+  await button('Indicators').click()
+  await page.getByRole('checkbox', { name: 'Volume profile' }).click()
+  await page.keyboard.press('Escape')
+  check(!(await savedState()).indicators.volumeProfile.visible, 'el perfil de volumen no se quitó')
+  check((await regionShot(side)) === clean, 'queda rastro del perfil de volumen')
+})
+
+await step('la leyenda dice cuándo son los próximos resultados', async () => {
+  await page.getByText(/^Earnings ~?[A-Z][a-z]{2} \d{1,2}, \d{4}$/).waitFor({ timeout: 15_000 })
+  const earnings = await page.evaluate(async () => (await fetch('/api/earnings?symbol=AAPL')).json())
+  check(Array.isArray(earnings.past) && earnings.past.length > 0, `no llegaron resultados pasados: ${JSON.stringify(earnings)}`)
+})
+
 await step('un rectángulo se dibuja con dos clics y se cambia por una esquina', async () => {
   const { price } = await panes()
   const boxes = async () => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'rect')

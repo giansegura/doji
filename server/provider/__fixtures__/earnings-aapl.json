@@ -1,0 +1,86 @@
+{
+  "quoteSummary": {
+    "result": [
+      {
+        "calendarEvents": {
+          "earnings": {
+            "earningsDate": [
+              {
+                "raw": 1801170000,
+                "fmt": "2027-01-28"
+              }
+            ],
+            "isEarningsDateEstimate": false
+          }
+        },
+        "earnings": {
+          "earningsChart": {
+            "quarterly": [
+              {
+                "date": "4Q2025",
+                "actual": {
+                  "raw": 2.84,
+                  "fmt": "2.84"
+                },
+                "estimate": {
+                  "raw": 2.6708,
+                  "fmt": "2.67"
+                },
+                "reportedDate": {
+                  "raw": 1769722200,
+                  "fmt": "2026-01-29"
+                }
+              },
+              {
+                "date": "1Q2026",
+                "actual": {
+                  "raw": 2.01,
+                  "fmt": "2.01"
+                },
+                "estimate": {
+                  "raw": 1.94275,
+                  "fmt": "1.94"
+                },
+                "reportedDate": {
+                  "raw": 1777581000,
+                  "fmt": "2026-04-30"
+                }
+              },
+              {
+                "date": "2Q2026",
+                "actual": {
+                  "raw": 2.02,
+                  "fmt": "2.02"
+                },
+                "estimate": {
+                  "raw": 1.89243,
+                  "fmt": "1.89"
+                },
+                "reportedDate": {
+                  "raw": 1785443428,
+                  "fmt": "2026-07-30"
+                }
+              },
+              {
+                "date": "3Q2026",
+                "actual": {
+                  "raw": 2.1,
+                  "fmt": "2.1"
+                },
+                "estimate": {
+                  "raw": 1.98483,
+                  "fmt": "1.98"
+                },
+                "reportedDate": {
+                  "raw": 1793655000,
+                  "fmt": "2026-11-02"
+                }
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "error": null
+  }
+}

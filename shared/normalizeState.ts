@@ -7,6 +7,8 @@ import {
   MAX_LISTS,
   MIN_LINE_OPACITY,
   NOTE_MAX_LENGTH,
+  PROFILE_MAX_ROWS,
+  PROFILE_MIN_ROWS,
   MAX_SMAS,
   SMA_COLORS,
   SMA_MAX_LENGTH,
@@ -257,6 +259,8 @@ const toIndicators = (raw: unknown): Indicators => {
   const volumeMa = asRecord(indicators.volumeMa)
   const bollinger = asRecord(indicators.bollinger)
   const macd = asRecord(indicators.macd)
+  const profile = asRecord(indicators.volumeProfile)
+  const rows = asFinite(profile.rows)
   const defaults = DEFAULT_STATE.indicators
   return {
     volume: { visible: asBoolean(volume.visible, defaults.volume.visible) },
@@ -280,6 +284,13 @@ const toIndicators = (raw: unknown): Indicators => {
       fast: toLength(macd.fast, defaults.macd.fast),
       slow: toLength(macd.slow, defaults.macd.slow),
       signal: toLength(macd.signal, defaults.macd.signal),
+    },
+    volumeProfile: {
+      visible: asBoolean(profile.visible, defaults.volumeProfile.visible),
+      rows:
+        rows !== null && Number.isInteger(rows) && rows >= PROFILE_MIN_ROWS && rows <= PROFILE_MAX_ROWS
+          ? rows
+          : defaults.volumeProfile.rows,
     },
   }
 }

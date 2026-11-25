@@ -27,6 +27,7 @@ type Options = {
   macdPaneTop?: number | null
   timeframe?: 'D' | 'W'
   info?: SymbolInfo
+  earnings?: string | null
 }
 
 const setup = (over: Options = {}) =>
@@ -38,6 +39,7 @@ const setup = (over: Options = {}) =>
       indicators={over.indicators ?? DEFAULT_STATE.indicators}
       rsiPaneTop={over.rsiPaneTop === undefined ? 500 : over.rsiPaneTop}
       macdPaneTop={over.macdPaneTop ?? null}
+      earnings={over.earnings ?? null}
     />,
   )
 
@@ -202,4 +204,12 @@ test('Should show the change and the MACD of a forex pair with the decimals of f
   expect(text()).toContain('0.0012')
   expect(text()).toContain('0.0008')
   expect(text()).toContain('0.0004')
+})
+
+test('Should say when the next earnings come, and nothing without them', () => {
+  const first = setup({ earnings: 'Earnings Jan 28, 2027' })
+  expect(screen.getByText('Earnings Jan 28, 2027')).toBeTruthy()
+  first.unmount()
+  setup()
+  expect(text()).not.toContain('Earnings')
 })

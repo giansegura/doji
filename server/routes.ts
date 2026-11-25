@@ -3,6 +3,7 @@ import { type StateChanges, applyChanges } from '../shared/stateChanges'
 import { SYMBOL_PATTERN } from '../shared/symbols'
 import type { HistoryCache } from './historyCache'
 import type { Logo, LogoStore } from './logoStore'
+import type { EarningsSource } from './provider/earnings'
 import { type DataProvider, isProviderError } from './provider/yahoo'
 import type { StateStore } from './stateStore'
 
@@ -10,7 +11,7 @@ export type ApiRequest = { method: string; path: string; query: URLSearchParams;
 
 export type ApiResult = { status: number; body: unknown } | { status: 200; image: Logo }
 
-type ApiDeps = { history: HistoryCache; provider: DataProvider; state: StateStore; logos: LogoStore }
+type ApiDeps = { history: HistoryCache; provider: DataProvider; state: StateStore; logos: LogoStore; earnings: EarningsSource }
 
 type Route = (request: ApiRequest) => Promise<ApiResult>
 
@@ -91,6 +92,11 @@ export const createApi = (deps: ApiDeps): Route => {
       if (!SYMBOL_PATTERN.test(symbol)) return fail(400, 'invalid_symbol')
       const image = await deps.logos.get(symbol)
       return image ? { status: 200, image } : fail(404, 'not_found')
+    },
+    'GET /api/earnings': async ({ query }) => {
+      const symbol = query.get('symbol') ?? ''
+      if (!SYMBOL_PATTERN.test(symbol)) return fail(400, 'invalid_symbol')
+      return ok(await deps.earnings.get(symbol))
     },
     'GET /api/state': async () => ok(await deps.state.read()),
     'PUT /api/state': async ({ body }) => {

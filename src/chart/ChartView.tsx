@@ -5,14 +5,18 @@ import { changedLook, kindOf } from '../domain/lineLooks'
 import type { LivePrice } from '../domain/liveBar'
 import { splitBasis } from '../domain/splits'
 import { askToNotify } from '../hooks/useAlerts'
+import { useEarnings } from '../hooks/useEarnings'
 import type { Tool } from '../state/appReducer'
 import { LineToolbar } from './LineToolbar'
 import { LiveLegend } from './LiveLegend'
+import { nextEarningsLabel } from './earningsMarks'
 import { imageName, saveChartImage } from './screenshot'
 import * as Styles from './styles'
 import { useAutoFit } from './useAutoFit'
 import { useChart } from './useChart'
 import { useDrawing } from './useDrawing'
+import { useEarningsMarks } from './useEarningsMarks'
+import { useVolumeProfile } from './useVolumeProfile'
 
 type ChartViewProps = {
   history: History
@@ -69,6 +73,18 @@ export const ChartView = ({
     handleFill: theme.chart.bg,
     priceBasis: splitBasis(history.splits),
   })
+  useVolumeProfile({
+    handles,
+    bars: data.bars,
+    settings: indicators.volumeProfile,
+    colors: { up: theme.chart.up, down: theme.chart.down, poc: theme.ui.accent },
+  })
+  const earnings = useEarnings(history.info.symbol)
+  useEarningsMarks({
+    handles,
+    earnings,
+    colors: { past: theme.ui.textMuted, next: theme.ui.textMuted, background: theme.chart.bg, text: theme.chart.bg },
+  })
   const symbol = history.info.symbol
 
   const changeLine = (line: Drawing) => {
@@ -96,6 +112,7 @@ export const ChartView = ({
         indicators={indicators}
         rsiPaneTop={rsiPaneTop}
         macdPaneTop={macdPaneTop}
+        earnings={earnings ? nextEarningsLabel(earnings) : null}
       />
       {selectedLine && <LineToolbar line={selectedLine} onChange={changeLine} onDelete={deleteSelected} onArm={askToNotify} />}
       {manual && (

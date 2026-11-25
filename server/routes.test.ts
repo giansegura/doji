@@ -19,7 +19,8 @@ type Overrides = {
 
 const makeApi = (over: Overrides = {}) => {
   const saved: AppState[] = []
-  const requested: { history: string[]; kept: string[]; search: string[]; quotes: string[][]; logos: string[] } = {
+  const requested: { history: string[]; kept: string[]; search: string[]; quotes: string[][]; logos: string[]; earnings: string[] } = {
+    earnings: [],
     history: [],
     kept: [],
     search: [],
@@ -48,6 +49,12 @@ const makeApi = (over: Overrides = {}) => {
         requested.quotes.push(symbols)
         const fallback = async (list: string[]) => list.map((symbol) => ({ symbol, price: 10, change: 1, changePercent: 10 }))
         return (over.quotes ?? fallback)(symbols)
+      },
+    },
+    earnings: {
+      get: async (symbol) => {
+        requested.earnings.push(symbol)
+        return { past: ['2026-11-02'], next: '2027-01-28', nextIsEstimate: false }
       },
     },
     logos: {
@@ -331,4 +338,14 @@ test('Should return the kept copy of a history when asked for it', async () => {
   expect(bodyOf(result)).toEqual(historyOf('AAPL'))
   expect(requested.kept).toEqual(['AAPL'])
   expect(requested.history).toEqual([])
+})
+
+test('Should give the earnings dates of a valid symbol and refuse an invalid one', async () => {
+  const { call, requested } = makeApi()
+  expect(await call('GET', '/api/earnings?symbol=AAPL')).toEqual({
+    status: 200,
+    body: { past: ['2026-11-02'], next: '2027-01-28', nextIsEstimate: false },
+  })
+  expect(await call('GET', '/api/earnings?symbol=../x')).toEqual({ status: 400, body: { error: 'invalid_symbol' } })
+  expect(requested.earnings).toEqual(['AAPL'])
 })

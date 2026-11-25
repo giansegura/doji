@@ -13,6 +13,8 @@ export const LIST_DEFAULT_WIDTH = 400
 export const NOTE_MAX_LENGTH = 5000
 export const MIN_LINE_OPACITY = 0.1
 export const LINE_TEXT_MAX_LENGTH = 60
+export const PROFILE_MIN_ROWS = 6
+export const PROFILE_MAX_ROWS = 100
 export const SMA_COLORS = [
   '#FF9800',
   '#2962FF',

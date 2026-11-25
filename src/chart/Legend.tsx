@@ -13,6 +13,7 @@ export type LegendProps = {
   indicators: Indicators
   rsiPaneTop: number | null
   macdPaneTop: number | null
+  earnings?: string | null
 }
 
 const LEGEND_PADDING = 8
@@ -23,7 +24,7 @@ const PRICE_FIELDS = [
   ['C', 'close'],
 ] as const
 
-export const Legend = ({ info, timeframe, values, indicators, rsiPaneTop, macdPaneTop }: LegendProps) => {
+export const Legend = ({ info, timeframe, values, indicators, rsiPaneTop, macdPaneTop, earnings = null }: LegendProps) => {
   const theme = useTheme()
   const bar = values?.bar ?? null
   const rsi = values?.rsi ?? null
@@ -47,6 +48,7 @@ export const Legend = ({ info, timeframe, values, indicators, rsiPaneTop, macdPa
         <Styles.LegendRow>
           <SymbolLogo symbol={info.symbol} size={18} />
           <Styles.LegendTitle>{title}</Styles.LegendTitle>
+          {earnings && <Styles.LegendEarnings>{earnings}</Styles.LegendEarnings>}
           {bar &&
             PRICE_FIELDS.map(([label, field]) => (
               <Styles.LegendPair key={field}>

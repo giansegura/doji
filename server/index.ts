@@ -7,6 +7,7 @@ import { createLiveHub } from './liveHub'
 import { withTimeout } from './net'
 import { LOGO_SOURCES_VERSION, fallbackLogoUrl, finnhubLogoUrl, isUsableLogo } from './logoSources'
 import { type ImageFetchLike, createImageFetcher, createLogoStore } from './logoStore'
+import { type EarningsFetch, createEarningsSource } from './provider/earnings'
 import { type FetchLike, createYahooProvider } from './provider/yahoo'
 import { type SocketLike, createYahooStream } from './provider/yahooStream'
 import { createQuoteCache } from './quoteCache'
@@ -43,10 +44,20 @@ const provider = createYahooProvider({
 
 const quotes = createQuoteCache({ fetch: provider.quotes, now: () => new Date() })
 
+const offlineEarningsFetch: EarningsFetch = async () => {
+  throw new Error('offline')
+}
+
+const networkEarningsFetch: EarningsFetch = withTimeout((url, init) => fetch(url, init), REQUEST_TIMEOUT_MS)
+
 const api = createApi({
   history: createHistoryCache({ provider, dir: join(dataDir, 'cache'), now: () => new Date() }),
   provider: { ...provider, quotes: quotes.get },
   state: createStateStore(join(dataDir, 'state.json')),
+  earnings: createEarningsSource({
+    fetch: process.env.DOJI_OFFLINE ? offlineEarningsFetch : networkEarningsFetch,
+    now: () => new Date(),
+  }),
   logos: createLogoStore({
     sources: [finnhubLogoUrl, provider.logoUrl, fallbackLogoUrl],
     fetchImage: async (url) => {
