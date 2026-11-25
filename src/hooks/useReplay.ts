@@ -26,8 +26,8 @@ export const useReplay = ({ bars, timeframe, symbol }: ReplayArgs) => {
 
   const exit = useCallback(() => setReplay(OFF), [])
 
-  const pick = useCallback((date: string) => {
-    const cutoff = startOfReplay(latest.current.bars, latest.current.timeframe, date)
+  const pick = useCallback((date: string, pickedOn?: Timeframe) => {
+    const cutoff = startOfReplay(latest.current.bars, pickedOn ?? latest.current.timeframe, date)
     if (cutoff) setReplay({ status: 'on', cutoff, playing: false, speed: speedRef.current })
   }, [])
 

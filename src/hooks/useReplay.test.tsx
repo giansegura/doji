@@ -67,3 +67,12 @@ test('Should leave the replay when the chart changes symbol and ignore a pick on
   rerender({ symbol: 'MSFT' })
   expect(result.current.replay).toEqual({ status: 'off' })
 })
+
+test('Should start at the end of the week when the bar is picked on a weekly chart beside a daily one', () => {
+  const { result } = setup()
+  act(() => result.current.start())
+  act(() => result.current.pick('2026-06-01', 'W'))
+  expect(result.current.replay).toMatchObject({ status: 'on', cutoff: '2026-06-05' })
+  act(() => result.current.step())
+  expect(result.current.replay).toMatchObject({ cutoff: '2026-06-08' })
+})

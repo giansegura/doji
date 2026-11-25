@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { addWeekdays } from '../../shared/dates'
-import { type SavedView, type StorageLike, captureView, createViewStore, restoreView } from './savedViews'
+import { type SavedView, type StorageLike, captureView, createViewStore, restoreView, restoredWithin } from './savedViews'
 import { createTimeIndex } from './timeIndex'
 
 const START = '2020-01-06'
@@ -112,4 +112,10 @@ test('Should still work in memory when the browser refuses to store anything', (
   store.set('main:AAPL', view())
   expect(store.get('main:AAPL')).toEqual(view())
   expect(createViewStore(null).get('main:AAPL')).toBeNull()
+})
+
+test('Should give up a saved view that starts after the last bar there is, as in a replay', () => {
+  const replayed = createTimeIndex(days(300), 'D')
+  expect(restoredWithin(view(), replayed, 'D', 300)).toBeNull()
+  expect(restoredWithin(view({ from: '2020-06-01' }), replayed, 'D', 300)).toEqual(restoreView(view({ from: '2020-06-01' }), replayed, 'D'))
 })

@@ -32,7 +32,7 @@ type ChartViewProps = {
   live?: LivePrice | null
   viewId?: string
   asOf?: string | null
-  onPickBar?: (time: string) => void
+  onPickBar?: (time: string, timeframe: Timeframe) => void
   screenshotRef?: RefObject<(() => void) | null>
   lines: Drawing[]
   tool: Tool
@@ -106,7 +106,7 @@ export const ChartView = ({
   })
   const loadedEarnings = useEarnings(history.info.symbol)
   const earnings = useMemo(() => (loadedEarnings ? earningsAsOf(loadedEarnings, asOf) : null), [loadedEarnings, asOf])
-  usePickBar(handles, data.bars, onPickBar)
+  usePickBar(handles, data.bars, onPickBar ? (time) => onPickBar(time, timeframe) : undefined)
   useBackToPresent(handles, asOf)
   useEarningsMarks({
     handles,
