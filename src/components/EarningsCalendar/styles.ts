@@ -22,6 +22,10 @@ export const Dialog = styled.div`
   border-radius: 8px;
   box-shadow: 0 8px 28px ${(props) => props.theme.ui.shadow};
   overflow: hidden;
+
+  &:focus {
+    outline: none;
+  }
 `
 
 export const Header = styled.div`
@@ -159,4 +163,9 @@ export const Check = styled.label`
   align-items: center;
   gap: 6px;
   cursor: pointer;
+`
+
+export const Weekday = styled.span`
+  color: ${(props) => props.theme.ui.textMuted};
+  font-size: 11px;
 `

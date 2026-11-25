@@ -1,4 +1,4 @@
-import { type KeyboardEvent, type MouseEvent, useMemo, useState } from 'react'
+import { type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { addDays } from '../../../shared/dates'
 import { displaySymbol } from '../../../shared/symbols'
 import type { Earnings, EarningsTiming, SymbolList } from '../../../shared/types'
@@ -24,6 +24,8 @@ const WEEKDAY = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: '
 const TIMING_WORDS: Record<EarningsTiming, string> = { pre: 'before the opening', post: 'after the close' }
 const TIMING_MARKS: Record<EarningsTiming, string> = { pre: '☀', post: '☾' }
 
+const FOCUSABLE = 'button:not([disabled]), select:not([disabled]), input:not([disabled]), [href]'
+
 const asDate = (date: string): Date => new Date(`${date}T00:00:00Z`)
 
 const weekLabel = (monday: string): string => {
@@ -34,10 +36,13 @@ const weekLabel = (monday: string): string => {
 const dayLabel = (date: string, weekend: boolean): string =>
   weekend ? `Weekend ${DAY.format(asDate(date))}` : `${WEEKDAY.format(asDate(date))} ${DAY.format(asDate(date))}`
 
-const entryLabel = (entry: CalendarEntry): string =>
+const weekdayOf = (date: string): string => WEEKDAY.format(asDate(date))
+
+const entryLabel = (entry: CalendarEntry, weekend: boolean): string =>
   [
     displaySymbol(entry.symbol),
     entry.name,
+    ...(weekend ? [`${weekdayOf(entry.date)} ${DAY.format(asDate(entry.date))}`] : []),
     ...(entry.timing ? [TIMING_WORDS[entry.timing]] : []),
     ...(entry.estimate ? ['estimated date'] : []),
   ].join(', ')
@@ -45,13 +50,37 @@ const entryLabel = (entry: CalendarEntry): string =>
 export const EarningsCalendar = ({ lists, earnings, pending, today, badge, onBadge, onPick, onClose }: EarningsCalendarProps) => {
   const [monday, setMonday] = useState(() => weekStart(today))
   const [listId, setListId] = useState(ALL_LISTS)
+  const dialogRef = useRef<HTMLDivElement>(null)
   const entries = useMemo(() => calendarEntries(calendarItems(lists), earnings), [lists, earnings])
   const days = calendarWeek(entries, monday, listId === ALL_LISTS ? null : listId)
   const namesOf = (entry: CalendarEntry): string =>
     entry.lists.map((id) => lists.find((list) => list.id === id)?.name ?? '').filter(Boolean).join(', ')
 
+  useEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    dialogRef.current?.focus()
+    return () => previous?.focus()
+  }, [])
+
+  const keepTabInside = (event: KeyboardEvent) => {
+    const items = [...(dialogRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])]
+    const first = items[0]
+    const last = items.at(-1)
+    if (!first || !last) return
+    const atStart = document.activeElement === first || document.activeElement === dialogRef.current
+    if (event.shiftKey && atStart) {
+      event.preventDefault()
+      last.focus()
+    }
+    if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
+
   const handleKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Escape') onClose()
+    if (event.key === 'Tab') keepTabInside(event)
   }
 
   const handleBackdrop = (event: MouseEvent) => {
@@ -65,7 +94,7 @@ export const EarningsCalendar = ({ lists, earnings, pending, today, badge, onBad
 
   return (
     <Styles.Backdrop onClick={handleBackdrop}>
-      <Styles.Dialog role="dialog" aria-modal="true" aria-label="Earnings calendar" onKeyDown={handleKeyDown}>
+      <Styles.Dialog ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Earnings calendar" onKeyDown={handleKeyDown}>
         <Styles.Header>
           <Styles.Title>Earnings</Styles.Title>
           <Styles.Nav>
@@ -101,13 +130,14 @@ export const EarningsCalendar = ({ lists, earnings, pending, today, badge, onBad
                 <Styles.Entry
                   key={`${entry.symbol}-${entry.date}`}
                   type="button"
-                  aria-label={entryLabel(entry)}
+                  aria-label={entryLabel(entry, index >= 5)}
                   title={[entry.name, namesOf(entry)].filter(Boolean).join(' · ')}
                   $past={entry.kind === 'past'}
                   onClick={() => pick(entry.symbol)}
                 >
                   <SymbolLogo symbol={entry.symbol} size={16} />
                   <Styles.Ticker>{displaySymbol(entry.symbol)}</Styles.Ticker>
+                  {index >= 5 && <Styles.Weekday>{weekdayOf(entry.date)}</Styles.Weekday>}
                   {entry.timing && <Styles.Mark aria-hidden="true">{TIMING_MARKS[entry.timing]}</Styles.Mark>}
                   {entry.estimate && <Styles.Mark aria-hidden="true">~</Styles.Mark>}
                 </Styles.Entry>

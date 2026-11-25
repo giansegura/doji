@@ -1,3 +1,4 @@
+import { type CalendarAnswer, askInBatches } from '../../shared/earningsCalendarBatches'
 import { changesSince } from '../../shared/stateChanges'
 import type { AppState, Earnings, History, Quote, SymbolInfo } from '../../shared/types'
 import type { SaveResult } from '../state/stateSync'
@@ -40,10 +41,10 @@ export const searchSymbols = (query: string): Promise<SymbolInfo[]> =>
 
 export const getEarnings = (symbol: string): Promise<Earnings> => request(`/api/earnings?symbol=${encodeURIComponent(symbol)}`)
 
-export type EarningsCalendarAnswer = { earnings: Record<string, Earnings>; pending: number }
+export type EarningsCalendarAnswer = CalendarAnswer
 
 export const getEarningsCalendar = (symbols: string[]): Promise<EarningsCalendarAnswer> =>
-  request(`/api/earnings/calendar?symbols=${symbols.map(encodeURIComponent).join(',')}`)
+  askInBatches(symbols, (batch) => request(`/api/earnings/calendar?symbols=${batch.map(encodeURIComponent).join(',')}`))
 
 export const getQuotes = (symbols: string[]): Promise<Quote[]> =>
   request(`/api/quotes?symbols=${symbols.map(encodeURIComponent).join(',')}`)

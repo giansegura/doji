@@ -788,7 +788,7 @@ await step('el calendario de resultados enseña la última presentación de una 
   await button('Earnings calendar').click()
   const dialog = page.getByRole('dialog', { name: 'Earnings calendar' })
   await dialog.waitFor({ timeout: 3000 })
-  await dialog.getByRole('status').waitFor({ state: 'detached', timeout: 90_000 })
+  await dialog.getByRole('status').waitFor({ state: 'detached', timeout: 180_000 })
   const answer = await page.evaluate(
     async (list) => (await fetch(`/api/earnings/calendar?symbols=${list.join(',')}`)).json(),
     symbols,

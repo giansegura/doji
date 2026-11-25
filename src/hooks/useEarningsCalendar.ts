@@ -3,12 +3,14 @@ import { type EarningsCalendarAnswer, getEarningsCalendar } from '../api/client'
 
 const NO_EARNINGS: EarningsCalendarAnswer['earnings'] = {}
 const POLL_MS = 3000
+const REFRESH_MS = 30 * 60_000
 
 export const useEarningsCalendar = (
   symbols: string[],
   enabled: boolean,
   fetchCalendar: (symbols: string[]) => Promise<EarningsCalendarAnswer> = getEarningsCalendar,
   pollMs = POLL_MS,
+  refreshMs = REFRESH_MS,
 ): EarningsCalendarAnswer => {
   const [answer, setAnswer] = useState<(EarningsCalendarAnswer & { key: string }) | null>(null)
   const fetchRef = useRef(fetchCalendar)
@@ -28,7 +30,7 @@ export const useEarningsCalendar = (
         .then((next) => {
           if (!active) return
           setAnswer({ ...next, key })
-          if (next.pending > 0) timer = setTimeout(ask, pollMs)
+          timer = setTimeout(ask, next.pending > 0 ? pollMs : refreshMs)
         })
         .catch(() => {
           if (active) timer = setTimeout(ask, pollMs)
@@ -39,7 +41,7 @@ export const useEarningsCalendar = (
       active = false
       if (timer !== null) clearTimeout(timer)
     }
-  }, [enabled, key, pollMs])
+  }, [enabled, key, pollMs, refreshMs])
 
   const current = answer?.key === key ? answer : null
   const waiting = enabled && key ? key.split(',').length : 0

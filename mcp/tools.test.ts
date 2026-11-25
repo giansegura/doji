@@ -465,6 +465,13 @@ test('Should list the earnings of one watchlist between two dates, past ones inc
   ])
 })
 
+test('Should refuse a day that does not exist on the calendar', async () => {
+  const { call } = await connect(fakeApi().api)
+  expect((await call('get_earnings_calendar', { from: '2026-13-01', to: '2026-13-31' })).failed).toBe(true)
+  expect((await call('get_earnings_calendar', { from: '2026-02-29' })).failed).toBe(true)
+  expect((await call('get_earnings_calendar', { from: '2028-02-29' })).failed).toBe(false)
+})
+
 test('Should say how many dates doji is still fetching', async () => {
   const { call } = await connect(fakeApi({ pendingEarnings: 40 }).api)
   const { data } = await call('get_earnings_calendar')

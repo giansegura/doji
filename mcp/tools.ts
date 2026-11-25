@@ -44,7 +44,11 @@ const LIST_NAME_LIMIT = 40
 const ADDED = 'Added. It shows in doji within a few seconds.'
 const CALENDAR_DAYS = 7
 const TIMING_WORDS = { pre: 'before the opening', post: 'after the close' } as const
-const dateField = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+const isCalendarDay = (text: string): boolean => {
+  const date = new Date(`${text}T00:00:00Z`)
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === text
+}
+const dateField = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(isCalendarDay, 'Not a day of the calendar.')
 
 const symbolField = z.string().trim().regex(SYMBOL_PATTERN).describe('Ticker as Yahoo Finance writes it, for example AAPL, BRK-B or ^GSPC.')
 const timeframeField = z.enum(['D', 'W', 'M']).describe('D daily, W weekly, M monthly candles. Defaults to D.')

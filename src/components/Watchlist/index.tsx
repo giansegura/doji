@@ -168,7 +168,7 @@ export const Watchlist = ({
                 item={item}
                 quote={quotes[item.symbol]}
                 active={item.symbol === activeSymbol}
-                earningsIn={earningsSoon?.[item.symbol]}
+                earningsIn={earningsSoon?.[item.symbol.toUpperCase()]}
                 onSelect={() => onSelect(item.symbol)}
                 onRemove={() => onRemove(item.symbol)}
               />

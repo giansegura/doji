@@ -95,7 +95,7 @@ const asOf = (earnings: Earnings, now: Date): Earnings => {
   const today = now.toISOString().slice(0, 10)
   if (!earnings.next || earnings.next >= today) return earnings
   const past = earnings.nextIsEstimate ? earnings.past : [...earnings.past, earnings.next]
-  return { past, next: null, nextIsEstimate: false }
+  return { ...earnings, past, next: null, nextIsEstimate: false }
 }
 
 export const createEarningsSource = (deps: { fetch: EarningsFetch; now: () => Date; store?: EarningsStore }): EarningsSource => {

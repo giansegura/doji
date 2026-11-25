@@ -461,6 +461,11 @@ test('Should leave the mark as it is when the list is drawn again with the same 
   expect(flashOf('AAPL')).toBe(first)
 })
 
+test('Should warn on the row of a symbol saved in lower case too', () => {
+  setup({ items: [{ symbol: 'aapl', name: 'Apple Inc.', exchange: 'NASDAQ' }], earningsSoon: { AAPL: 3 } })
+  expect(screen.getByRole('img', { name: 'Earnings in 3 days' })).toBeTruthy()
+})
+
 test('Should warn on the row of a symbol that reports earnings within a week', () => {
   setup({ earningsSoon: { AAPL: 3, MSFT: 0 } })
   expect(screen.getByRole('img', { name: 'Earnings in 3 days' }).textContent).toBe('E 3d')

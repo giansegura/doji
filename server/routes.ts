@@ -1,3 +1,4 @@
+import { MAX_CALENDAR_SYMBOLS } from '../shared/earningsCalendarBatches'
 import { normalizeState } from '../shared/normalizeState'
 import { type StateChanges, applyChanges } from '../shared/stateChanges'
 import { SYMBOL_PATTERN } from '../shared/symbols'
@@ -18,7 +19,6 @@ type Route = (request: ApiRequest) => Promise<ApiResult>
 const LOCAL_HOSTNAMES = ['127.0.0.1', 'localhost', '[::1]']
 const OWN_FETCH_SITES = ['same-origin', 'none']
 const WRITING_METHODS = ['PUT', 'PATCH']
-const MAX_CALENDAR_SYMBOLS = 500
 
 const ok = (body: unknown): ApiResult => ({ status: 200, body })
 

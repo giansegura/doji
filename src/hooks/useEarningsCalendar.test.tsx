@@ -16,7 +16,7 @@ test('Should ask again while the server is still fetching dates and stop once it
     asked.push(symbols)
     return answers[Math.min(asked.length - 1, answers.length - 1)]
   }
-  const { result } = renderHook(() => useEarningsCalendar(['AAPL', 'NVDA'], true, fetchCalendar, 5))
+  const { result } = renderHook(() => useEarningsCalendar(['AAPL', 'NVDA'], true, fetchCalendar, 5, 1000))
   await waitFor(() => expect(result.current.pending).toBe(0))
   expect(Object.keys(result.current.earnings)).toEqual(['AAPL', 'NVDA'])
   await new Promise((done) => setTimeout(done, 30))
@@ -33,4 +33,18 @@ test('Should ask nothing while switched off or without symbols', async () => {
   renderHook(() => useEarningsCalendar([], true, fetchCalendar, 5))
   await new Promise((done) => setTimeout(done, 20))
   expect(asked).toEqual([])
+})
+
+test('Should look again now and then once it has every date, so the dates stay current', async () => {
+  const asked: string[][] = []
+  const fetchCalendar = async (symbols: string[]) => {
+    asked.push(symbols)
+    return { earnings: { AAPL: of(asked.length === 1 ? '2027-01-28' : '2027-01-29') }, pending: 0 }
+  }
+  const { result, unmount } = renderHook(() => useEarningsCalendar(['AAPL'], true, fetchCalendar, 5, 20))
+  await waitFor(() => expect(result.current.earnings.AAPL?.next).toBe('2027-01-29'))
+  unmount()
+  const count = asked.length
+  await new Promise((done) => setTimeout(done, 60))
+  expect(asked).toHaveLength(count)
 })

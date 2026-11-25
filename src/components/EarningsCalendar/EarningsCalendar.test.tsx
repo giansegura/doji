@@ -96,3 +96,43 @@ test('Should switch the earnings warning of the watchlist on and close with Esca
   await user.keyboard('{Escape}')
   expect(handlers.onClose).toHaveBeenCalled()
 })
+
+test('Should take the focus when it opens, so Escape closes it at once, and give the focus back when it closes', async () => {
+  const opener = document.createElement('button')
+  opener.textContent = 'Earnings calendar'
+  document.body.append(opener)
+  opener.focus()
+  const onClose = vi.fn()
+  const view = renderWithTheme(
+    <EarningsCalendar lists={lists} earnings={earnings} pending={0} today="2026-11-24" badge={false} onBadge={vi.fn()} onPick={vi.fn()} onClose={onClose} />,
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Earnings calendar' })
+  expect(dialog.contains(document.activeElement)).toBe(true)
+  await userEvent.setup().keyboard('{Escape}')
+  expect(onClose).toHaveBeenCalled()
+  view.unmount()
+  expect(document.activeElement).toBe(opener)
+  opener.remove()
+})
+
+test('Should keep Tab inside the dialog', async () => {
+  const { user } = setup()
+  const dialog = screen.getByRole('dialog', { name: 'Earnings calendar' })
+  const checkbox = screen.getByRole('checkbox', { name: 'Warn in the watchlist when earnings are less than a week away' })
+  checkbox.focus()
+  await user.tab()
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Previous week' }))
+  await user.tab({ shift: true })
+  expect(document.activeElement).toBe(checkbox)
+  expect(dialog.contains(document.activeElement)).toBe(true)
+})
+
+test('Should say the day of each report of the weekend', () => {
+  const weekend: Record<string, Earnings> = { AAPL: { past: [], next: '2026-11-29', nextIsEstimate: false } }
+  renderWithTheme(
+    <EarningsCalendar lists={lists} earnings={weekend} pending={0} today="2026-11-24" badge={false} onBadge={vi.fn()} onPick={vi.fn()} onClose={vi.fn()} />,
+  )
+  const entry = within(day(/^Weekend/)).getByRole('button', { name: /^AAPL/ })
+  expect(entry.textContent).toContain('Sun')
+  expect(entry.getAttribute('aria-label')).toContain('Sun Nov 29')
+})
