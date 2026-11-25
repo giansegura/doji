@@ -1,6 +1,6 @@
 import { daysBetween, weekdaysBetween } from './dates'
 import { tradesEveryDay } from './symbols'
-import { canAlert, isTrend } from './drawings'
+import { canAlert, expiredAlert, isTrend } from './drawings'
 import type { Drawing, Quote, TrendLine } from './types'
 
 export type Direction = 'up' | 'down'
@@ -13,6 +13,9 @@ export type AlertWatcher = {
 }
 
 const isArmed = (drawing: Drawing): boolean => drawing.pane === 'price' && canAlert(drawing) && drawing.alert === true
+
+const isLive = (drawing: Drawing, today: string): boolean =>
+  isArmed(drawing) && canAlert(drawing) && !expiredAlert(drawing, today) && !(drawing.alertRepeat && drawing.alertFiredOn === today)
 
 const trendLevel = (line: TrendLine, today: string, everyDay: boolean): number | null => {
   const between = everyDay ? daysBetween : weekdaysBetween
@@ -54,7 +57,7 @@ export const createAlertWatcher = (): AlertWatcher => {
   const firedFor = (symbol: string, drawings: Drawing[], price: number, today: string): FiredAlert[] => {
     const previous = seen.get(symbol)
     if (previous === undefined) return []
-    return drawings.filter(isArmed).flatMap((drawing) => {
+    return drawings.filter((drawing) => isLive(drawing, today)).flatMap((drawing) => {
       const everyDay = tradesEveryDay(symbol)
       const before = alertLevels(drawing, previous.day, everyDay)
       const hits = alertLevels(drawing, today, everyDay).flatMap((level, index) => {

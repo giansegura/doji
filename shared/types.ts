@@ -126,17 +126,19 @@ export type DrawingBase = {
   hidden?: true
 }
 
-export type TrendLine = DrawingBase & {
-  kind?: 'trend'
-  p1: LinePoint
-  p2: LinePoint
-  extendRight: boolean
-  alert?: boolean
-  text?: string
-  arrow?: true
-}
+export type AlertSettings = { alert?: boolean; alertRepeat?: true; alertUntil?: string; alertFiredOn?: string }
 
-export type HorizontalLine = DrawingBase & { kind: 'hline'; value: number; alert?: boolean; hidePrice?: true; text?: string; from?: string }
+export type TrendLine = DrawingBase &
+  AlertSettings & {
+    kind?: 'trend'
+    p1: LinePoint
+    p2: LinePoint
+    extendRight: boolean
+    text?: string
+    arrow?: true
+  }
+
+export type HorizontalLine = DrawingBase & AlertSettings & { kind: 'hline'; value: number; hidePrice?: true; text?: string; from?: string }
 
 export type VerticalLine = DrawingBase & { kind: 'vline'; date: string; text?: string }
 
@@ -150,17 +152,17 @@ export type Rectangle = DrawingBase & { kind: 'rect'; p1: LinePoint; p2: LinePoi
 
 export type PositionSide = 'long' | 'short'
 
-export type Position = DrawingBase & {
-  kind: 'position'
-  side: PositionSide
-  p1: LinePoint
-  p2: LinePoint
-  stop: number
-  target: number
-  alert?: boolean
-  account?: number
-  riskPercent?: number
-}
+export type Position = DrawingBase &
+  AlertSettings & {
+    kind: 'position'
+    side: PositionSide
+    p1: LinePoint
+    p2: LinePoint
+    stop: number
+    target: number
+    account?: number
+    riskPercent?: number
+  }
 
 export type Drawing = TrendLine | HorizontalLine | Channel | Rectangle | Position | VerticalLine | PriceZone | TextNote
 
@@ -253,6 +255,7 @@ export type AppState = {
   lineLooks: Partial<Record<DrawingKind, LineLook>>
   earningsBadge: boolean
   ticker: Ticker
+  alertHistory: AlertEvent[]
 }
 
 export const DEFAULT_STATE: AppState = {
@@ -311,4 +314,5 @@ export const DEFAULT_STATE: AppState = {
   lineLooks: {},
   earningsBadge: false,
   ticker: DEFAULT_TICKER,
+  alertHistory: [],
 }

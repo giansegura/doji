@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { ThemeProvider } from 'styled-components'
 import { themes } from '../theme/tokens'
 import userEvent from '@testing-library/user-event'
@@ -23,6 +23,11 @@ const setup = (over: Partial<TrendLine> = {}) => {
   const handlers = { onChange: vi.fn(), onDelete: vi.fn() }
   renderWithTheme(<LineToolbar line={{ ...line, ...over }} {...handlers} />)
   return { handlers, user: userEvent.setup() }
+}
+
+const cleanupAndRender = (drawing: Drawing, onChange: (line: Drawing) => void) => {
+  cleanup()
+  renderWithTheme(<LineToolbar line={drawing} onChange={onChange} onDelete={vi.fn()} />)
 }
 
 const pressed = (name: string): string | null => screen.getByRole('button', { name }).getAttribute('aria-pressed')
@@ -107,6 +112,42 @@ test('Should disarm an alert that is armed', async () => {
   expect(bell.getAttribute('aria-pressed')).toBe('true')
   await user.click(bell)
   expect(handlers.onChange).toHaveBeenCalledWith({ ...line, alert: false })
+})
+
+test('Should forget the day an alert last fired when it is armed again', async () => {
+  const { handlers, user } = setup({ alert: false, alertRepeat: true, alertFiredOn: '2026-11-24' })
+  await user.click(screen.getByRole('button', { name: 'Alert' }))
+  expect(handlers.onChange).toHaveBeenCalledWith({ ...line, alertRepeat: true, alert: true })
+})
+
+test('Should offer how often and until when only once the alert is armed', () => {
+  setup()
+  expect(screen.queryByRole('combobox', { name: 'Alert repeat' })).toBeNull()
+  expect(screen.queryByLabelText('Alert until')).toBeNull()
+})
+
+test('Should let an armed alert fire once or on every cross at most once a day', async () => {
+  const { handlers, user } = setup({ alert: true })
+  const repeat = screen.getByRole('combobox', { name: 'Alert repeat' }) as HTMLSelectElement
+  expect(repeat.value).toBe('once')
+  await user.selectOptions(repeat, 'repeat')
+  expect(handlers.onChange).toHaveBeenCalledWith({ ...line, alert: true, alertRepeat: true })
+})
+
+test('Should go back to firing once and forget the day it last fired', async () => {
+  const { handlers, user } = setup({ alert: true, alertRepeat: true, alertFiredOn: '2026-11-24' })
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Alert repeat' }), 'once')
+  expect(handlers.onChange).toHaveBeenCalledWith({ ...line, alert: true })
+})
+
+test('Should set and clear the last day of an armed alert', () => {
+  const { handlers } = setup({ alert: true })
+  const until = screen.getByLabelText('Alert until') as HTMLInputElement
+  fireEvent.change(until, { target: { value: '2026-12-31' } })
+  expect(handlers.onChange).toHaveBeenLastCalledWith({ ...line, alert: true, alertUntil: '2026-12-31' })
+  cleanupAndRender({ ...line, alert: true, alertUntil: '2026-12-31' }, handlers.onChange)
+  fireEvent.change(screen.getByLabelText('Alert until'), { target: { value: '' } })
+  expect(handlers.onChange).toHaveBeenLastCalledWith({ ...line, alert: true })
 })
 
 test('Should offer an alert on a horizontal line but not on a channel or a rectangle', () => {

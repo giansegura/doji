@@ -172,3 +172,25 @@ test('Should read a trend line of a cryptocurrency by every day gone since it st
   expect(alertLevel(line, '2026-11-21', true)).toBe(101)
   expect(alertLevel(line, '2026-11-21')).toBe(102)
 })
+
+test('Should not fire an alert after its last day', () => {
+  const watcher = createAlertWatcher()
+  const lines = { KO: [level({ alertUntil: '2026-11-24' })] }
+  watcher.check(lines, { KO: 99 }, '2026-11-24')
+  expect(watcher.check(lines, { KO: 101 }, '2026-11-24')).toHaveLength(1)
+  watcher.check(lines, { KO: 99 }, '2026-11-25')
+  expect(watcher.check(lines, { KO: 101 }, '2026-11-25')).toEqual([])
+})
+
+test('Should fire a repeating alert at most once a day', () => {
+  const watcher = createAlertWatcher()
+  const firedToday = { KO: [level({ alertRepeat: true, alertFiredOn: '2026-11-24' })] }
+  watcher.check(firedToday, { KO: 99 }, '2026-11-24')
+  expect(watcher.check(firedToday, { KO: 101 }, '2026-11-24')).toEqual([])
+  watcher.check(firedToday, { KO: 99 }, '2026-11-25')
+  expect(watcher.check(firedToday, { KO: 101 }, '2026-11-25')).toEqual([{ symbol: 'KO', drawingId: 'a', level: 100, price: 101, direction: 'up' }])
+})
+
+test('Should keep watching the symbols of alerts that already fired today', () => {
+  expect(armedSymbols({ KO: [level({ alertRepeat: true, alertFiredOn: '2026-11-24' })] })).toEqual(['KO'])
+})

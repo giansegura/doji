@@ -26,7 +26,9 @@ import { toFilters } from './filters'
 import { toHoldings } from './holdings'
 import { toIndicatorAlerts } from './indicatorAlerts'
 import { toTicker } from './ticker'
+import { toAlertHistory } from './alertHistory'
 import {
+  type AlertSettings,
   type AppState,
   type ChartSettings,
   DEFAULT_STATE,
@@ -151,6 +153,18 @@ const toOpacity = (value: unknown): Pick<DrawingBase, 'opacity'> => {
 
 const POSITION_SIDES = ['long', 'short'] as const
 
+const toAlert = (item: Raw): AlertSettings => {
+  if (item.alert !== true) return {}
+  const until = asDate(item.alertUntil)
+  const firedOn = asDate(item.alertFiredOn)
+  return {
+    alert: true,
+    ...(item.alertRepeat === true ? { alertRepeat: true as const } : {}),
+    ...(until ? { alertUntil: until } : {}),
+    ...(firedOn ? { alertFiredOn: firedOn } : {}),
+  }
+}
+
 const positiveOf = (value: unknown, most = Number.POSITIVE_INFINITY): number | null => {
   const number = asFinite(value)
   return number !== null && number > 0 && number <= most ? number : null
@@ -171,7 +185,7 @@ const toPosition = (item: Raw, base: DrawingBase, p1: LinePoint | null, p2: Line
     p2,
     stop,
     target,
-    ...(item.alert === true ? { alert: true } : {}),
+    ...toAlert(item),
     ...(account !== null ? { account } : {}),
     ...(riskPercent !== null ? { riskPercent } : {}),
   }
@@ -234,7 +248,7 @@ const toDrawing = (raw: unknown): Drawing | null => {
   const value = asFinite(item.value)
   const offset = asFinite(item.offset)
   if (!base) return null
-  const alert = item.alert === true ? { alert: true as const } : {}
+  const alert = toAlert(item)
   const hidePrice = item.hidePrice === true ? { hidePrice: true as const } : {}
   const text = toLineText(item.text)
   if (item.kind === 'hline') {
@@ -447,5 +461,6 @@ export const normalizeState = (raw: unknown): AppState => {
     lineLooks: toLineLooks(source.lineLooks),
     earningsBadge: source.earningsBadge === true,
     ticker: toTicker(source.ticker),
+    alertHistory: toAlertHistory(source.alertHistory),
   }
 }

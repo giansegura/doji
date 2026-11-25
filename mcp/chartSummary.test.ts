@@ -349,3 +349,13 @@ test('Should read where a trend line of a cryptocurrency stands today counting e
   const [described] = summarizeChart({ ...input(), history, drawings: [line] }).drawings
   expect(described).toMatchObject({ id: 't', levelToday: 103 })
 })
+
+test('Should say when an armed alert repeats and until which day it lasts', () => {
+  const base = { pane: 'price' as const, timeframe: 'D' as const, color: '#2962FF', width: 2, pricedAt: '2020-01-01' }
+  const drawings: Drawing[] = [
+    { ...base, id: 'h', kind: 'hline', value: 230, alert: true, alertRepeat: true, alertUntil: '2026-12-31', alertFiredOn: '2026-11-24' },
+  ]
+  expect(summarizeChart(input({ drawings })).drawings).toEqual([
+    { id: 'h', kind: 'horizontal', pane: 'price', level: 230, alert: true, alertRepeats: true, alertUntil: '2026-12-31' },
+  ])
+})

@@ -1,5 +1,6 @@
 import { type FiredAlert, alertLevels, armedSymbols, createAlertWatcher, latestPrice } from '../shared/alerts'
-import { withoutAlert } from '../shared/drawings'
+import { withHistory } from '../shared/alertHistory'
+import { afterFiring, expiredAlert, withoutAlert } from '../shared/drawings'
 import { type IndicatorHit, createIndicatorWatcher, indicatorLabel, sessionDayOf, withLivePrice } from '../shared/indicatorAlerts'
 import type { AlertEvent, AppState, Drawing, LiveTick, Quote } from '../shared/types'
 import type { SaveOutcome } from './stateStore'
@@ -34,11 +35,17 @@ const twoDigits = (value: number): string => String(value).padStart(2, '0')
 
 const dayOf = (date: Date): string => `${date.getFullYear()}-${twoDigits(date.getMonth() + 1)}-${twoDigits(date.getDate())}`
 
+type Outcome = { hits: FiredAlert[]; indicatorHits: IndicatorHit[]; events: AlertEvent[]; today: string }
+
 const firedOn = (hit: FiredAlert, symbol: string, drawing: Drawing, today: string): boolean =>
   hit.symbol === symbol && hit.drawingId === drawing.id && alertLevels(drawing, today).some((level) => level === hit.level)
 
-const withDisarmed = (state: AppState, today: string, hits: FiredAlert[], indicatorHits: IndicatorHit[] = []): AppState => ({
+const hasExpired = (state: AppState, today: string): boolean =>
+  Object.values(state.lines).some((drawings) => drawings.some((drawing) => expiredAlert(drawing, today)))
+
+const afterOutcome = (state: AppState, { hits, indicatorHits, events, today }: Outcome): AppState => ({
   ...state,
+  alertHistory: withHistory(state.alertHistory, events),
   indicatorAlerts: Object.fromEntries(
     Object.entries(state.indicatorAlerts).map(([symbol, alerts]) => [
       symbol,
@@ -48,7 +55,10 @@ const withDisarmed = (state: AppState, today: string, hits: FiredAlert[], indica
   lines: Object.fromEntries(
     Object.entries(state.lines).map(([symbol, drawings]) => [
       symbol,
-      drawings.map((drawing) => (hits.some((hit) => firedOn(hit, symbol, drawing, today)) ? withoutAlert(drawing) : drawing)),
+      drawings.map((drawing) => {
+        if (expiredAlert(drawing, today)) return withoutAlert(drawing)
+        return hits.some((hit) => firedOn(hit, symbol, drawing, today)) ? afterFiring(drawing, today) : drawing
+      }),
     ]),
   ),
 })
@@ -107,10 +117,10 @@ export const createAlertMonitor = (deps: MonitorDeps): AlertMonitor => {
     return found
   }
 
-  const disarmOnce = async (today: string, hits: FiredAlert[], indicatorHits: IndicatorHit[]): Promise<AppState | null> => {
+  const recordOnce = async (result: Outcome): Promise<AppState | null> => {
     try {
       const fresh = await deps.read()
-      const next = withDisarmed(fresh, today, hits, indicatorHits)
+      const next = afterOutcome(fresh, result)
       const outcome = await deps.save(next, fresh.rev)
       return outcome.ok ? { ...next, rev: outcome.rev } : null
     } catch {
@@ -118,9 +128,9 @@ export const createAlertMonitor = (deps: MonitorDeps): AlertMonitor => {
     }
   }
 
-  const disarm = async (today: string, hits: FiredAlert[], indicatorHits: IndicatorHit[]): Promise<AppState | null> => {
+  const record = async (result: Outcome): Promise<AppState | null> => {
     for (let attempt = 0; attempt < SAVE_ATTEMPTS; attempt += 1) {
-      const saved = await disarmOnce(today, hits, indicatorHits)
+      const saved = await recordOnce(result)
       if (saved) return saved
     }
     return null
@@ -134,9 +144,7 @@ export const createAlertMonitor = (deps: MonitorDeps): AlertMonitor => {
       const before = state
       const hits = watcher.check(before.lines, prices, today)
       const indicatorHits = (await indicatorHitsFor(before, prices, today)).filter((hit) => stillArmed(state, hit))
-      if (hits.length === 0 && indicatorHits.length === 0) return []
-      const saved = await disarm(today, hits, indicatorHits)
-      if (saved) stateSaved(saved)
+      if (hits.length === 0 && indicatorHits.length === 0 && !hasExpired(before, today)) return []
       const lineEvents = hits.map((hit) => ({
         id: deps.newId(),
         symbol: hit.symbol,
@@ -160,6 +168,9 @@ export const createAlertMonitor = (deps: MonitorDeps): AlertMonitor => {
         }
       })
       const events = [...lineEvents, ...indicatorEvents]
+      const saved = await record({ hits, indicatorHits, events, today })
+      if (saved) stateSaved(saved)
+      if (events.length === 0) return []
       deps.announce(events)
       return events
     })

@@ -1,6 +1,6 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { LINE_TEXT_MAX_LENGTH, MIN_LINE_OPACITY } from '../../shared/limits'
-import { isTrend } from '../../shared/drawings'
+import { type Alertable, canAlert, isTrend } from '../../shared/drawings'
 import type { Drawing, LineStyle, Position, TrendLine } from '../../shared/types'
 import { LINE_COLORS } from '../theme/tokens'
 import * as Styles from './styles'
@@ -46,6 +46,21 @@ const withText = (line: Drawing, text: string): Drawing => {
   if (line.kind === 'note') return text ? { ...line, text } : line
   const { text: _old, ...rest } = line as Exclude<Drawing, { kind: 'note' }> & { text?: string }
   return (text ? { ...rest, text } : rest) as Drawing
+}
+
+const armed = (line: Alertable): Drawing => {
+  const { alertFiredOn: _firedOn, ...rest } = line
+  return { ...rest, alert: true } as Drawing
+}
+
+const withRepeat = (line: Alertable, repeat: boolean): Drawing => {
+  const { alertRepeat: _repeat, alertFiredOn: _firedOn, ...rest } = line
+  return (repeat ? { ...rest, alertRepeat: true } : rest) as Drawing
+}
+
+const withUntil = (line: Alertable, until: string): Drawing => {
+  const { alertUntil: _until, ...rest } = line
+  return (until ? { ...rest, alertUntil: until } : rest) as Drawing
 }
 
 const withArrow = (line: TrendLine, on: boolean): Drawing => {
@@ -309,19 +324,41 @@ export const LineToolbar = ({ line, onChange, onDelete, onArm }: LineToolbarProp
           <ExtendIcon />
         </Styles.ToolbarButton>
       )}
-      {line.pane === 'price' && !line.currency && (line.kind === undefined || line.kind === 'trend' || line.kind === 'hline' || line.kind === 'position') && (
-        <Styles.ToolbarButton
-          type="button"
-          title="Alert when the price crosses it"
-          aria-label="Alert"
-          aria-pressed={line.alert === true}
-          onClick={() => {
-            if (!line.alert) onArm?.()
-            onChange({ ...line, alert: !line.alert })
-          }}
-        >
-          <BellIcon />
-        </Styles.ToolbarButton>
+      {line.pane === 'price' && !line.currency && canAlert(line) && (
+        <>
+          <Styles.ToolbarButton
+            type="button"
+            title="Alert when the price crosses it"
+            aria-label="Alert"
+            aria-pressed={line.alert === true}
+            onClick={() => {
+              if (!line.alert) onArm?.()
+              onChange(line.alert ? { ...line, alert: false } : armed(line))
+            }}
+          >
+            <BellIcon />
+          </Styles.ToolbarButton>
+          {line.alert && (
+            <>
+              <Styles.AlertRepeat
+                aria-label="Alert repeat"
+                title="Once: the alert turns off when it fires. Every cross: it stays on and fires at most once a day."
+                value={line.alertRepeat ? 'repeat' : 'once'}
+                onChange={(event) => onChange(withRepeat(line, event.target.value === 'repeat'))}
+              >
+                <option value="once">Once</option>
+                <option value="repeat">Every cross</option>
+              </Styles.AlertRepeat>
+              <Styles.AlertUntil
+                type="date"
+                aria-label="Alert until"
+                title="Last day the alert stays on. Empty: no end."
+                value={line.alertUntil ?? ''}
+                onChange={(event) => onChange(withUntil(line, event.target.value))}
+              />
+            </>
+          )}
+        </>
       )}
       {line.kind === 'hline' && (
         <Styles.ToolbarButton

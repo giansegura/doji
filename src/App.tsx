@@ -14,6 +14,7 @@ import { MarketTicker } from './components/MarketTicker'
 import { ListPicker } from './components/ListPicker'
 import { ListImportDialog } from './components/ListImportDialog'
 import { AlertToasts } from './components/AlertToasts'
+import { AlertHistory } from './components/AlertHistory'
 import { ListResizer } from './components/ListResizer'
 import { ReplayBar } from './components/ReplayBar'
 import { CompanyPanel } from './components/CompanyPanel'
@@ -232,20 +233,27 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
           onTicker={(on) => dispatch({ type: 'setTickerVisible', on })}
           armedAlerts={symbolAlerts.filter((alert) => alert.armed).length}
           alerts={
-            <IndicatorAlerts
-              symbol={state.symbol}
-              alerts={symbolAlerts}
-              averages={state.indicators.sma}
-              onAdd={(draft) => {
-                askToNotify()
-                dispatch({ type: 'addIndicatorAlert', symbol: state.symbol, alert: { ...draft, id: newId() } })
-              }}
-              onArm={(id, armed) => {
-                if (armed) askToNotify()
-                dispatch({ type: 'armIndicatorAlert', symbol: state.symbol, id, armed })
-              }}
-              onRemove={(id) => dispatch({ type: 'removeIndicatorAlert', symbol: state.symbol, id })}
-            />
+            <>
+              <IndicatorAlerts
+                symbol={state.symbol}
+                alerts={symbolAlerts}
+                averages={state.indicators.sma}
+                onAdd={(draft) => {
+                  askToNotify()
+                  dispatch({ type: 'addIndicatorAlert', symbol: state.symbol, alert: { ...draft, id: newId() } })
+                }}
+                onArm={(id, armed) => {
+                  if (armed) askToNotify()
+                  dispatch({ type: 'armIndicatorAlert', symbol: state.symbol, id, armed })
+                }}
+                onRemove={(id) => dispatch({ type: 'removeIndicatorAlert', symbol: state.symbol, id })}
+              />
+              <AlertHistory
+                events={state.alertHistory}
+                onPick={(symbol) => dispatch({ type: 'setSymbol', symbol })}
+                onClear={() => dispatch({ type: 'clearAlertHistory' })}
+              />
+            </>
           }
         />
       </Styles.Top>

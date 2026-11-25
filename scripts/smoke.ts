@@ -1287,6 +1287,68 @@ await step('una alerta sobre un indicador salta en el servidor cuando el día se
   check(!(symbol in (await savedState()).indicatorAlerts), 'la alerta del indicador no se quitó')
 })
 
+await step('una alerta que se repite salta como mucho una vez al día, caduca tras su último día y queda en el historial', async () => {
+  const { price } = await panes()
+  const levels = async () => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'hline')
+  const localDay = (offset: number) => {
+    const day = new Date()
+    day.setDate(day.getDate() + offset)
+    return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
+  }
+  await pickTool('Horizontal line')
+  await page.mouse.click(...at(price, 0.4, 0.3))
+  const [placed] = await levels()
+  const target = placed?.kind === 'hline' ? placed.value : 0
+  await button('Alert').click()
+  await page.getByRole('combobox', { name: 'Alert repeat' }).selectOption('repeat')
+  await page.getByLabel('Alert until').fill(localDay(1))
+  const [armed] = await levels()
+  check(
+    armed?.kind === 'hline' && armed.alert === true && armed.alertRepeat === true && armed.alertUntil === localDay(1),
+    `la alerta que se repite no se guardó: ${JSON.stringify(armed)}`,
+  )
+  const feed = async (value: number) =>
+    ((await (
+      await fetch(`${url}/api/test/prices`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ AAPL: value }) })
+    ).json()) as { fired: unknown[] }).fired.length
+  await feed(target - 1)
+  check((await feed(target + 1)) === 1, 'la alerta que se repite no saltó')
+  const [after] = await levels()
+  check(after?.kind === 'hline' && after.alert === true && after.alertFiredOn === localDay(0), `la alerta que se repite se desarmó: ${JSON.stringify(after)}`)
+  check((await feed(target - 1)) === 0 && (await feed(target + 1)) === 0, 'la alerta saltó dos veces el mismo día')
+  await page.getByRole('button', { name: /^Dismiss AAPL crossed/ }).first().click()
+  await row('MSFT').click()
+  await page.getByText(/Microsoft Corporation · 1D/).waitFor({ timeout: 15_000 })
+  await button(/^Alerts/).click()
+  const history = page.getByRole('list', { name: 'Alert history' })
+  const entries = await history.getByRole('button').allTextContents()
+  check(entries.length === 3 && entries[0].includes('AAPL') && entries[0].includes('Crossed'), `el historial no tiene las tres alertas: ${JSON.stringify(entries)}`)
+  check(entries.some((entry) => entry.includes('Day move beyond 2%')), 'el historial no tiene la alerta del indicador')
+  await history.getByRole('button').first().click()
+  await page.getByText(/Apple Inc\. · 1D/).waitFor({ timeout: 15_000 })
+  await button('Clear history').click()
+  await page.getByText('No alert has gone off yet').waitFor({ timeout: 5000 })
+  check((await savedState()).alertHistory.length === 0, 'el historial no se vació')
+  await page.keyboard.press('Escape')
+  await page.mouse.click(price.x + price.width * 0.15, price.y + price.height * 0.3)
+  await page.getByLabel('Alert until').fill(localDay(-1))
+  const [stale] = await levels()
+  check(stale?.kind === 'hline' && stale.alertUntil === localDay(-1), `no se guardó el último día: ${JSON.stringify(stale)}`)
+  check((await feed(target - 1)) === 0, 'saltó una alerta caducada')
+  const deadline = Date.now() + 5000
+  let expired = await levels()
+  while (Date.now() < deadline && expired[0]?.kind === 'hline' && expired[0].alert) {
+    await page.waitForTimeout(200)
+    expired = await levels()
+  }
+  check(expired[0]?.kind === 'hline' && expired[0].alert === undefined && expired[0].alertUntil === undefined, `la alerta caducada no se desarmó: ${JSON.stringify(expired[0])}`)
+  await page.reload()
+  await waitForChart()
+  await page.mouse.click(price.x + price.width * 0.15, price.y + price.height * 0.3)
+  await page.keyboard.press('Delete')
+  check((await levels()).length === 0, 'la línea de la alerta no se borró')
+})
+
 await step('con la clave de reserva, Twelve Data entra cuando Yahoo falla tres veces seguidas y el gráfico lo dice', async () => {
   const before = (await savedState()).symbol
   await button('Settings').click()
