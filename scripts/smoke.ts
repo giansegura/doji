@@ -5,6 +5,7 @@ import { createServer } from 'node:http'
 import { join, resolve } from 'node:path'
 import { chromium } from 'playwright-core'
 import { dayInZone, mondayOf } from '../shared/dates'
+import { sessionDayOf, tradesOnWeekends } from '../shared/indicatorAlerts'
 import { symbolsOf } from '../shared/listItems'
 import type { AppState, Drawing, History, LiveTick, Quote, ThemeName, TrendLine } from '../shared/types'
 
@@ -1011,7 +1012,10 @@ await step('el ojo oculta los dibujos, el candado los fija y la lista oculta o b
   check((await regionShot(price)) === clean, 'la línea se sigue viendo con los dibujos ocultos')
   await button('Show all drawings').click()
   check((await regionShot(price)) === withLine, 'la línea no volvió al enseñar los dibujos')
+  await page.mouse.click(...at(price, 0.5, 0.45))
+  await page.getByRole('button', { name: 'Delete line' }).waitFor({ timeout: 5_000 })
   await button('Lock drawings').click()
+  check((await page.getByRole('button', { name: 'Delete line' }).count()) === 0, 'el candado no quitó la selección de la línea')
   await page.mouse.click(...at(price, 0.5, 0.45))
   check((await page.getByRole('button', { name: 'Delete line' }).count()) === 0, 'con el candado se pudo seleccionar la línea')
   await button('Lock drawings').click()
@@ -1170,20 +1174,23 @@ await step('una alerta sobre un indicador salta en el servidor cuando el día se
   const [alert] = (await savedState()).indicatorAlerts[symbol] ?? []
   check(alert?.kind === 'move' && alert.value === 2 && alert.armed, `la alerta del indicador no se guardó: ${JSON.stringify(alert)}`)
   check((await button(/^Alerts, 1 armed$/).count()) === 1, 'la campana no cuenta la alerta armada')
-  const history = await page.evaluate(async (wanted) => (await fetch(`/api/history?symbol=${wanted}`)).json(), symbol)
-  const previous = history.bars.at(-2).close as number
+  const history = (await page.evaluate(async (wanted) => (await fetch(`/api/history?symbol=${wanted}`)).json(), symbol)) as History
+  const bars = history.bars
+  const session = sessionDayOf(bars[bars.length - 1].time, history.timezone, Date.now(), tradesOnWeekends(bars.map((bar) => bar.time)))
+  const previous = bars[session === bars[bars.length - 1].time ? bars.length - 2 : bars.length - 1].close
   const feed = (value: number) =>
     page.evaluate(
       async (prices) =>
         (await fetch('/api/test/prices', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(prices) })).json(),
       { [symbol]: value },
     )
+  const firedAlready = async () => (await savedState()).indicatorAlerts[symbol]?.[0]?.armed === false
   let answer = { fired: [] as unknown[] }
-  for (let attempt = 0; attempt < 3 && answer.fired.length === 0; attempt += 1) {
+  for (let attempt = 0; attempt < 3 && answer.fired.length === 0 && !(await firedAlready()); attempt += 1) {
     await feed(previous * 1.001)
     answer = (await feed(previous * 1.04)) as { fired: unknown[] }
   }
-  check(answer.fired.length === 1, `el servidor no hizo saltar la alerta del indicador: ${JSON.stringify(answer)}`)
+  check(answer.fired.length === 1 || (await firedAlready()), `el servidor no hizo saltar la alerta del indicador: ${JSON.stringify(answer)}`)
   await page.getByRole('status').filter({ hasText: `${symbol}: Day move beyond 2%` }).first().waitFor({ timeout: 10_000 })
   const deadline = Date.now() + 10_000
   while (Date.now() < deadline && !telegramMessages.some((message) => String(message.text).includes('Day move beyond 2%'))) await page.waitForTimeout(200)

@@ -1,6 +1,6 @@
 import { type FiredAlert, alertLevels, armedSymbols, createAlertWatcher, latestPrice } from '../shared/alerts'
 import { withoutAlert } from '../shared/drawings'
-import { type IndicatorHit, createIndicatorWatcher, indicatorLabel, withLivePrice } from '../shared/indicatorAlerts'
+import { type IndicatorHit, createIndicatorWatcher, indicatorLabel, sessionDayOf, withLivePrice } from '../shared/indicatorAlerts'
 import type { AlertEvent, AppState, Drawing, LiveTick, Quote } from '../shared/types'
 import type { SaveOutcome } from './stateStore'
 
@@ -16,7 +16,7 @@ type MonitorDeps = {
   newId: () => string
 }
 
-export type DailyCloses = { closes: number[]; lastDay: string }
+export type DailyCloses = { closes: number[]; lastDay: string; timezone?: string; everyDay?: boolean }
 
 export type AlertMonitor = {
   start: () => Promise<void>
@@ -58,6 +58,9 @@ const textOf = (state: AppState, hit: FiredAlert): string | null => {
   return drawing && 'text' in drawing && drawing.text ? drawing.text : null
 }
 
+const stillArmed = (current: AppState | null, hit: IndicatorHit): boolean =>
+  current?.indicatorAlerts[hit.symbol]?.some((alert) => alert.id === hit.alertId && alert.armed) ?? false
+
 const indicatorSymbols = (state: AppState): string[] =>
   Object.entries(state.indicatorAlerts)
     .filter(([, alerts]) => alerts.some((alert) => alert.armed))
@@ -97,7 +100,8 @@ export const createAlertMonitor = (deps: MonitorDeps): AlertMonitor => {
       if (alerts.length === 0) continue
       const daily = await dailyOf(symbol)
       if (!daily || daily.closes.length === 0) continue
-      const live = withLivePrice(daily.closes, daily.lastDay, price, daily.lastDay)
+      const session = sessionDayOf(daily.lastDay, daily.timezone, deps.now().getTime(), daily.everyDay ?? false)
+      const live = withLivePrice(daily.closes, daily.lastDay, price, session)
       found.push(...indicators.check(symbol, alerts, live, current.indicators.sma, today))
     }
     return found
@@ -129,7 +133,7 @@ export const createAlertMonitor = (deps: MonitorDeps): AlertMonitor => {
       const today = dayOf(moment)
       const before = state
       const hits = watcher.check(before.lines, prices, today)
-      const indicatorHits = await indicatorHitsFor(before, prices, today)
+      const indicatorHits = (await indicatorHitsFor(before, prices, today)).filter((hit) => stillArmed(state, hit))
       if (hits.length === 0 && indicatorHits.length === 0) return []
       const saved = await disarm(today, hits, indicatorHits)
       if (saved) stateSaved(saved)

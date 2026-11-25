@@ -1,4 +1,5 @@
 import { sideChange } from './alerts'
+import { dayInZone } from './dates'
 import { ema, rsi, sma } from './rsi'
 import type { IndicatorAlert, IndicatorAlertKind, SmaConfig } from './types'
 
@@ -16,6 +17,17 @@ export const withLivePrice = (closes: number[], lastDay: string, price: number, 
   lastDay === today
     ? { closes: [...closes.slice(0, -1), price], previous: closes.at(-2) ?? price }
     : { closes: [...closes, price], previous: closes.at(-1) ?? price }
+
+const WEEKEND = [0, 6]
+
+export const tradesOnWeekends = (days: string[]): boolean =>
+  days.some((day) => WEEKEND.includes(new Date(`${day}T00:00:00Z`).getUTCDay()))
+
+export const sessionDayOf = (lastDay: string, timeZone: string | undefined, nowMs: number, everyDay: boolean): string => {
+  if (!timeZone) return lastDay
+  const day = dayInZone(timeZone, nowMs)
+  return day > lastDay && (everyDay || !tradesOnWeekends([day])) ? day : lastDay
+}
 
 const averageOf = (config: SmaConfig, closes: number[]): number | null =>
   (config.kind === 'ema' ? ema(closes, config.length) : sma(closes, config.length)).at(-1) ?? null
@@ -50,12 +62,13 @@ export const createIndicatorWatcher = (): IndicatorWatcher => {
       const before = seen.get(key)
       if (reading === null) return []
       seen.set(key, reading)
-      if (!alert.armed || before === undefined) return []
+      if (!alert.armed) return []
       const price = live.closes.at(-1) as number
       if (alert.kind === 'move') {
-        if (!(before < 0 && reading >= 0)) return []
+        if (!((before === undefined || before < 0) && reading >= 0)) return []
         return [{ symbol, alertId: alert.id, level: alert.value, price, direction: price >= live.previous ? 'up' : 'down' }]
       }
+      if (before === undefined) return []
       const direction = sideChange(before, reading)
       return direction ? [{ symbol, alertId: alert.id, level: levelOf(alert, live, averages), price, direction }] : []
     })

@@ -132,6 +132,7 @@ const LineTextField = ({ line, onChange }: { line: Drawing; onChange: (line: Dra
     saved={'text' in line ? (line.text ?? '') : ''}
     maxLength={LINE_TEXT_MAX_LENGTH}
     onCommit={(text) => {
+      if (line.kind === 'note' && text === '') return false
       const next = withText(line, text)
       if (next !== line) onChange(next)
       return true

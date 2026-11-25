@@ -50,6 +50,7 @@ export type History = {
   stale: boolean
   tradedAt?: number
   currency?: string
+  timezone?: string
 }
 
 export type CompanyProfile = {

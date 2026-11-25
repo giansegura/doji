@@ -46,7 +46,7 @@ const DEFAULT_WIDTH = 2
 const notNull = <T>(value: T | null): value is T => value !== null
 
 export const useDrawing = (args: UseDrawingArgs) => {
-  const { handles, symbol, lines, timeframe, rsiVisible, tool, onLinesChange, handleFill } = args
+  const { handles, symbol, lines, timeframe, rsiVisible, tool, onLinesChange, handleFill, locked } = args
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const latest = useRef(args)
   const draftRef = useRef<Draft | null>(null)
@@ -196,6 +196,10 @@ export const useDrawing = (args: UseDrawingArgs) => {
   useEffect(() => {
     tools.redraw()
   }, [tools, lines, timeframe, rsiVisible, handleFill, handles, selectedId])
+
+  useEffect(() => {
+    if (locked) tools.controller.select(null)
+  }, [tools, locked])
 
   useEffect(() => {
     if (!container) return undefined

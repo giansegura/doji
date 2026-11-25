@@ -122,7 +122,9 @@ const restyled = (drawing: Drawing, request: UpdateRequest): Drawing => {
 }
 
 const retexted = (drawing: Drawing, text: string | undefined): Drawing => {
-  if (text === undefined || (drawing.kind !== 'hline' && drawing.kind !== undefined && drawing.kind !== 'trend')) return drawing
+  if (text === undefined) return drawing
+  if (drawing.kind === 'note') return { ...drawing, text: cleanText(text) }
+  if (drawing.kind !== 'hline' && drawing.kind !== undefined && drawing.kind !== 'trend') return drawing
   const { text: _old, ...rest } = drawing as TrendLine | HorizontalLine
   const clean = cleanText(text)
   return (clean ? { ...rest, text: clean } : rest) as Drawing
@@ -136,6 +138,7 @@ const changeError = (drawing: Drawing, request: UpdateRequest): string | null =>
   const twoPoints = isTrend || drawing.kind === 'channel' || drawing.kind === 'rect'
   if ((request.from || request.to) && !twoPoints) return 'Move this drawing with price, or change it in doji.'
   if (request.text !== undefined && !isTrend && drawing.kind !== 'hline' && drawing.kind !== 'note') return 'Only trend lines, horizontal lines and text notes carry a text.'
+  if (request.text !== undefined && drawing.kind === 'note' && !cleanText(request.text)) return 'A text note needs some text.'
   return null
 }
 

@@ -292,3 +292,11 @@ test('Should bring a drawing to the prices after the latest split before changin
   const result = updateDrawing({ ...state, lines: { KO: [old] } }, { symbol: 'KO', drawingId: 'h', price: 60, splits: [split] })
   expect(result.ok && result.detail).toMatchObject({ value: 60, pricedAt: '2024-06-10' })
 })
+
+test('Should rewrite the text of a text note and refuse to leave it empty', () => {
+  const note: Drawing = { ...base, id: 'n', kind: 'note', p1: { date: '2026-11-02', value: 100 }, text: 'Earnings' }
+  const noted = { ...state, lines: { KO: [note] } }
+  const result = updateDrawing(noted, { symbol: 'KO', drawingId: 'n', text: '  Guidance up  ' })
+  expect(result.ok && result.detail).toEqual({ ...note, text: 'Guidance up' })
+  expect(updateDrawing(noted, { symbol: 'KO', drawingId: 'n', text: '   ' })).toEqual({ ok: false, error: 'A text note needs some text.' })
+})

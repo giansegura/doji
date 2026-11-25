@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import type { Tool } from '../../state/appReducer'
 import * as Styles from './styles'
 
@@ -166,15 +166,30 @@ const ListIcon = () => (
   </svg>
 )
 
+const MENU_KEYS: Record<string, (at: number, count: number) => number> = {
+  ArrowDown: (at) => at + 1,
+  ArrowUp: (at) => at - 1,
+  Home: () => 0,
+  End: (_, count) => count - 1,
+}
+
 export const LeftToolbar = ({ tool, onTool, hidden = false, onHidden, locked = false, onLocked, drawingsList }: LeftToolbarProps) => {
   const [chosen, setChosen] = useState<Record<string, Tool>>({})
   const [open, setOpen] = useState<string | null>(null)
   const barRef = useRef<HTMLElement>(null)
+  const flyoutRef = useRef<HTMLDivElement>(null)
+  const triggersRef = useRef<Record<string, HTMLButtonElement | null>>({})
+
+  useEffect(() => {
+    flyoutRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
+  }, [open])
 
   useEffect(() => {
     if (!open) return undefined
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(null)
+      if (event.key !== 'Escape') return
+      setOpen(null)
+      triggersRef.current[open]?.focus()
     }
     const handleDown = (event: PointerEvent) => {
       if (!barRef.current?.contains(event.target as Node)) setOpen(null)
@@ -191,6 +206,20 @@ export const LeftToolbar = ({ tool, onTool, hidden = false, onHidden, locked = f
     setChosen((current) => ({ ...current, [group.id]: item.tool }))
     setOpen(null)
     onTool(item.tool)
+  }
+
+  const pickFromMenu = (group: Group, item: ToolItem) => {
+    pick(group, item)
+    triggersRef.current[group.id]?.focus()
+  }
+
+  const moveInMenu = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const items = [...event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+    const at = items.findIndex((item) => item === document.activeElement)
+    const target = MENU_KEYS[event.key]?.(at, items.length)
+    if (target === undefined) return
+    event.preventDefault()
+    items[(target + items.length) % items.length]?.focus()
   }
 
   const shownOf = (group: Group): ToolItem =>
@@ -218,11 +247,14 @@ export const LeftToolbar = ({ tool, onTool, hidden = false, onHidden, locked = f
                 title={group.more}
                 aria-label={group.more}
                 aria-expanded={open === group.id}
+                ref={(element) => {
+                  triggersRef.current[group.id] = element
+                }}
                 onClick={() => setOpen((current) => (current === group.id ? null : group.id))}
               />
             )}
             {open === group.id && (
-              <Styles.Flyout role="menu" aria-label={group.name}>
+              <Styles.Flyout ref={flyoutRef} role="menu" aria-label={group.name} onKeyDown={moveInMenu}>
                 {group.tools.map((item) => (
                   <Styles.FlyoutItem
                     key={item.tool}
@@ -230,7 +262,7 @@ export const LeftToolbar = ({ tool, onTool, hidden = false, onHidden, locked = f
                     role="menuitem"
                     aria-label={item.label}
                     $active={item.tool === tool}
-                    onClick={() => pick(group, item)}
+                    onClick={() => pickFromMenu(group, item)}
                   >
                     {item.icon}
                     <span>{item.label}</span>
@@ -266,6 +298,9 @@ export const LeftToolbar = ({ tool, onTool, hidden = false, onHidden, locked = f
             title="Drawings list"
             aria-label="Drawings list"
             aria-expanded={open === LIST}
+            ref={(element) => {
+              triggersRef.current[LIST] = element
+            }}
             $active={open === LIST}
             onClick={() => setOpen((current) => (current === LIST ? null : LIST))}
           >

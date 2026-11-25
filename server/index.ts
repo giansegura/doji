@@ -4,6 +4,7 @@ import { mkdir, readFile } from 'node:fs/promises'
 import { type IncomingMessage, type ServerResponse, createServer } from 'node:http'
 import { dirname, join, resolve } from 'node:path'
 import sirv from 'sirv'
+import { tradesOnWeekends } from '../shared/indicatorAlerts'
 import { alertMessage } from './alertMessage'
 import { createAlertMonitor } from './alertMonitor'
 import { createAlertBus, createAlertStreamRoute } from './alertStream'
@@ -99,7 +100,9 @@ const alertMonitor = createAlertMonitor({
   closes: async (symbol) => {
     const history = await historyCache.get(symbol)
     const last = history.bars.at(-1)
-    return last ? { closes: history.bars.map((bar) => bar.close), lastDay: last.time } : null
+    if (!last) return null
+    const days = history.bars.map((bar) => bar.time)
+    return { closes: history.bars.map((bar) => bar.close), lastDay: last.time, timezone: history.timezone, everyDay: tradesOnWeekends(days) }
   },
   announce: (alerts) => {
     alertBus.publish(alerts)

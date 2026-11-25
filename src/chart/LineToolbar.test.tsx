@@ -341,6 +341,7 @@ test('Should write the text of a note and keep the old one when the field is emp
   await user.clear(field)
   await user.tab()
   expect(onChange).not.toHaveBeenCalled()
+  expect((field as HTMLInputElement).value).toBe('Earnings beat')
 })
 
 test('Should turn a trend line into an arrow and back from the line style', async () => {
