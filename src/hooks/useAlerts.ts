@@ -10,6 +10,7 @@ export type OpenAlerts = (onAlerts: (alerts: AlertEvent[]) => void) => () => voi
 type AlertsArgs = {
   notify?: (title: string, body: string) => void
   openAlerts?: OpenAlerts
+  onFired?: () => void
 }
 
 const ALERTS_URL = '/api/alerts/stream'
@@ -60,13 +61,13 @@ export const askToNotify = (): void => {
   Notification.requestPermission().catch(() => undefined)
 }
 
-export const useAlerts = ({ notify = notifyDesktop, openAlerts = openAlertStream }: AlertsArgs = {}) => {
+export const useAlerts = ({ notify = notifyDesktop, openAlerts = openAlertStream, onFired }: AlertsArgs = {}) => {
   const [fired, setFired] = useState<FiredNotice[]>([])
-  const latest = useRef({ notify, openAlerts })
+  const latest = useRef({ notify, openAlerts, onFired })
   const seen = useRef(new Set<string>())
 
   useEffect(() => {
-    latest.current = { notify, openAlerts }
+    latest.current = { notify, openAlerts, onFired }
   })
 
   useEffect(() => {
@@ -92,7 +93,9 @@ export const useAlerts = ({ notify = notifyDesktop, openAlerts = openAlertStream
         announce(`${shown} crossed ${level}`, alert.text ? `${reading} · ${alert.text}` : reading)
         return { id: alert.id, text: `${shown} crossed ${level} going ${alert.direction}`, time: clockOf(new Date(alert.at)) }
       })
-      if (notices.length > 0) setFired((previous) => [...previous, ...notices])
+      if (notices.length === 0) return
+      setFired((previous) => [...previous, ...notices])
+      latest.current.onFired?.()
     })
   }, [])
 

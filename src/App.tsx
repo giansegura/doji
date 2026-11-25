@@ -61,7 +61,13 @@ import * as Styles from './styles'
 import { GlobalStyle } from './theme/GlobalStyle'
 import { themes } from './theme/tokens'
 
-type WorkspaceProps = { state: AppState; dispatch: (action: Action) => void; notice: string | null; replaced: number }
+type WorkspaceProps = {
+  state: AppState
+  dispatch: (action: Action) => void
+  notice: string | null
+  replaced: number
+  refresh: () => void
+}
 
 const NO_BARS: Bar[] = []
 
@@ -79,7 +85,7 @@ const NEW_FILTER: Omit<SavedFilter, 'id'> = { name: '', scope: 'list', condition
 
 type FilterDraft = { filter: SavedFilter; editing: boolean }
 
-const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
+const Workspace = ({ state, dispatch, notice, replaced, refresh }: WorkspaceProps) => {
   const [tool, setTool] = useState<Tool>('cursor')
   const [searchMode, setSearchMode] = useState<SearchMode>(null)
   const [calendarOpen, setCalendarOpen] = useState(false)
@@ -115,7 +121,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   const { quotes: tickerQuotes } = useQuotes(state.ticker.visible ? state.ticker.items.map((item) => item.symbol) : NO_FIELDS)
   const quotes = useMemo(() => freshQuotes(tracked, history), [tracked, history])
   const livePrice = useLivePrice(history, quotes[state.symbol])
-  const { fired, dismiss } = useAlerts()
+  const { fired, dismiss } = useAlerts({ onFired: refresh })
   const listImport = useListImport((id, name, items) => dispatch({ type: 'createWatchlistWith', id, name, items }))
   const profile = useCompanyProfile(state.symbol, companyOpen)
   const news = useNews(state.symbol, newsOpen)
@@ -431,7 +437,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
 }
 
 export const App = () => {
-  const { state, dispatch, loadFailed, notice, retry, replaced } = useAppState()
+  const { state, dispatch, loadFailed, notice, retry, replaced, refresh } = useAppState()
 
   if (loadFailed) {
     return (
@@ -454,7 +460,7 @@ export const App = () => {
   return (
     <ThemeProvider theme={themes[state.theme]}>
       <GlobalStyle />
-      <Workspace state={state} dispatch={dispatch} notice={notice} replaced={replaced} />
+      <Workspace state={state} dispatch={dispatch} notice={notice} replaced={replaced} refresh={refresh} />
     </ThemeProvider>
   )
 }
