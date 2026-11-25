@@ -7,6 +7,7 @@ import { chromium } from 'playwright-core'
 import { dayInZone, mondayOf } from '../shared/dates'
 import { sessionDayOf, tradesOnWeekends } from '../shared/indicatorAlerts'
 import { symbolsOf } from '../shared/listItems'
+import { findOpenGaps } from '../src/domain/gaps'
 import type { AppState, Drawing, History, LiveTick, Quote, ThemeName, TrendLine } from '../shared/types'
 
 type Box = { x: number; y: number; width: number; height: number }
@@ -850,6 +851,61 @@ await step('el perfil de volumen aparece a la derecha del gráfico y se quita', 
   await page.keyboard.press('Escape')
   check(!(await savedState()).indicators.volumeProfile.visible, 'el perfil de volumen no se quitó')
   check((await regionShot(side)) === clean, 'queda rastro del perfil de volumen')
+})
+
+await step('los patrones de velas se marcan al encenderlos y se quitan al apagarlos', async () => {
+  const { price } = await panes()
+  await button('Show 5 years').click()
+  const clean = await regionShot(price)
+  await button('Indicators').click()
+  await page.getByRole('checkbox', { name: 'Candle patterns' }).click()
+  await page.keyboard.press('Escape')
+  check((await savedState()).indicators.patterns.visible, 'los patrones no se guardaron')
+  check((await regionShot(price)) !== clean, 'no se marcó ningún patrón en cinco años de velas')
+  await button('Indicators').click()
+  await page.getByRole('checkbox', { name: 'Candle patterns' }).click()
+  await page.keyboard.press('Escape')
+  check((await regionShot(price)) === clean, 'quedan marcas de patrones al apagarlos')
+  await button('Show 1 year').click()
+})
+
+await step('los huecos sin cerrar se sombrean al encenderlos y se quitan al apagarlos', async () => {
+  const { price } = await panes()
+  await button('Show all').click()
+  const clean = await regionShot(price)
+  await button('Indicators').click()
+  await page.getByRole('checkbox', { name: 'Open gaps' }).click()
+  await page.getByRole('spinbutton', { name: 'Minimum gap %' }).fill('0.5')
+  await page.getByRole('spinbutton', { name: 'Minimum gap %' }).press('Enter')
+  await page.keyboard.press('Escape')
+  const gaps = (await savedState()).indicators.gaps
+  check(gaps.visible && gaps.minPercent === 0.5, `los huecos no se guardaron: ${JSON.stringify(gaps)}`)
+  const { symbol } = await savedState()
+  const history = (await page.evaluate(async (wanted) => (await fetch(`/api/history?symbol=${wanted}`)).json(), symbol)) as History
+  const expected = findOpenGaps(history.bars, 0.5).length > 0
+  check(((await regionShot(price)) !== clean) === expected, expected ? 'no se sombreó ningún hueco en toda la historia' : 'se sombreó un hueco que no existe')
+  await button('Indicators').click()
+  await page.getByRole('checkbox', { name: 'Open gaps' }).click()
+  await page.keyboard.press('Escape')
+  check((await regionShot(price)) === clean, 'queda sombra de huecos al apagarlos')
+  await button('Show 1 year').click()
+})
+
+await step('las divergencias del RSI se dibujan sobre el precio y el RSI al encenderlas', async () => {
+  const { price, rsi } = await panes()
+  await button('Show 5 years').click()
+  const cleanPrice = await regionShot(price)
+  const cleanRsi = await regionShot(rsi)
+  await button('Indicators').click()
+  await page.getByRole('checkbox', { name: 'RSI divergences' }).click()
+  await page.keyboard.press('Escape')
+  check((await savedState()).indicators.divergences.visible, 'las divergencias no se guardaron')
+  check((await regionShot(price)) !== cleanPrice && (await regionShot(rsi)) !== cleanRsi, 'no se dibujó ninguna divergencia en cinco años')
+  await button('Indicators').click()
+  await page.getByRole('checkbox', { name: 'RSI divergences' }).click()
+  await page.keyboard.press('Escape')
+  check((await regionShot(price)) === cleanPrice, 'quedan líneas de divergencias al apagarlas')
+  await button('Show 1 year').click()
 })
 
 await step('la leyenda dice cuándo son los próximos resultados', async () => {

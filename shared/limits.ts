@@ -20,6 +20,8 @@ export const LINE_TEXT_MAX_LENGTH = 60
 export const PROFILE_MIN_ROWS = 6
 export const PROFILE_MAX_ROWS = 100
 export const LEVELS_MAX_PER_SIDE = 5
+export const GAP_MIN_PERCENT = 0.1
+export const GAP_MAX_PERCENT = 20
 export const SMA_COLORS = [
   '#FF9800',
   '#2962FF',

@@ -19,6 +19,9 @@ import * as Styles from './styles'
 import { type ViewStore, sharedViewStore } from './savedViews'
 import { useAutoFit } from './useAutoFit'
 import { useBackToPresent } from './useBackToPresent'
+import { useDivergences } from './useDivergences'
+import { useOpenGaps } from './useOpenGaps'
+import { usePatternMarkers } from './usePatternMarkers'
 import { usePositionLine } from './usePositionLine'
 import { usePickBar } from './usePickBar'
 import { useChart } from './useChart'
@@ -133,6 +136,20 @@ export const ChartView = ({
   )
   usePickBar(handles, data.bars, onPickBar ? (time) => onPickBar(time, timeframe) : undefined)
   useBackToPresent(handles, asOf)
+  useDivergences({
+    handles,
+    bars: data.bars,
+    visible: indicators.divergences.visible,
+    rsiLength: indicators.rsi.length,
+    colors: { up: theme.chart.up, down: theme.chart.down },
+  })
+  useOpenGaps({ handles, bars: data.bars, settings: indicators.gaps, colors: { up: theme.chart.up, down: theme.chart.down } })
+  usePatternMarkers({
+    handles,
+    bars: data.bars,
+    settings: indicators.patterns,
+    colors: { up: theme.chart.up, down: theme.chart.down, neutral: theme.ui.textMuted },
+  })
   usePositionLine({
     handles,
     holding: asOf ? undefined : holding,

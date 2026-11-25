@@ -664,3 +664,33 @@ test('Should open the alerts of the symbol from the bell, which counts the armed
   await user.click(bell)
   expect(screen.getByText('Panel de alertas')).toBeTruthy()
 })
+
+test('Should switch the candle patterns on and choose which ones to mark', async () => {
+  const { handlers, user } = setup({ ...DEFAULT_STATE.indicators, patterns: { visible: true, kinds: ['doji', 'hammer'] } })
+  await openIndicators(user)
+  await user.click(screen.getByRole('checkbox', { name: 'Hammer' }))
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ patterns: { visible: true, kinds: ['doji'] } }))
+  await user.click(screen.getByRole('checkbox', { name: 'Bullish engulfing' }))
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ patterns: { visible: true, kinds: ['doji', 'hammer', 'bullishEngulfing'] } }))
+})
+
+test('Should switch the open gaps on and set their minimum size', async () => {
+  const { handlers, user } = setup()
+  await openIndicators(user)
+  await user.click(screen.getByRole('checkbox', { name: 'Open gaps' }))
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ gaps: { visible: true, minPercent: 1 } }))
+})
+
+test('Should set the minimum size of the open gaps', async () => {
+  const { handlers, user } = setup({ ...DEFAULT_STATE.indicators, gaps: { visible: true, minPercent: 1 } })
+  await openIndicators(user)
+  await typeInto(user, 'Minimum gap %', '2')
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ gaps: { visible: true, minPercent: 2 } }))
+})
+
+test('Should switch the RSI divergences on', async () => {
+  const { handlers, user } = setup()
+  await openIndicators(user)
+  await user.click(screen.getByRole('checkbox', { name: 'RSI divergences' }))
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ divergences: { visible: true } }))
+})

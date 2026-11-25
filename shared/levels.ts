@@ -65,19 +65,23 @@ const volumeFactor = (units: Unit[], index: number): number => {
   return around > 0 ? clamp(units[index].volume / around, 0.5, 3) : 1
 }
 
-const pivotsOf = (units: Unit[], reach: number): Pivot[] => {
-  const pivots: Pivot[] = []
+export type Turn = { index: number; kind: 'high' | 'low'; price: number }
+
+export const turnsOf = (units: Pick<Unit, 'high' | 'low'>[], reach: number): Turn[] => {
+  const turns: Turn[] = []
   for (let index = reach; index < units.length - reach; index += 1) {
     const left = units.slice(index - reach, index)
     const right = units.slice(index + 1, index + 1 + reach)
     const unit = units[index]
     if (unit.high > Math.max(...left.map((other) => other.high)) && unit.high >= Math.max(...right.map((other) => other.high)))
-      pivots.push({ price: unit.high })
+      turns.push({ index, kind: 'high', price: unit.high })
     if (unit.low < Math.min(...left.map((other) => other.low)) && unit.low <= Math.min(...right.map((other) => other.low)))
-      pivots.push({ price: unit.low })
+      turns.push({ index, kind: 'low', price: unit.low })
   }
-  return pivots
+  return turns
 }
+
+const pivotsOf = (units: Unit[], reach: number): Pivot[] => turnsOf(units, reach).map((turn) => ({ price: turn.price }))
 
 const clustersOf = (pivots: Pivot[], tolerance: number): number[] => {
   const groups: Pivot[][] = []

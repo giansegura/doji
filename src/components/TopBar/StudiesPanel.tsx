@@ -1,13 +1,15 @@
 import {
   BAND_MAX_MULTIPLIER,
   BAND_MIN_MULTIPLIER,
+  GAP_MAX_PERCENT,
+  GAP_MIN_PERCENT,
   LEVELS_MAX_PER_SIDE,
   PROFILE_MAX_ROWS,
   PROFILE_MIN_ROWS,
   SMA_MAX_LENGTH,
   SMA_MIN_LENGTH,
 } from '../../../shared/limits'
-import type { Indicators } from '../../../shared/types'
+import type { Indicators, PatternKind } from '../../../shared/types'
 import { NumberField } from './NumberField'
 import * as Styles from './styles'
 
@@ -16,6 +18,14 @@ type StudiesPanelProps = {
   onIndicators: (indicators: Indicators) => void
 }
 
+const PATTERN_KINDS: [PatternKind, string][] = [
+  ['doji', 'Doji'],
+  ['hammer', 'Hammer'],
+  ['shootingStar', 'Shooting star'],
+  ['bullishEngulfing', 'Bullish engulfing'],
+  ['bearishEngulfing', 'Bearish engulfing'],
+]
+
 const MACD_FIELDS = [
   ['fast', 'Fast', 'MACD fast length'],
   ['slow', 'Slow', 'MACD slow length'],
@@ -23,7 +33,9 @@ const MACD_FIELDS = [
 ] as const
 
 export const StudiesPanel = ({ indicators, onIndicators }: StudiesPanelProps) => {
-  const { bollinger, macd, volumeProfile, levels, marks } = indicators
+  const { bollinger, macd, volumeProfile, levels, marks, patterns, gaps } = indicators
+
+  const setGaps = (patch: Partial<Indicators['gaps']>) => onIndicators({ ...indicators, gaps: { ...gaps, ...patch } })
 
   const setBollinger = (patch: Partial<Indicators['bollinger']>) =>
     onIndicators({ ...indicators, bollinger: { ...bollinger, ...patch } })
@@ -31,6 +43,12 @@ export const StudiesPanel = ({ indicators, onIndicators }: StudiesPanelProps) =>
   const setMacd = (patch: Partial<Indicators['macd']>) => onIndicators({ ...indicators, macd: { ...macd, ...patch } })
 
   const setLevels = (patch: Partial<Indicators['levels']>) => onIndicators({ ...indicators, levels: { ...levels, ...patch } })
+
+  const togglePattern = (kind: PatternKind, on: boolean) =>
+    onIndicators({
+      ...indicators,
+      patterns: { ...patterns, kinds: PATTERN_KINDS.map(([option]) => option).filter((option) => (option === kind ? on : patterns.kinds.includes(option))) },
+    })
 
   const setMarks = (patch: Partial<Indicators['marks']>) => onIndicators({ ...indicators, marks: { ...marks, ...patch } })
 
@@ -122,6 +140,46 @@ export const StudiesPanel = ({ indicators, onIndicators }: StudiesPanelProps) =>
             />
           </Styles.MenuItem>
         ))}
+      <Styles.MenuRow>
+        <input
+          type="checkbox"
+          checked={patterns.visible}
+          onChange={(event) => onIndicators({ ...indicators, patterns: { ...patterns, visible: event.target.checked } })}
+        />
+        <Styles.RowLabel>Candle patterns</Styles.RowLabel>
+      </Styles.MenuRow>
+      {patterns.visible &&
+        PATTERN_KINDS.map(([kind, label]) => (
+          <Styles.MenuRow key={kind} $indented>
+            <input type="checkbox" checked={patterns.kinds.includes(kind)} onChange={(event) => togglePattern(kind, event.target.checked)} />
+            <Styles.RowLabel>{label}</Styles.RowLabel>
+          </Styles.MenuRow>
+        ))}
+      <Styles.MenuRow>
+        <input
+          type="checkbox"
+          checked={indicators.divergences.visible}
+          onChange={(event) => onIndicators({ ...indicators, divergences: { visible: event.target.checked } })}
+        />
+        <Styles.RowLabel>RSI divergences</Styles.RowLabel>
+      </Styles.MenuRow>
+      <Styles.MenuRow>
+        <input type="checkbox" checked={gaps.visible} onChange={(event) => setGaps({ visible: event.target.checked })} />
+        <Styles.RowLabel>Open gaps</Styles.RowLabel>
+      </Styles.MenuRow>
+      {gaps.visible && (
+        <Styles.MenuItem $indented>
+          <Styles.RowLabel>Minimum %</Styles.RowLabel>
+          <NumberField
+            label="Minimum gap %"
+            value={gaps.minPercent}
+            min={GAP_MIN_PERCENT}
+            max={GAP_MAX_PERCENT}
+            decimal
+            onChange={(minPercent) => setGaps({ minPercent })}
+          />
+        </Styles.MenuItem>
+      )}
       <Styles.MenuSection>Marks</Styles.MenuSection>
       <Styles.MenuRow>
         <input type="checkbox" checked={marks.earnings} onChange={(event) => setMarks({ earnings: event.target.checked })} />
