@@ -16,6 +16,8 @@ import { useAutoFit } from './useAutoFit'
 import { useChart } from './useChart'
 import { useDrawing } from './useDrawing'
 import { useEarningsMarks } from './useEarningsMarks'
+import { LEVEL_LOOK } from './levelsPrimitive'
+import { useLevels } from './useLevels'
 import { useVolumeProfile } from './useVolumeProfile'
 
 type ChartViewProps = {
@@ -57,6 +59,7 @@ export const ChartView = ({
   const theme = useTheme()
   const { containerRef, handles, data, rsiPaneTop, macdPaneTop, hover } = useChart({ history, timeframe, theme, indicators, settings, live, viewId })
   const { manual, release, fit } = useAutoFit(handles, history.info.symbol)
+  const levels = useLevels({ handles, history, settings: indicators.levels, lines, color: theme.chart.levels })
   const { selectedLine, updateLine, deleteSelected } = useDrawing({
     handles,
     symbol: history.info.symbol,
@@ -70,6 +73,8 @@ export const ChartView = ({
     defaultColor: theme.chart.line,
     looks,
     measureColors: { up: theme.chart.up, down: theme.chart.down },
+    levels,
+    levelLook: { ...LEVEL_LOOK, color: theme.chart.levels },
     handleFill: theme.chart.bg,
     priceBasis: splitBasis(history.splits),
   })

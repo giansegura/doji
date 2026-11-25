@@ -2,7 +2,7 @@ import type { Drawing, DrawingBase, DrawingKind, LineLook, LinePoint, PaneId, Ti
 import { withLook } from '../domain/lineLooks'
 import type { Tool } from '../state/appReducer'
 import { type ShapeGeometry, hitTestOutline, moveDrawing, offsetAt, outlineOf } from './drawingShapes'
-import type { XY } from './lineGeometry'
+import { HIT_TOLERANCE, type XY } from './lineGeometry'
 import type { Measure } from './measure'
 
 export type PaneGeometry = ShapeGeometry
@@ -24,6 +24,8 @@ export type ControllerDeps = {
   newId: () => string
   priceBasis: () => string
   lookFor: (kind: DrawingKind) => LineLook
+  levels?: () => number[]
+  levelLook?: () => LineLook
 }
 
 export type DrawingController = {
@@ -31,6 +33,7 @@ export type DrawingController = {
   pointerDown: (pane: PaneId, xy: XY) => boolean
   pointerMove: (pane: PaneId, xy: XY) => CursorKind
   pointerUp: (pane: PaneId, xy: XY) => void
+  click: (pane: PaneId, xy: XY) => void
   key: (key: 'Escape' | 'Delete') => void
   cancel: () => void
   select: (id: string | null) => void
@@ -100,6 +103,17 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
       if (part) return { line, part }
     }
     return null
+  }
+
+  const levelAt = (pane: PaneId, xy: XY): number | null => {
+    const geometry = pane === 'price' ? deps.geometry(pane) : null
+    if (!geometry) return null
+    return (
+      (deps.levels?.() ?? []).find((price) => {
+        const y = geometry.toY(price)
+        return y !== null && Math.abs(y - xy.y) <= HIT_TOLERANCE
+      }) ?? null
+    )
   }
 
   const selectedVisible = (): boolean =>
@@ -278,7 +292,7 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
       return 'crosshair'
     }
     if (tool !== 'cursor') return 'crosshair'
-    return hitAt(pane, xy) ? 'pointer' : 'default'
+    return hitAt(pane, xy) || levelAt(pane, xy) !== null ? 'pointer' : 'default'
   }
 
   const pointerUp = (pane: PaneId, xy: XY): void => {
@@ -293,6 +307,13 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
     if (mode.kind !== 'placing' || mode.pane !== pane) return
     const moved = Math.hypot(xy.x - mode.start.x, xy.y - mode.start.y)
     if (moved > RELEASE_DISTANCE) advance(mode, xy)
+  }
+
+  const click = (pane: PaneId, xy: XY): void => {
+    const level = tool === 'cursor' && mode.kind === 'idle' && !hitAt(pane, xy) ? levelAt(pane, xy) : null
+    if (level === null || !deps.levelLook) return
+    const look = deps.levelLook()
+    add(withLook({ ...baseOf(pane, look), kind: 'hline', value: level }, look))
   }
 
   const cancel = (): void => {
@@ -329,6 +350,7 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
     pointerDown,
     pointerMove,
     pointerUp,
+    click,
     key,
     cancel,
     select,

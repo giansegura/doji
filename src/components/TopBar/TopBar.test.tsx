@@ -463,6 +463,21 @@ test('Should set the length and the multiplier of the Bollinger Bands', async ()
   )
 })
 
+test('Should switch the support and resistance levels on and set how many it shows per side', async () => {
+  const { handlers, user } = setup()
+  await openIndicators(user)
+  expect(screen.queryByRole('spinbutton', { name: 'Levels per side' })).toBeNull()
+  await user.click(screen.getByRole('checkbox', { name: 'Support & resistance' }))
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ levels: { visible: true, perSide: 3 } }))
+})
+
+test('Should set how many support and resistance levels it shows per side', async () => {
+  const { handlers, user } = setup({ ...DEFAULT_STATE.indicators, levels: { visible: true, perSide: 3 } })
+  await openIndicators(user)
+  await typeInto(user, 'Levels per side', '2')
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ levels: { visible: true, perSide: 2 } }))
+})
+
 test('Should switch the volume profile on and set how many rows it splits the prices into', async () => {
   const { handlers, user } = setup()
   await openIndicators(user)

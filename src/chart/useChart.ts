@@ -381,7 +381,7 @@ const syncSmas = (chart: IChartApi, series: SeriesSet, configs: SmaConfig[]): vo
   })
 }
 
-const syncIndicators = (chart: IChartApi, series: SeriesSet, indicators: Omit<Indicators, 'volumeProfile'>, theme: Theme): void => {
+const syncIndicators = (chart: IChartApi, series: SeriesSet, indicators: Omit<Indicators, 'volumeProfile' | 'levels'>, theme: Theme): void => {
   const panesBefore = chart.panes().length
   syncSmas(chart, series, indicators.sma)
   if (indicators.volume.visible && !series.volume) series.volume = addVolume(chart)

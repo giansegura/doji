@@ -460,3 +460,10 @@ test('Should keep the volume profile hidden with twenty-four rows unless the con
     rows: 24,
   })
 })
+
+test('Should keep the support and resistance levels hidden with three per side unless the configuration says otherwise', () => {
+  expect(normalizeState({}).indicators.levels).toEqual({ visible: false, perSide: 3 })
+  expect(normalizeState({ indicators: { levels: { visible: true, perSide: 5 } } }).indicators.levels).toEqual({ visible: true, perSide: 5 })
+  expect(normalizeState({ indicators: { levels: { visible: 1, perSide: 9 } } }).indicators.levels).toEqual({ visible: false, perSide: 3 })
+  expect(normalizeState({ indicators: { levels: { visible: true, perSide: 0 } } }).indicators.levels).toEqual({ visible: true, perSide: 3 })
+})

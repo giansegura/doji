@@ -44,6 +44,7 @@ export type Theme = {
     band: string
     macd: string
     macdSignal: string
+    levels: string
   }
 }
 
@@ -68,6 +69,7 @@ const shared = {
   band: '#2196F3',
   macd: ACCENT,
   macdSignal: '#FF6D00',
+  levels: '#FFFFFF',
 }
 
 const DOJI_VIOLET = '#7C5CFF'
@@ -120,6 +122,7 @@ export const themes: Record<ThemeName, Theme> = {
       band: '#6EC1E4',
       macd: DOJI_VIOLET,
       macdSignal: DOJI_GOLD,
+      levels: '#FFFFFF',
     },
   },
   midnight: {
@@ -190,6 +193,7 @@ export const themes: Record<ThemeName, Theme> = {
       border: '#E0E3EB',
       crosshair: '#9598A1',
       crosshairLabel: '#131722',
+      levels: '#131722',
     },
   },
 }

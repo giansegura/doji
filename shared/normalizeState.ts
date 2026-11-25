@@ -3,6 +3,7 @@ import {
   BAND_MAX_MULTIPLIER,
   BAND_MIN_MULTIPLIER,
   LIST_NAME_MAX_LENGTH,
+  LEVELS_MAX_PER_SIDE,
   LINE_TEXT_MAX_LENGTH,
   MAX_LISTS,
   MIN_LINE_OPACITY,
@@ -261,6 +262,8 @@ const toIndicators = (raw: unknown): Indicators => {
   const macd = asRecord(indicators.macd)
   const profile = asRecord(indicators.volumeProfile)
   const rows = asFinite(profile.rows)
+  const levels = asRecord(indicators.levels)
+  const perSide = asFinite(levels.perSide)
   const defaults = DEFAULT_STATE.indicators
   return {
     volume: { visible: asBoolean(volume.visible, defaults.volume.visible) },
@@ -291,6 +294,13 @@ const toIndicators = (raw: unknown): Indicators => {
         rows !== null && Number.isInteger(rows) && rows >= PROFILE_MIN_ROWS && rows <= PROFILE_MAX_ROWS
           ? rows
           : defaults.volumeProfile.rows,
+    },
+    levels: {
+      visible: asBoolean(levels.visible, defaults.levels.visible),
+      perSide:
+        perSide !== null && Number.isInteger(perSide) && perSide >= 1 && perSide <= LEVELS_MAX_PER_SIDE
+          ? perSide
+          : defaults.levels.perSide,
     },
   }
 }

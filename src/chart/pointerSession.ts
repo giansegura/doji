@@ -23,7 +23,7 @@ export type PointerSession = {
 }
 
 type SessionDeps = {
-  controller: Pick<DrawingController, 'pointerDown' | 'pointerMove' | 'pointerUp' | 'cancel'>
+  controller: Pick<DrawingController, 'pointerDown' | 'pointerMove' | 'pointerUp' | 'cancel' | 'click'>
   panes: PaneId[]
   measure: (pane: PaneId) => PaneBox | null
   isInside: (target: EventTarget | null) => boolean
@@ -113,8 +113,14 @@ export const createPointerSession = (deps: SessionDeps): PointerSession => {
   }
 
   const up = (event: PointerLike): void => {
+    const quiet = pressed && Math.abs(event.clientX - pressed.x) + Math.abs(event.clientY - pressed.y) < DRAG_START_PX ? pressed : null
     pressed = null
-    if (captured) release(captured, event)
+    if (captured) {
+      release(captured, event)
+      return
+    }
+    const at = quiet ? follow(quiet.pane, event) : null
+    if (at) deps.controller.click(at.pane, at.xy)
   }
 
   const cancel = (): void => {
