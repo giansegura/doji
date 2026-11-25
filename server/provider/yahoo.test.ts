@@ -138,6 +138,29 @@ test('Should treat a missing volume as zero and tolerate missing events', () => 
   expect(history.bars).toEqual([{ time: '2026-11-20', open: 10, high: 12, low: 9, close: 11, volume: 0 }])
 })
 
+test('Should close the last bar at the last price when Yahoo has not filled in its close yet', () => {
+  const json = chartJson({
+    meta: {
+      symbol: 'AAPL',
+      exchangeTimezoneName: 'America/New_York',
+      regularMarketPrice: 354.07,
+      regularMarketTime: 1795554001,
+    },
+    timestamp: [1795444200, 1795530600],
+    indicators: { quote: [{ open: [347, 348.12], high: [350, 354.37], low: [345, 345.88], close: [349.08, null], volume: [100, 200] }] },
+  })
+  expect(parseHistory(json, 'x').bars.at(-1)).toEqual({ time: '2026-11-24', open: 348.12, high: 354.37, low: 345.88, close: 354.07, volume: 200 })
+})
+
+test('Should still leave out an earlier bar without close, or the last one when the last price is from another day', () => {
+  const json = chartJson({
+    meta: { symbol: 'AAPL', exchangeTimezoneName: 'America/New_York', regularMarketPrice: 354.07, regularMarketTime: 1795467600 },
+    timestamp: [1795444200, 1795530600],
+    indicators: { quote: [{ open: [347, 348.12], high: [350, 354.37], low: [345, 345.88], close: [null, null], volume: [100, 200] }] },
+  })
+  expect(parseHistory(json, 'x').bars).toEqual([])
+})
+
 test('Should return no bars when Yahoo sends no timestamps', () => {
   const json = chartJson({ timestamp: undefined, indicators: { quote: [{}] } })
   expect(parseHistory(json, 'x').bars).toEqual([])
