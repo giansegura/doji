@@ -541,3 +541,41 @@ test('Should show every symbol unless the configuration asks for the flagged one
   expect(normalizeState({ onlyFlagged: true }).onlyFlagged).toBe(true)
   expect(normalizeState({ onlyFlagged: 'yes' }).onlyFlagged).toBe(false)
 })
+
+test('Should keep the saved filters with their conditions and drop what it cannot read', () => {
+  expect(normalizeState({}).filters).toEqual([])
+  expect(normalizeState({}).activeFilterId).toBeNull()
+  const out = normalizeState({
+    filters: [
+      {
+        id: 'f1',
+        name: '  Sobrevendidas  ',
+        scope: 'all',
+        conditions: [
+          { field: 'rsi', op: 'below', value: 30 },
+          { field: 'price', op: 'below', value: 30 },
+          { field: 'vsSma200', op: 'above', value: '0' },
+          { field: 'vsSma200', op: 'above', value: 0 },
+        ],
+      },
+      { id: 'f2', name: 'Vacío', scope: 'list', conditions: [{ field: 'rsi', op: 'near', value: 1 }] },
+      { id: 'f3', name: '', scope: 'list', conditions: [{ field: 'rsi', op: 'below', value: 1 }] },
+      { id: 'f4', name: 'Lista', scope: 'other', conditions: [{ field: 'change', op: 'above', value: 2 }] },
+    ],
+    activeFilterId: 'f1',
+  })
+  expect(out.filters).toEqual([
+    {
+      id: 'f1',
+      name: 'Sobrevendidas',
+      scope: 'all',
+      conditions: [
+        { field: 'rsi', op: 'below', value: 30 },
+        { field: 'vsSma200', op: 'above', value: 0 },
+      ],
+    },
+    { id: 'f4', name: 'Lista', scope: 'list', conditions: [{ field: 'change', op: 'above', value: 2 }] },
+  ])
+  expect(out.activeFilterId).toBe('f1')
+  expect(normalizeState({ filters: [], activeFilterId: 'f9' }).activeFilterId).toBeNull()
+})

@@ -93,6 +93,9 @@ const metricsOf = (rsi: number, fromHighPercent: number, volumeRatio: number, pe
   fromHighPercent,
   volumeRatio,
   level: { price: 1, kind: percent > 0 ? 'resistance' : 'support', percent },
+  changePercent: 0,
+  vsSma50Percent: 0,
+  vsSma200Percent: 0,
 })
 
 const extras = {

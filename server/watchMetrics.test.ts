@@ -24,6 +24,7 @@ const historyOf = (symbol: string, fetchedAt = new Date(NOW - MINUTE).toISOStrin
 const setup = (keptAt: Record<string, string | null>, failing: string[] = []) => {
   const kept = new Map(Object.entries(keptAt).flatMap(([symbol, at]) => (at ? [[symbol, historyOf(symbol, at)]] : [])))
   const downloads: string[] = []
+  const reads: string[] = []
   let clock = NOW
   const history: HistoryCache = {
     get: async (symbol) => {
@@ -34,12 +35,16 @@ const setup = (keptAt: Record<string, string | null>, failing: string[] = []) =>
       return fresh
     },
     peek: async (symbol) => historyOf(symbol),
-    kept: async (symbol) => kept.get(symbol) ?? null,
+    kept: async (symbol) => {
+      reads.push(symbol)
+      return kept.get(symbol) ?? null
+    },
   }
   const metrics = createWatchMetrics({ history, now: () => new Date(clock), workers: 2 })
   return {
     metrics,
     downloads,
+    reads,
     advance: (ms: number) => {
       clock += ms
     },
@@ -108,4 +113,44 @@ test('Should download no more than two histories at a time', async () => {
   await metrics.settled()
   expect(most).toBe(2)
   expect(kept.size).toBe(5)
+})
+
+test('Should keep the values it worked out and not read the history again while they are fresh', async () => {
+  const { metrics, reads, downloads } = setup({ KO: new Date(NOW - MINUTE).toISOString(), PEP: null })
+  await metrics.read(['KO', 'PEP'], false)
+  await metrics.settled()
+  await metrics.read(['KO', 'PEP'], false)
+  await metrics.read(['KO', 'PEP'], false)
+  expect(reads).toEqual(['KO', 'PEP'])
+  expect(downloads).toEqual(['PEP'])
+})
+
+test('Should refresh many symbols every half hour instead of every five minutes', async () => {
+  const many = Array.from({ length: 80 }, (_, index) => `S${index}`)
+  const { metrics, downloads, advance } = setup(Object.fromEntries(many.map((symbol) => [symbol, new Date(NOW - MINUTE).toISOString()])))
+  await metrics.read(many, false)
+  advance(10 * MINUTE)
+  expect((await metrics.read(many, false)).pending).toBe(0)
+  advance(25 * MINUTE)
+  expect((await metrics.read(many, false)).pending).toBe(80)
+  await metrics.settled()
+  expect(downloads).toHaveLength(80)
+})
+
+test('Should not ask again and again for a history the source keeps failing to refresh', async () => {
+  const kept = historyOf('KO', new Date(NOW - 10 * MINUTE).toISOString())
+  let downloads = 0
+  const history: HistoryCache = {
+    get: async () => {
+      downloads += 1
+      return { ...kept, stale: true }
+    },
+    peek: async () => kept,
+    kept: async () => kept,
+  }
+  const metrics = createWatchMetrics({ history, now: () => new Date(NOW), workers: 2 })
+  expect((await metrics.read(['KO'], false)).pending).toBe(1)
+  await metrics.settled()
+  expect((await metrics.read(['KO'], false)).pending).toBe(0)
+  expect(downloads).toBe(1)
 })

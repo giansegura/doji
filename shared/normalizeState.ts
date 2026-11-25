@@ -20,6 +20,7 @@ import {
 import { toListWidth } from './listWidth'
 import { WATCH_COLUMNS, toWatchColumns } from './watchColumns'
 import { toFlags } from './flags'
+import { toFilters } from './filters'
 import {
   type AppState,
   type ChartSettings,
@@ -382,6 +383,8 @@ export const normalizeState = (raw: unknown): AppState => {
   const activeId = asText(source.activeWatchlistId)
   const rev = asFinite(source.rev)
   const columns = toWatchColumns(source.watchlistColumns)
+  const filters = toFilters(source.filters)
+  const activeFilterId = asText(source.activeFilterId)
   return {
     version: 1,
     rev: rev !== null && Number.isInteger(rev) && rev >= 1 ? rev : 1,
@@ -400,6 +403,8 @@ export const normalizeState = (raw: unknown): AppState => {
     watchlistColumns: columns,
     flags: toFlags(source.flags),
     onlyFlagged: source.onlyFlagged === true,
+    filters,
+    activeFilterId: filters.some((filter) => filter.id === activeFilterId) ? activeFilterId : null,
     lineLooks: toLineLooks(source.lineLooks),
     earningsBadge: source.earningsBadge === true,
   }

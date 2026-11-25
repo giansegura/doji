@@ -6,6 +6,9 @@ const metrics = {
   fromHighPercent: -3.2,
   volumeRatio: 1.437,
   level: { price: 245, kind: 'resistance' as const, percent: 2.1 },
+  changePercent: 0.5,
+  vsSma50Percent: 1,
+  vsSma200Percent: 4,
 }
 
 test('Should write each column of a symbol short enough to fit', () => {

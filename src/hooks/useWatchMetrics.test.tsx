@@ -4,7 +4,15 @@ import type { SymbolMetrics } from '../../shared/symbolMetrics'
 import type { WatchMetricsAnswer } from '../api/client'
 import { useWatchMetrics } from './useWatchMetrics'
 
-const metrics = (rsi: number): SymbolMetrics => ({ rsi, fromHighPercent: -1, volumeRatio: 1, level: null })
+const metrics = (rsi: number): SymbolMetrics => ({
+  rsi,
+  fromHighPercent: -1,
+  volumeRatio: 1,
+  level: null,
+  changePercent: 0,
+  vsSma50Percent: 0,
+  vsSma200Percent: 0,
+})
 
 test('Should ask again soon while the server is still loading histories and then only now and then', async () => {
   const answers: WatchMetricsAnswer[] = [

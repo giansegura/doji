@@ -379,6 +379,25 @@ test('Should say what it keeps without downloading anything', async () => {
   expect(calls).toHaveLength(1)
 })
 
+test('Should read from disk what it does not have in memory without keeping it there', async () => {
+  const first = await makeCache([full])
+  await first.cache.get('AAPL')
+  const second = await makeCache([tail], { dir: first.dir })
+  expect((await second.cache.kept('AAPL'))?.bars).toEqual(full.bars)
+  await writeFile(join(first.dir, 'AAPL.json'), JSON.stringify({ ...tail, fetchedAt: '2026-11-23T20:00:00.000Z' }))
+  expect((await second.cache.kept('AAPL'))?.bars).toEqual(tail.bars)
+  expect(second.calls).toEqual([])
+})
+
+test('Should refresh a history without keeping it in memory when asked', async () => {
+  const { cache, calls, dir } = await makeCache([full])
+  const fresh = await cache.get('AAPL', false)
+  expect(fresh.bars).toEqual(full.bars)
+  expect(calls).toHaveLength(1)
+  await writeFile(join(dir, 'AAPL.json'), JSON.stringify({ ...tail, fetchedAt: '2026-11-23T20:00:00.000Z' }))
+  expect((await cache.kept('AAPL'))?.bars).toEqual(tail.bars)
+})
+
 test('Should download a history it is asked to hand over but does not keep', async () => {
   const { cache, calls } = await makeCache([full])
   const kept = await cache.peek('AAPL')

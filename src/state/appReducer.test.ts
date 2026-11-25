@@ -390,3 +390,39 @@ test('Should switch between every symbol and the flagged ones only', () => {
   expect(only.onlyFlagged).toBe(true)
   expect(appReducer(only, { type: 'setOnlyFlagged', on: true })).toBe(only)
 })
+
+const oversold = {
+  id: 'f1',
+  name: 'Sobrevendidas',
+  scope: 'list' as const,
+  conditions: [{ field: 'rsi' as const, op: 'below' as const, value: 30 }],
+}
+
+test('Should save a new filter and apply it, then replace it when edited', () => {
+  const saved = appReducer(base, { type: 'saveFilter', filter: oversold })
+  expect(saved.filters).toEqual([oversold])
+  expect(saved.activeFilterId).toBe('f1')
+  const edited = appReducer(saved, { type: 'saveFilter', filter: { ...oversold, name: 'RSI < 25' } })
+  expect(edited.filters).toEqual([{ ...oversold, name: 'RSI < 25' }])
+})
+
+test('Should apply a saved filter, clear it and delete it', () => {
+  const saved = appReducer(appReducer(base, { type: 'saveFilter', filter: oversold }), { type: 'applyFilter', id: null })
+  expect(saved.activeFilterId).toBeNull()
+  expect(appReducer(saved, { type: 'applyFilter', id: 'nope' })).toBe(saved)
+  const applied = appReducer(saved, { type: 'applyFilter', id: 'f1' })
+  expect(applied.activeFilterId).toBe('f1')
+  const deleted = appReducer(applied, { type: 'deleteFilter', id: 'f1' })
+  expect(deleted.filters).toEqual([])
+  expect(deleted.activeFilterId).toBeNull()
+})
+
+test('Should save the symbols a filter shows as a new list and open it', () => {
+  const items = [
+    { symbol: 'KO', name: 'Coca-Cola', exchange: 'NYSE' },
+    { symbol: 'PEP', name: 'PepsiCo', exchange: 'NASDAQ' },
+  ]
+  const out = appReducer(base, { type: 'createWatchlistWith', id: 'new', name: ' Sobrevendidas ', items })
+  expect(out.watchlists.at(-1)).toEqual({ id: 'new', name: 'Sobrevendidas', items })
+  expect(out.activeWatchlistId).toBe('new')
+})

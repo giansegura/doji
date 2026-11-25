@@ -58,7 +58,33 @@ test('Should give the nearest support or resistance with its signed distance onl
   expect(symbolMetrics('KO', bars, false).level).toBeNull()
 })
 
+test('Should give the change of the day and the distance to the 50 and 200 day averages', () => {
+  const metrics = symbolMetrics('KO', barsOf(wave), false)
+  const close = wave.at(-1) as number
+  const previous = wave.at(-2) as number
+  const average = (length: number) => wave.slice(-length).reduce((sum, value) => sum + value, 0) / length
+  expect(metrics.changePercent).toBeCloseTo(((close - previous) / previous) * 100, 2)
+  expect(metrics.vsSma50Percent).toBeCloseTo(((close - average(50)) / average(50)) * 100, 2)
+  expect(metrics.vsSma200Percent).toBeCloseTo(((close - average(200)) / average(200)) * 100, 2)
+})
+
 test('Should give nothing it cannot work out from too few bars', () => {
-  expect(symbolMetrics('KO', barsOf([10, 11, 12]), true)).toEqual({ rsi: null, fromHighPercent: expect.any(Number), volumeRatio: null, level: null })
-  expect(symbolMetrics('KO', [], true)).toEqual({ rsi: null, fromHighPercent: null, volumeRatio: null, level: null })
+  expect(symbolMetrics('KO', barsOf([10, 11, 12]), true)).toEqual({
+    rsi: null,
+    fromHighPercent: expect.any(Number),
+    volumeRatio: null,
+    level: null,
+    changePercent: 9.09,
+    vsSma50Percent: null,
+    vsSma200Percent: null,
+  })
+  expect(symbolMetrics('KO', [], true)).toEqual({
+    rsi: null,
+    fromHighPercent: null,
+    volumeRatio: null,
+    level: null,
+    changePercent: null,
+    vsSma50Percent: null,
+    vsSma200Percent: null,
+  })
 })

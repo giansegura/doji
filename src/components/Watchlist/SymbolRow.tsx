@@ -20,7 +20,7 @@ type SymbolRowProps = {
   flag?: FlagColor | null
   onFlag?: (color: FlagColor | null) => void
   onSelect: () => void
-  onRemove: () => void
+  onRemove?: () => void
 }
 
 const MISSING = '—'
@@ -98,9 +98,11 @@ export const SymbolRow = ({
         })}
       </Styles.RowButton>
       {onFlag && <FlagPicker symbol={item.symbol} flag={flag} onFlag={onFlag} />}
-      <Styles.RemoveButton type="button" aria-label={`Remove ${displaySymbol(item.symbol)}`} onClick={onRemove}>
-        ×
-      </Styles.RemoveButton>
+      {onRemove && (
+        <Styles.RemoveButton type="button" aria-label={`Remove ${displaySymbol(item.symbol)}`} onClick={onRemove}>
+          ×
+        </Styles.RemoveButton>
+      )}
     </>
   )
 }

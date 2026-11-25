@@ -34,6 +34,8 @@ type WatchlistProps = {
   onFlag?: (symbol: string, color: FlagColor | null) => void
   onlyFlagged?: boolean
   onOnlyFlagged?: (on: boolean) => void
+  toolbar?: ReactNode
+  filtered?: 'list' | 'all' | null
 }
 
 type Editing = { kind: 'new' } | { kind: 'rename'; id: string } | null
@@ -103,6 +105,8 @@ export const Watchlist = ({
   onFlag,
   onlyFlagged = false,
   onOnlyFlagged,
+  toolbar,
+  filtered = null,
 }: WatchlistProps) => {
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [editing, setEditing] = useState<Editing>(null)
@@ -120,7 +124,7 @@ export const Watchlist = ({
 
   const handleDrop = (event: DragEvent, index: number) => {
     event.preventDefault()
-    if (sort === null && !onlyFlagged && dragIndex !== null && dragIndex !== index) onMove(dragIndex, index)
+    if (!fixed && dragIndex !== null && dragIndex !== index) onMove(dragIndex, index)
     setDragIndex(null)
   }
 
@@ -133,6 +137,9 @@ export const Watchlist = ({
     onRenameSection(id, title)
     setEditing(null)
   }
+
+  const fixed = sort !== null || onlyFlagged || filtered !== null
+  const emptyText = filtered ? 'No symbols match this filter' : onlyFlagged ? 'No flagged symbols in this watchlist' : 'This watchlist is empty'
 
   const specs: ColumnSpec[] = [
     ...COLUMNS,
@@ -154,6 +161,7 @@ export const Watchlist = ({
           </Styles.IconButton>
         </Styles.HeaderActions>
       </Styles.Header>
+      {toolbar}
       <Styles.Columns $extra={columns.length}>
         {onFlag && (
           <Styles.FlagSort
@@ -184,13 +192,13 @@ export const Watchlist = ({
           </Styles.ColumnLabel>
         ))}
       </Styles.Columns>
-      {items.length === 0 && <Styles.Empty>{onlyFlagged ? 'No flagged symbols in this watchlist' : 'This watchlist is empty'}</Styles.Empty>}
+      {items.length === 0 && <Styles.Empty>{emptyText}</Styles.Empty>}
       <Styles.Rows>
         {items.map((item, index) => (
           <Styles.Row
             key={keyOf(item)}
             ref={!isSection(item) && item.symbol === activeSymbol ? activeRef : undefined}
-            draggable={editing === null && sort === null && !onlyFlagged}
+            draggable={editing === null && !fixed}
             $dragging={dragIndex === index}
             onDragStart={(event) => handleDragStart(event, index)}
             onDragOver={(event) => event.preventDefault()}
@@ -218,7 +226,7 @@ export const Watchlist = ({
                 flag={flags[item.symbol] ?? null}
                 onFlag={onFlag ? (color) => onFlag(item.symbol, color) : undefined}
                 onSelect={() => onSelect(item.symbol)}
-                onRemove={() => onRemove(item.symbol)}
+                onRemove={filtered === 'all' ? undefined : () => onRemove(item.symbol)}
               />
             )}
           </Styles.Row>

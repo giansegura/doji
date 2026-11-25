@@ -29,6 +29,7 @@ type Over = {
   earnings?: Record<string, Earnings>
   flags?: Record<string, FlagColor>
   onlyFlagged?: boolean
+  filtered?: 'list' | 'all' | null
 }
 
 const setup = (over: Over = {}) => {
@@ -57,6 +58,8 @@ const setup = (over: Over = {}) => {
       earnings={over.earnings ?? {}}
       flags={over.flags ?? {}}
       onlyFlagged={over.onlyFlagged ?? false}
+      filtered={over.filtered ?? null}
+      toolbar={<div>Barra de filtro</div>}
       {...handlers}
     />,
   )
@@ -500,7 +503,7 @@ test('Should warn on the row of a symbol that reports earnings within a week', (
 test('Should show the columns picked, each sortable, with the values of each symbol', async () => {
   const { handlers, user } = setup({
     columns: ['rsi', 'earnings'],
-    metrics: { AAPL: { rsi: 61.25, fromHighPercent: -2, volumeRatio: 1, level: null } },
+    metrics: { AAPL: { rsi: 61.25, fromHighPercent: -2, volumeRatio: 1, level: null, changePercent: 1, vsSma50Percent: 2, vsSma200Percent: 3 } },
     earnings: { AAPL: { past: [], next: '2027-01-28', nextIsEstimate: false } },
   })
   const apple = row('AAPL')
@@ -553,4 +556,21 @@ test('Should sort by flag and show only the flagged symbols from the header', as
 test('Should say when no symbol is flagged while it only shows the flagged ones', () => {
   setup({ items: [], onlyFlagged: true })
   expect(screen.getByText('No flagged symbols in this watchlist')).toBeTruthy()
+})
+
+test('Should show the filter bar and keep the rows in place while a filter is applied', () => {
+  setup({ filtered: 'list' })
+  expect(screen.getByText('Barra de filtro')).toBeTruthy()
+  expect(screen.getAllByRole('listitem').every((row) => row.getAttribute('draggable') === 'false')).toBe(true)
+  expect(screen.getByRole('button', { name: 'Remove AAPL' })).toBeTruthy()
+})
+
+test('Should not offer to remove a symbol while the filter shows every watchlist', () => {
+  setup({ filtered: 'all' })
+  expect(screen.queryByRole('button', { name: /^Remove / })).toBeNull()
+})
+
+test('Should say when no symbol matches the filter', () => {
+  setup({ items: [], filtered: 'list' })
+  expect(screen.getByText('No symbols match this filter')).toBeTruthy()
 })

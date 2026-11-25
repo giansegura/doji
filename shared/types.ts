@@ -29,6 +29,12 @@ export type WatchColumn = 'rsi' | 'fromHigh' | 'relVolume' | 'earnings' | 'level
 
 export type FlagColor = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple'
 
+export type FilterField = 'change' | 'rsi' | 'fromHigh' | 'relVolume' | 'level' | 'vsSma50' | 'vsSma200' | 'earningsDays'
+
+export type FilterCondition = { field: FilterField; op: 'above' | 'below'; value: number }
+
+export type SavedFilter = { id: string; name: string; scope: 'list' | 'all'; conditions: FilterCondition[] }
+
 export type SortColumn = 'symbol' | 'last' | 'change' | 'ext' | 'flag' | WatchColumn
 
 export type WatchlistSort = { column: SortColumn; direction: 'asc' | 'desc' }
@@ -176,6 +182,8 @@ export type AppState = {
   watchlistColumns: WatchColumn[]
   flags: Record<string, FlagColor>
   onlyFlagged: boolean
+  filters: SavedFilter[]
+  activeFilterId: string | null
   lineLooks: Partial<Record<DrawingKind, LineLook>>
   earningsBadge: boolean
 }
@@ -223,6 +231,8 @@ export const DEFAULT_STATE: AppState = {
   watchlistColumns: [],
   flags: {},
   onlyFlagged: false,
+  filters: [],
+  activeFilterId: null,
   lineLooks: {},
   earningsBadge: false,
 }
