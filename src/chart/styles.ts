@@ -1,5 +1,7 @@
 import styled from 'styled-components'
 
+export const RANGE_BAR_HEIGHT = 28
+
 export const Wrapper = styled.div`
   position: absolute;
   inset: 0;
@@ -7,7 +9,7 @@ export const Wrapper = styled.div`
 
 export const Canvas = styled.div`
   position: absolute;
-  inset: 0;
+  inset: 0 0 ${RANGE_BAR_HEIGHT}px 0;
 
   &[data-cursor='pointer'] * {
     cursor: pointer !important;
@@ -86,7 +88,7 @@ export const Notice = styled.div`
 export const AutoFit = styled.button`
   position: absolute;
   right: 6px;
-  bottom: 3px;
+  bottom: ${RANGE_BAR_HEIGHT + 3}px;
   z-index: 3;
   height: 20px;
   padding: 0 6px;
@@ -219,4 +221,53 @@ export const WidthSample = styled.div<{ $width: number }>`
   height: ${(props) => props.$width}px;
   border-radius: 2px;
   background: currentColor;
+`
+
+
+export const RangeBar = styled.div`
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: ${RANGE_BAR_HEIGHT}px;
+  padding: 0 8px;
+  border-top: 1px solid ${(props) => props.theme.ui.separator};
+  font-size: 12px;
+`
+
+export const RangeButton = styled.button`
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 4px;
+  color: ${(props) => props.theme.ui.textMuted};
+
+  &:hover {
+    background: ${(props) => props.theme.ui.hover};
+    color: ${(props) => props.theme.ui.text};
+  }
+`
+
+export const RangeDivider = styled.div`
+  width: 1px;
+  height: 16px;
+  margin: 0 6px;
+  background: ${(props) => props.theme.ui.separator};
+`
+
+export const GoTo = styled.form`
+  display: flex;
+`
+
+export const GoToField = styled.input`
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid ${(props) => props.theme.ui.border};
+  border-radius: 4px;
+  background: transparent;
+  color: ${(props) => props.theme.ui.textMuted};
+  font: inherit;
+  color-scheme: ${(props) => (props.theme.name === 'light' ? 'light' : 'dark')};
 `

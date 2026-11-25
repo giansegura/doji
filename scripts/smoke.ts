@@ -1520,6 +1520,25 @@ await step('el gráfico se ve en euros con el cambio de cada día y sus dibujos 
   check(after.chart.currency === 'original' && (after.lines[symbol] ?? []).length === existing.length, 'no quedó todo como estaba')
 })
 
+await step('los rangos rápidos cambian el tramo y ir a una fecha centra el gráfico en ella', async () => {
+  await button('Show 1 month').click()
+  const month = await timeAxisPixels()
+  await button('Show 5 years').click()
+  const years = await timeAxisPixels()
+  check(month !== years, 'el eje de fechas no cambió entre 1M y 5Y')
+  await button('Show 1 year').click()
+  const year = await timeAxisPixels()
+  const field = page.getByLabel('Go to date')
+  await field.fill('2020-03-16')
+  await field.press('Enter')
+  const past = await timeAxisPixels()
+  check(past !== year, 'ir a una fecha no movió el gráfico')
+  await button('Show all').click()
+  check((await timeAxisPixels()) !== past, 'All no enseñó toda la historia')
+  await button('Show 1 year').click()
+  check((await timeAxisPixels()) === year, '1Y no volvió al mismo tramo')
+})
+
 await step('oculta y muestra el RSI', async () => {
   await button('Indicators').click()
   await page.getByRole('checkbox', { name: 'RSI', exact: true }).click()
