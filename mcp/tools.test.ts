@@ -2,7 +2,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { expect, test } from 'vitest'
 import { addWeekdays } from '../shared/dates'
-import { type AppState, DEFAULT_STATE, type Drawing, type History, type Quote } from '../shared/types'
+import { type AppState, type CompanyProfile, DEFAULT_STATE, type Drawing, type History, type Quote } from '../shared/types'
 import type { DojiApi } from './dojiApi'
 import { createDojiServer } from './tools'
 
@@ -87,6 +87,12 @@ const fakeApi = (
     },
     getQuotes: async (symbols) =>
       symbols.map((symbol): Quote => ({ symbol, price: 100, change: 1, changePercent: 1, extended: null })),
+    getEarnings: async () => ({ past: ['2026-10-21'], next: '2027-02-10', nextIsEstimate: true }),
+    getNews: async (symbol) => [{ id: 'n1', title: `${symbol} beats estimates`, publisher: 'Reuters', time: Date.parse('2026-11-25T12:00:00Z'), url: 'https://example.com/n1' }],
+    getProfile: async (symbol) => {
+      if (symbol === 'ZZZZ') throw new Error('Yahoo has no company data for ZZZZ.')
+      return { name: `${symbol} Inc.`, sector: 'Consumer Defensive' } as CompanyProfile
+    },
     getEarningsCalendar: async (symbols) => {
       box.calendarAsked.push(symbols)
       return {
@@ -132,8 +138,14 @@ test('Should offer its tools and tell the reading ones from the writing ones and
     ['scan_watchlist', true, false],
     ['get_chart', true, false],
     ['get_earnings_calendar', true, false],
+    ['get_company_profile', true, false],
+    ['get_news', true, false],
+    ['get_earnings', true, false],
     ['add_horizontal_line', false, false],
+    ['add_trend_line', false, false],
     ['set_alert', false, false],
+    ['update_drawing', false, false],
+    ['delete_drawing', false, true],
     ['write_note', false, true],
     ['create_watchlist', false, false],
     ['add_to_watchlist', false, false],
@@ -236,6 +248,7 @@ test('Should add a horizontal line priced after the latest split and say where i
       width: 2,
       pricedAt: '2024-06-10',
       alert: true,
+      by: 'ai',
     },
   ])
   expect(box.state.rev).toBe(6)
@@ -497,4 +510,69 @@ test('Should keep the positions of the user out of the charts until the user sha
     gain: Number(((close - 50) * 10).toFixed(2)),
   })
   expect((await shared.call('scan_watchlist')).data.rows[1].positionGainPercent).toBe(data.position.gainPercent)
+})
+
+test('Should give the sheet of a company', async () => {
+  const { call } = await connect(fakeApi().api)
+  expect((await call('get_company_profile', { symbol: 'ko' })).data).toEqual({ symbol: 'KO', name: 'KO Inc.', sector: 'Consumer Defensive' })
+  expect(await call('get_company_profile', { symbol: 'ZZZZ' })).toEqual({ failed: true, text: 'Yahoo has no company data for ZZZZ.', data: null })
+})
+
+test('Should give the latest headlines of a symbol with their source, time and link', async () => {
+  const { call } = await connect(fakeApi().api)
+  expect((await call('get_news', { symbol: 'ko' })).data).toEqual({
+    symbol: 'KO',
+    headlines: [{ title: 'KO beats estimates', publisher: 'Reuters', time: '2026-11-25T12:00:00.000Z', url: 'https://example.com/n1' }],
+  })
+})
+
+test('Should draw a trend line between two points and say where it went', async () => {
+  const { api, box } = fakeApi()
+  const { call } = await connect(api)
+  const { data } = await call('add_trend_line', {
+    symbol: 'ko',
+    from: { date: '2026-10-01', price: 58 },
+    to: { date: '2026-11-02', price: 61.5 },
+    extend_right: true,
+    text: 'Soporte',
+  })
+  expect(data).toEqual({
+    id: 'ai-1',
+    symbol: 'KO',
+    from: { date: '2026-10-01', price: 58 },
+    to: { date: '2026-11-02', price: 61.5 },
+    extendRight: true,
+    alert: false,
+    message: 'Added. It shows in doji within a few seconds.',
+  })
+  expect(box.state.lines.KO.at(-1)).toMatchObject({ kind: 'trend', id: 'ai-1', extendRight: true, text: 'Soporte', by: 'ai' })
+})
+
+test('Should change the look and the place of a drawing', async () => {
+  const { api, box } = fakeApi()
+  const { call } = await connect(api)
+  const { data } = await call('update_drawing', { symbol: 'KO', drawing_id: 't', color: '#FFFFFF', line_style: 'dashed', text: 'R1' })
+  expect(data).toEqual({ id: 't', symbol: 'KO', message: 'Changed. It shows in doji within a few seconds.' })
+  expect(box.state.lines.KO[0]).toMatchObject({ id: 't', color: '#FFFFFF', lineStyle: 'dashed', text: 'R1' })
+  expect(await call('update_drawing', { symbol: 'KO', drawing_id: 't', price: 3 })).toMatchObject({ failed: true })
+})
+
+test('Should delete a drawing the AI made and refuse one the user made', async () => {
+  const { api, box } = fakeApi()
+  const { call } = await connect(api)
+  await call('add_horizontal_line', { symbol: 'KO', price: 99 })
+  expect((await call('delete_drawing', { symbol: 'KO', drawing_id: 'ai-1' })).data).toEqual({ id: 'ai-1', symbol: 'KO', message: 'Deleted.' })
+  expect(box.state.lines.KO.map((drawing) => drawing.id)).toEqual(['t'])
+  expect(await call('delete_drawing', { symbol: 'KO', drawing_id: 't' })).toEqual({
+    failed: true,
+    text: 'The AI can delete only the drawings it made. Ask the user to delete this one in doji.',
+    data: null,
+  })
+})
+
+test('Should give the earnings dates of a symbol on their own and inside the chart', async () => {
+  const { call } = await connect(fakeApi().api)
+  const earnings = { past: ['2026-10-21'], next: '2027-02-10', nextIsEstimate: true }
+  expect((await call('get_earnings', { symbol: 'ko' })).data).toEqual({ symbol: 'KO', ...earnings })
+  expect((await call('get_chart', { symbol: 'KO' })).data.earnings).toEqual(earnings)
 })

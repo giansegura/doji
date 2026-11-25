@@ -1460,6 +1460,29 @@ await step('una posición guarda acciones y precio medio, pinta su línea y su g
   check(Object.keys(after.holdings).length === 0 && after.watchlistColumns.length === 0 && after.listWidth === before.listWidth, 'no quedó todo como estaba')
 })
 
+await step('la ficha de la empresa enseña sus cifras al abrir el panel', async () => {
+  const symbol = (await savedState()).symbol
+  await button(`Company sheet for ${symbol}`).click()
+  await page.getByText('Market cap', { exact: true }).waitFor({ timeout: 20_000 })
+  check((await page.getByText('52-week range', { exact: true }).count()) === 1, 'la ficha no da el rango de 52 semanas')
+  check((await page.getByText('Sector', { exact: true }).count()) === 1, 'la ficha no da el sector')
+  const sheet = await page.evaluate(async (wanted) => (await fetch(`/api/profile?symbol=${wanted}`)).json(), symbol)
+  check(typeof sheet.marketCap === 'number' && sheet.marketCap > 0, `la ficha no trae la capitalización: ${JSON.stringify(sheet).slice(0, 200)}`)
+  await button(`Company sheet for ${symbol}`).click()
+  check((await page.getByText('Market cap', { exact: true }).count()) === 0, 'la ficha no se plegó')
+})
+
+await step('las noticias de la acción se abren en otra pestaña', async () => {
+  const symbol = (await savedState()).symbol
+  await button(`News for ${symbol}`).click()
+  const first = page.getByRole('listitem').getByRole('link').first()
+  await first.waitFor({ timeout: 20_000 })
+  check(((await first.getAttribute('href')) ?? '').startsWith('https://'), 'el titular no enlaza a una web segura')
+  check((await first.getAttribute('target')) === '_blank', 'el titular no se abre en otra pestaña')
+  check((await page.getByText(/ · (just now|\d+[mhd] ago|[A-Z][a-z]{2} \d{1,2})$/).count()) > 0, 'los titulares no dicen su medio y cuándo salieron')
+  await button(`News for ${symbol}`).click()
+})
+
 await step('oculta y muestra el RSI', async () => {
   await button('Indicators').click()
   await page.getByRole('checkbox', { name: 'RSI', exact: true }).click()
@@ -1875,6 +1898,7 @@ await step('una IA conectada por MCP añade una línea con alerta, una nota y un
   check(Array.isArray(scan.rows) && scan.rows.length > 0, 'scan_watchlist no devolvió filas')
   const chart = await call('get_chart', { symbol, bars: 5 })
   check(typeof chart.price.close === 'number' && chart.recentBars.rows.length === 5, 'get_chart no devolvió el precio y las velas')
+  check(Array.isArray(chart.earnings?.past), 'get_chart no trae las fechas de resultados')
   const level = Number((chart.price.close * 0.97).toFixed(2))
   const { price: seedArea } = await panes()
   const existing = (await drawingsOf(symbol)).map((drawing) => drawing.id)
@@ -1884,6 +1908,21 @@ await step('una IA conectada por MCP añade una línea con alerta, una nota y un
   const seeded = (await drawingsOf(symbol)).find((drawing) => !existing.includes(drawing.id))
   check(seeded?.kind === 'hline', 'la línea propia no se guardó antes de que escribiera la IA')
   const added = await call('add_horizontal_line', { symbol, price: level, alert: true, color: '#FF00FF' })
+  const [first, second] = chart.recentBars.rows as [string, number, number, number, number, number][]
+  const trend = await call('add_trend_line', {
+    symbol,
+    from: { date: first[0], price: first[4] },
+    to: { date: second[0], price: second[4] },
+    extend_right: true,
+  })
+  await call('update_drawing', { symbol, drawing_id: trend.id, color: '#00FFFF', line_style: 'dashed', text: 'IA' })
+  const drawnByAi = (await drawingsOf(symbol)).find((drawing) => drawing.id === trend.id)
+  check(drawnByAi?.color === '#00FFFF' && drawnByAi.lineStyle === 'dashed' && drawnByAi.by === 'ai', `la IA no cambió su línea: ${JSON.stringify(drawnByAi)}`)
+  await call('delete_drawing', { symbol, drawing_id: trend.id })
+  check(!(await drawingsOf(symbol)).some((drawing) => drawing.id === trend.id), 'la IA no borró su línea')
+  const refused = await client.callTool({ name: 'delete_drawing', arguments: { symbol, drawing_id: seeded?.id ?? '' } })
+  check(refused.isError === true, 'la IA pudo borrar una línea del usuario')
+  check((await drawingsOf(symbol)).some((drawing) => drawing.id === seeded?.id), 'la línea del usuario desapareció')
   await call('write_note', { symbol, text: 'Nota escrita por la IA' })
   const listsBefore = (await savedState()).watchlists.length
   const created = await call('create_watchlist', { name: 'Lista de la IA', symbols: ['KO', 'PEP', 'ZZZZ'] })

@@ -8,6 +8,7 @@ import {
   isProviderError,
   parseHistory,
   parseLogoUrl,
+  parseNews,
   parseQuotes,
   parseSearch,
 } from './yahoo'
@@ -516,4 +517,34 @@ test('Should say when the last trade of a history happened', () => {
   expect(parseHistory(json, 'x').tradedAt).toBe(1_795_480_200_000)
   expect(parseHistory(chartJson(), 'x').tradedAt).toBeUndefined()
   expect(parseHistory(aaplSplit, 'x').tradedAt).toBe(1_795_462_086_000)
+})
+
+const newsJson = {
+  news: [
+    {
+      uuid: 'n1',
+      title: 'Apple sells more phones',
+      publisher: 'Reuters',
+      providerPublishTime: 1795561228,
+      link: 'https://finance.yahoo.com/news/apple-sells',
+      relatedTickers: ['AAPL', 'MSFT'],
+    },
+    { uuid: 'n2', title: 'Unrelated', publisher: 'X', providerPublishTime: 1795561000, link: 'https://example.com/a', relatedTickers: ['KO'] },
+    { uuid: 'n3', title: 'No link', publisher: 'X', providerPublishTime: 1795561000, link: 'javascript:alert(1)', relatedTickers: ['AAPL'] },
+    { uuid: 'n4', title: 'Without tickers', publisher: 'Barron’s', providerPublishTime: 1795562000, link: 'https://www.barrons.com/x' },
+  ],
+}
+
+test('Should read the headlines about the symbol, newest first, with a safe link', () => {
+  expect(parseNews(newsJson, 'aapl')).toEqual([
+    { id: 'n4', title: 'Without tickers', publisher: 'Barron’s', time: 1795562000000, url: 'https://www.barrons.com/x' },
+    { id: 'n1', title: 'Apple sells more phones', publisher: 'Reuters', time: 1795561228000, url: 'https://finance.yahoo.com/news/apple-sells' },
+  ])
+  expect(parseNews({}, 'AAPL')).toEqual([])
+})
+
+test('Should ask the search for news only', async () => {
+  const { provider, calls } = makeProvider([{ status: 200, body: newsJson }])
+  await provider.news('AAPL')
+  expect(calls[0].url).toBe('https://query2.finance.yahoo.com/v1/finance/search?q=AAPL&quotesCount=0&newsCount=10')
 })

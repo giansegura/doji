@@ -1,5 +1,5 @@
 import { askInBatches } from '../shared/earningsCalendarBatches'
-import type { AppState, Earnings, History, Quote } from '../shared/types'
+import type { AppState, CompanyProfile, Earnings, History, NewsItem, Quote } from '../shared/types'
 
 export type SaveOutcome = 'saved' | 'conflict'
 
@@ -9,6 +9,9 @@ export type DojiApi = {
   getHistory: (symbol: string) => Promise<History>
   getQuotes: (symbols: string[]) => Promise<Quote[]>
   getEarningsCalendar: (symbols: string[]) => Promise<{ earnings: Record<string, Earnings>; pending: number }>
+  getProfile: (symbol: string) => Promise<CompanyProfile>
+  getNews: (symbol: string) => Promise<NewsItem[]>
+  getEarnings: (symbol: string) => Promise<Earnings>
 }
 
 type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
@@ -59,5 +62,8 @@ export const createDojiApi = ({ baseUrl, fetch = globalThis.fetch }: ApiDeps): D
     getHistory: (symbol) => read(`/api/history?symbol=${encodeURIComponent(symbol)}`, `doji has no data for ${symbol}.`),
     getQuotes: (symbols) => read(`/api/quotes?symbols=${symbols.map(encodeURIComponent).join(',')}`),
     getEarningsCalendar: (symbols) => askInBatches(symbols, (batch) => read(`/api/earnings/calendar?symbols=${batch.map(encodeURIComponent).join(',')}`)),
+    getEarnings: (symbol) => read(`/api/earnings?symbol=${encodeURIComponent(symbol)}`),
+    getNews: (symbol) => read(`/api/news?symbol=${encodeURIComponent(symbol)}`),
+    getProfile: (symbol) => read(`/api/profile?symbol=${encodeURIComponent(symbol)}`, `Yahoo has no company data for ${symbol}.`),
   }
 }

@@ -216,6 +216,7 @@ const toBase = (item: Raw): DrawingBase | null => {
     pricedAt: asDate(item.pricedAt) ?? NEVER_ADJUST,
     ...toLineStyle(item.lineStyle),
     ...toOpacity(item.opacity),
+    ...(item.by === 'ai' ? { by: 'ai' as const } : {}),
   }
 }
 

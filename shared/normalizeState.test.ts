@@ -599,3 +599,9 @@ test('Should keep only the first saved filter of each id', () => {
   const filter = (id: string, name: string) => ({ id, name, scope: 'list', conditions: [{ field: 'rsi', op: 'below', value: 30 }] })
   expect(normalizeState({ filters: [filter('a', 'Uno'), filter('a', 'Dos'), filter('b', 'Tres')] }).filters.map((saved) => saved.name)).toEqual(['Uno', 'Tres'])
 })
+
+test('Should remember which drawings the AI made and nothing else in that mark', () => {
+  const base = { pane: 'price', timeframe: 'D', color: '#fff', width: 1, value: 10, kind: 'hline' }
+  const out = normalizeState({ lines: { KO: [{ ...base, id: 'a', by: 'ai' }, { ...base, id: 'b', by: 'user' }] } })
+  expect(out.lines.KO.map((drawing) => drawing.by)).toEqual(['ai', undefined])
+})
