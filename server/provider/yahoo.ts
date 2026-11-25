@@ -25,7 +25,8 @@ const RETRY_DELAY_MS = 1500
 const COOLDOWN_MS = 60_000
 const QUOTES_BATCH = 20
 const FULL_HISTORY_START = -2208988800
-const SEARCHABLE_TYPES = ['EQUITY', 'ETF', 'CURRENCY']
+const SEARCHABLE_TYPES = ['EQUITY', 'ETF', 'CURRENCY', 'CRYPTOCURRENCY', 'INDEX', 'FUTURE']
+const CRYPTO_EXCHANGE = 'CCC'
 const FOREX_EXCHANGE = 'CCY'
 const CHART_URL = 'https://query1.finance.yahoo.com/v8/finance/chart'
 const SPARK_URL = 'https://query1.finance.yahoo.com/v7/finance/spark'
@@ -63,7 +64,10 @@ const tradeTimeOf = (meta: Json): number | null => {
   return seconds !== null && seconds > 0 ? seconds * 1000 : null
 }
 
-const marketName = (raw: string): string => (raw === FOREX_EXCHANGE ? 'Forex' : raw)
+const marketName = (raw: string): string => {
+  if (raw === FOREX_EXCHANGE) return 'Forex'
+  return raw === CRYPTO_EXCHANGE ? 'Crypto' : raw
+}
 
 const exchangeName = (meta: Json): string => {
   const full = asString(meta.fullExchangeName) ?? asString(meta.exchangeName) ?? ''

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { currencyPair, displaySymbol, priceDigits } from './symbols'
+import { currencyPair, displaySymbol, priceDigits, tradesEveryDay } from './symbols'
 
 test('Should read the two currencies of a forex pair the way Yahoo writes it', () => {
   expect(currencyPair('EURUSD=X')).toEqual(['EUR', 'USD'])
@@ -30,4 +30,18 @@ test('Should give other symbols two decimals, or four under one', () => {
   expect(priceDigits('AAPL', 349.08)).toBe(2)
   expect(priceDigits('SIRI', 0.4512)).toBe(4)
   expect(priceDigits('', 0)).toBe(2)
+})
+
+test('Should tell the cryptocurrencies that trade every day from stocks with a class letter', () => {
+  expect(tradesEveryDay('BTC-USD')).toBe(true)
+  expect(tradesEveryDay('ETH-EUR')).toBe(true)
+  expect(tradesEveryDay('BRK-B')).toBe(false)
+  expect(tradesEveryDay('AAPL')).toBe(false)
+})
+
+test('Should give more decimals to prices far below one', () => {
+  expect(priceDigits('SHIB-USD', 0.000012)).toBe(8)
+  expect(priceDigits('DOGE-USD', 0.0042)).toBe(6)
+  expect(priceDigits('XRP-USD', 0.52)).toBe(4)
+  expect(priceDigits('BTC-USD', 98000)).toBe(2)
 })

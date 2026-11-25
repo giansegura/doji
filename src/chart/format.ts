@@ -12,7 +12,7 @@ const fixed = (digits: number): Intl.NumberFormat =>
   new Intl.NumberFormat('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 
 const twoDecimals = fixed(2)
-const byDigits = new Map([2, 3, 4].map((digits) => [digits, fixed(digits)]))
+const byDigits = new Map([2, 3, 4, 6, 8].map((digits) => [digits, fixed(digits)]))
 
 export const formatPrice = (value: number, symbol = ''): string =>
   (byDigits.get(priceDigits(symbol, value)) ?? twoDecimals).format(value)

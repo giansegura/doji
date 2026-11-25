@@ -1,4 +1,5 @@
-import { weekdaysBetween } from './dates'
+import { daysBetween, weekdaysBetween } from './dates'
+import { tradesEveryDay } from './symbols'
 import { canAlert, isTrend } from './drawings'
 import type { Drawing, Quote, TrendLine } from './types'
 
@@ -13,23 +14,24 @@ export type AlertWatcher = {
 
 const isArmed = (drawing: Drawing): boolean => drawing.pane === 'price' && canAlert(drawing) && drawing.alert === true
 
-const trendLevel = (line: TrendLine, today: string): number | null => {
+const trendLevel = (line: TrendLine, today: string, everyDay: boolean): number | null => {
+  const between = everyDay ? daysBetween : weekdaysBetween
   const [left, right] = line.p1.date <= line.p2.date ? [line.p1, line.p2] : [line.p2, line.p1]
-  const span = weekdaysBetween(left.date, right.date)
+  const span = between(left.date, right.date)
   if (today < left.date || (today > right.date && !line.extendRight)) return null
   if (span === 0) return right.value
-  return left.value + ((right.value - left.value) * weekdaysBetween(left.date, today)) / span
+  return left.value + ((right.value - left.value) * between(left.date, today)) / span
 }
 
-export const alertLevel = (drawing: Drawing, today: string): number | null => {
+export const alertLevel = (drawing: Drawing, today: string, everyDay = false): number | null => {
   if (drawing.kind === 'hline') return drawing.from && today < drawing.from ? null : drawing.value
-  return isTrend(drawing) ? trendLevel(drawing, today) : null
+  return isTrend(drawing) ? trendLevel(drawing, today, everyDay) : null
 }
 
-export const alertLevels = (drawing: Drawing, today: string): number[] => {
+export const alertLevels = (drawing: Drawing, today: string, everyDay = false): number[] => {
   if (drawing.currency) return []
   if (drawing.kind === 'position') return today >= drawing.p1.date ? [drawing.target, drawing.stop] : []
-  const level = alertLevel(drawing, today)
+  const level = alertLevel(drawing, today, everyDay)
   return level === null ? [] : [level]
 }
 
@@ -53,8 +55,9 @@ export const createAlertWatcher = (): AlertWatcher => {
     const previous = seen.get(symbol)
     if (previous === undefined) return []
     return drawings.filter(isArmed).flatMap((drawing) => {
-      const before = alertLevels(drawing, previous.day)
-      const hits = alertLevels(drawing, today).flatMap((level, index) => {
+      const everyDay = tradesEveryDay(symbol)
+      const before = alertLevels(drawing, previous.day, everyDay)
+      const hits = alertLevels(drawing, today, everyDay).flatMap((level, index) => {
         const earlier = before[index]
         const direction = earlier === undefined ? null : sideChange(previous.price - earlier, price - level)
         return direction ? [{ symbol, drawingId: drawing.id, level, price, direction }] : []

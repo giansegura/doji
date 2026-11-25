@@ -1,7 +1,7 @@
 import { addDays } from '../shared/dates'
 import { type Level, supportsAndResistances } from '../shared/levels'
 import { fromYearHigh } from '../shared/symbolMetrics'
-import { priceDigits } from '../shared/symbols'
+import { priceDigits, tradesEveryDay } from '../shared/symbols'
 import type { Bar, Dividend, Drawing, History, LinePoint, Quote, SmaConfig, Timeframe } from '../shared/types'
 import { alertLevel } from '../shared/alerts'
 import { toMonthly } from '../src/domain/monthly'
@@ -100,7 +100,7 @@ const yearRange = (daily: Bar[], close: number, digits: number) => {
 
 const pointOf = (point: LinePoint, digits: number) => ({ date: point.date, level: roundTo(point.value, digits) })
 
-const describeDrawing = (drawing: Drawing, today: string, priceDigits: number) => {
+const describeDrawing = (drawing: Drawing, today: string, priceDigits: number, everyDay: boolean) => {
   const digits = drawing.pane === 'price' ? priceDigits : PERCENT_DIGITS
   const { id, pane, timeframe } = drawing
   if (drawing.kind === 'position') {
@@ -137,7 +137,7 @@ const describeDrawing = (drawing: Drawing, today: string, priceDigits: number) =
     extendRight: drawing.extendRight,
     alert: drawing.alert === true,
     ...(drawing.arrow ? { arrow: true } : {}),
-    levelToday: pane === 'price' ? roundTo(alertLevel(drawing, today), digits) : null,
+    levelToday: pane === 'price' ? roundTo(alertLevel(drawing, today, everyDay), digits) : null,
   }
 }
 
@@ -235,7 +235,7 @@ export const summarizeChart = ({ history, timeframe, bars: count, averages, draw
       ]),
     },
     drawings: adjustLinesForSplits(drawings, history.splits).lines.map((drawing) => ({
-      ...describeDrawing(drawing, last.time, digits),
+      ...describeDrawing(drawing, last.time, digits, tradesEveryDay(history.info.symbol)),
       ...(drawing.by === 'ai' ? { madeByAi: true } : {}),
       ...(drawing.currency ? { currency: drawing.currency } : {}),
       ...(drawing.hidden ? { hidden: true } : {}),

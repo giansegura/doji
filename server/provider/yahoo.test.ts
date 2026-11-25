@@ -194,11 +194,27 @@ test('Should parse a real chart response', () => {
   expect(history.splits).toEqual([{ date: '2020-08-31', numerator: 4, denominator: 1 }])
 })
 
-test('Should keep only stocks, ETFs and forex pairs from a search', () => {
+test('Should also keep cryptocurrencies, indices and futures from a search', () => {
+  const json = {
+    quotes: [
+      { symbol: 'BTC-USD', quoteType: 'CRYPTOCURRENCY', shortname: 'Bitcoin USD', exchDisp: 'CCC', exchange: 'CCC' },
+      { symbol: '^GSPC', quoteType: 'INDEX', shortname: 'S&P 500', exchDisp: 'SNP', exchange: 'SNP' },
+      { symbol: 'ES=F', quoteType: 'FUTURE', shortname: 'E-Mini S&P 500 Dec 26', exchDisp: 'Chicago Mercantile Exchange', exchange: 'CME' },
+      { symbol: 'AAPL260116C00200000', quoteType: 'OPTION', shortname: 'AAPL call' },
+    ],
+  }
+  expect(parseSearch(json)).toEqual([
+    { symbol: 'BTC-USD', name: 'Bitcoin USD', exchange: 'Crypto' },
+    { symbol: '^GSPC', name: 'S&P 500', exchange: 'SNP' },
+    { symbol: 'ES=F', name: 'E-Mini S&P 500 Dec 26', exchange: 'Chicago Mercantile Exchange' },
+  ])
+})
+
+test('Should leave out what is not a stock, a fund, a pair, a cryptocurrency, an index or a future', () => {
   const json = {
     quotes: [
       { symbol: 'AAPL', quoteType: 'EQUITY', longname: 'Apple Inc.', shortname: 'Apple', exchDisp: 'NASDAQ', exchange: 'NMS' },
-      { symbol: 'SAAPL=F', quoteType: 'FUTURE', shortname: 'Apple futures', exchDisp: 'CME' },
+      { symbol: 'AAPL260116C00200000', quoteType: 'OPTION', shortname: 'Apple option', exchDisp: 'OPR' },
       { symbol: 'SPY', quoteType: 'ETF', shortname: 'SPDR S&P 500', exchange: 'PCX' },
       { quoteType: 'EQUITY', shortname: 'sin símbolo' },
       { symbol: 'EUR=X', quoteType: 'CURRENCY', shortname: 'USD/EUR', longname: 'USD/EUR', exchDisp: 'CCY', exchange: 'CCY' },
@@ -219,7 +235,7 @@ test('Should return no search results for an unexpected response', () => {
 test('Should parse a real search response', () => {
   const out = parseSearch(searchApple)
   expect(out[0]).toEqual({ symbol: 'AAPL', name: 'Apple Inc.', exchange: 'NASDAQ' })
-  expect(out.map((result) => result.symbol)).not.toContain('SAAPL=F')
+  expect(out.map((result) => result.symbol)).toContain('SAAPL=F')
   expect(out.every((result) => result.name.length > 0 && result.exchange.length > 0)).toBe(true)
 })
 

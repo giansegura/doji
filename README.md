@@ -20,6 +20,7 @@ Para otro puerto: `PORT=4790 npm start`.
 ## Uso
 
 - **Símbolo:** el botón de arriba a la izquierda abre el buscador (ticker o nombre de empresa). `Enter` elige el primer resultado, aunque lo pulses antes de que termine la búsqueda. También encuentra pares de divisas (por ejemplo `EURUSD` o `USDJPY`), que se muestran como en TradingView: sin el `=X` de Yahoo, con las banderas de las dos monedas y cuatro decimales (tres en los pares con yenes).
+- **Criptomonedas, índices y futuros:** el buscador también encuentra criptomonedas (por ejemplo `BTC-USD`, que se ven con la bolsa "Crypto"), índices (`^GSPC`) y futuros (`ES=F`, `CL=F`). Las criptomonedas cotizan todos los días, así que su eje de fechas cuenta también los fines de semana, igual que las líneas de tendencia y sus alertas; los precios muy pequeños se ven con 6 u 8 decimales. Los índices no tienen volumen y casi ninguno tiene logo.
 - **Periodo:** `D` diario, `W` semanal, `M` mensual.
 - **Pestaña del navegador:** muestra el ticker, su último precio, una flecha y el cambio del día en porcentaje, los mismos de la lista.
 - **Temas:** el botón de la paleta, arriba a la derecha, elige entre **Doji** (el tema por defecto: tinta cálida y violeta), **Midnight** (el aspecto oscuro anterior, negro con el gráfico azul marino) y **Light**. Se guarda con el resto de la configuración; las configuraciones guardadas con el antiguo tema oscuro abren en Midnight.

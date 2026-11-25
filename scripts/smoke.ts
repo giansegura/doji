@@ -1470,6 +1470,35 @@ await step('un par de divisas se busca, se añade y se ve como en TradingView', 
   await page.waitForFunction((symbol) => document.title.startsWith(`${symbol} `), before, { timeout: 15_000 })
 })
 
+await step('una criptomoneda, un índice y un futuro se buscan, se añaden y se abren', async () => {
+  const before = (await savedState()).symbol
+  const cases: [string, string, RegExp][] = [
+    ['bitcoin', 'BTC-USD', /Bitcoin USD · 1D · Crypto/],
+    ['S&P 500', '^GSPC', /S&P 500 · 1D · /],
+    ['crude oil', 'CL=F', /Crude Oil .* · 1D · /],
+  ]
+  for (const [query, symbol, title] of cases) {
+    await button('Add symbol').click()
+    await page.getByPlaceholder('Search symbol or company').fill(query)
+    const option = page.getByRole('option').filter({ hasText: symbol }).first()
+    await option.waitFor({ timeout: 15_000 })
+    await option.click()
+    await row(symbol.replace('^', '\\^')).waitFor({ timeout: 5000 })
+    await page.keyboard.press('Escape')
+    await row(symbol.replace('^', '\\^')).click()
+    await page.getByText(title).first().waitFor({ timeout: 20_000 })
+  }
+  const bitcoin = await page.evaluate(async () => (await fetch('/api/history?symbol=BTC-USD')).json())
+  const weekends = (bitcoin.bars as { time: string }[]).filter((bar) => [0, 6].includes(new Date(`${bar.time}T00:00:00Z`).getUTCDay()))
+  check(weekends.length > 0, 'el histórico de bitcoin no trae fines de semana')
+  for (const [, symbol] of cases) {
+    await row(symbol.replace('^', '\\^')).hover()
+    await button(`Remove ${symbol}`).click()
+  }
+  await row(before).click()
+  await page.waitForFunction((wanted) => document.title.startsWith(`${wanted} `), before, { timeout: 15_000 })
+})
+
 await step('Enter antes de que lleguen los resultados elige el primero', async () => {
   const before = activeItems(await savedState()).map((item) => item.symbol)
   await button('Add symbol').click()

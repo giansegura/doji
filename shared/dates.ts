@@ -23,6 +23,8 @@ export const addDays = (date: string, n: number): string => toIso(toMs(date) + n
 
 export const mondayOf = (date: string): string => addDays(date, -weekdayIndex(date))
 
+export const daysBetween = (from: string, to: string): number => Math.round((toMs(to) - toMs(from)) / DAY_MS)
+
 export const addWeekdays = (date: string, n: number): string => {
   const step = n < 0 ? -1 : 1
   let current = date
