@@ -1277,18 +1277,12 @@ await step('con la clave de reserva, Twelve Data entra cuando Yahoo falla tres v
   await page.getByText('Twelve Data steps in when Yahoo fails three times in a row.').waitFor({ timeout: 5000 })
   await page.keyboard.press('Escape')
   const yahoo = (down: boolean) =>
-    page.evaluate(
-      async (value) => (await fetch('/api/test/yahoo', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ down: value }) })).json(),
-      down,
-    )
+    fetch(`${url}/api/test/yahoo`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ down }) })
   await yahoo(true)
   const sources: (string | null)[] = []
   for (const symbol of ['IBM', 'ORCL', 'INTC', 'CSCO']) {
-    const answer = await page.evaluate(async (wanted) => {
-      const response = await fetch(`/api/history?symbol=${wanted}`)
-      return response.ok ? (await response.json()).source ?? 'Yahoo' : null
-    }, symbol)
-    sources.push(answer)
+    const response = await fetch(`${url}/api/history?symbol=${symbol}`)
+    sources.push(response.ok ? ((await response.json()) as { source?: string }).source ?? 'Yahoo' : null)
   }
   const switched = sources.indexOf('Twelve Data')
   check(switched > 0 && sources.slice(0, switched).every((source) => source === null), `la reserva no entró tras los fallos de Yahoo: ${JSON.stringify(sources)}`)
