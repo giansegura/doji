@@ -17,6 +17,7 @@ import { SMA_WIDTHS, addSma } from '../../domain/smaConfig'
 import { THEME_OPTIONS, themes } from '../../theme/tokens'
 import { Logo } from '../Logo'
 import { ConfigPanel } from './ConfigPanel'
+import { TelegramPanel } from './TelegramPanel'
 import { StudiesPanel } from './StudiesPanel'
 import { NumberField } from './NumberField'
 import * as Styles from './styles'
@@ -423,6 +424,7 @@ export const TopBar = ({
         {openMenu === 'config' && (
           <Styles.Menu>
             <ConfigPanel onExport={onExportConfig} onImport={onImportConfig} />
+            <TelegramPanel />
           </Styles.Menu>
         )}
       </Styles.MenuAnchor>

@@ -52,8 +52,10 @@ Para otro puerto: `PORT=4790 npm start`.
   - "Parallel channel": tres clics. Los dos primeros trazan la línea base y el tercero da el ancho. El punto central de la segunda línea cambia el ancho; cualquiera de las dos líneas mueve el canal entero.
   - "Rectangle": dos clics en esquinas opuestas. Cada esquina lo redimensiona y los lados lo mueven.
   - Canales y rectángulos solo se agarran por sus bordes: un clic dentro mueve el gráfico, no el dibujo.
-- **Alertas:** con una línea de tendencia o una línea horizontal seleccionada, la campana de su barra arma una alerta; la línea queda marcada con un círculo. Cuando el precio la cruza, doji muestra un aviso en pantalla y una notificación del Mac (la primera vez el navegador pide permiso), y la alerta se desarma.
-  - Solo funcionan con doji abierto en una pestaña. Con la pestaña en segundo plano el navegador las comprueba más despacio, más o menos una vez por minuto.
+- **Alertas:** con una línea de tendencia, una línea horizontal o una posición seleccionada, la campana de su barra arma una alerta; la línea queda marcada con un círculo. Cuando el precio la cruza, la alerta se desarma y doji avisa: en pantalla y con una notificación del Mac si hay una pestaña abierta (la primera vez el navegador pide permiso), y por Telegram si has enlazado un bot.
+  - Las vigila el servidor de doji, no el navegador: saltan aunque no tengas ninguna pestaña abierta, mientras `npm start` siga en marcha y el ordenador encendido. Con el Mac dormido o apagado no hay alertas.
+  - El servidor sigue los precios en vivo de las acciones con alertas armadas y además las comprueba cada 30 segundos con la última cotización.
+  - **Telegram:** en "Settings", "Telegram alerts". Crea un bot con @BotFather en Telegram, pega su clave y pulsa "Connect"; luego escribe cualquier cosa a tu bot y pulsa "Link chat". "Send test message" comprueba que llegan. La clave se guarda en `data/telegram.json`, en tu ordenador, y no va en la configuración que exportas.
   - Cuentan también los precios de pre y post mercado.
   - Una línea de tendencia que no se extiende a la derecha deja de avisar pasada su última fecha.
   - El nivel de una línea de tendencia se calcula contando días laborables entre sus extremos. En semanas con festivos puede quedar ligeramente por encima o por debajo de lo que se ve dibujado.
@@ -95,7 +97,7 @@ Herramientas que ofrece:
 | `rename_watchlist` | Cambia el nombre de una lista. |
 | `set_watchlist_icon` | Pone o quita el emoji de una lista (`create_watchlist` también acepta uno). |
 
-La IA no puede borrar listas enteras ni dibujos. Sí puede quitar símbolos de una lista (`remove_from_watchlist`) y `write_note` en modo `replace` sustituye la nota entera; las aplicaciones de IA suelen pedir confirmación antes de usar herramientas marcadas como destructivas. Lo que añade aparece en doji en unos segundos, sin recargar; las alertas solo saltan con doji abierto en una pestaña.
+La IA no puede borrar listas enteras ni dibujos. Sí puede quitar símbolos de una lista (`remove_from_watchlist`) y `write_note` en modo `replace` sustituye la nota entera; las aplicaciones de IA suelen pedir confirmación antes de usar herramientas marcadas como destructivas. Lo que añade aparece en doji en unos segundos, sin recargar; las alertas saltan mientras el servidor de doji esté en marcha, aunque no haya ninguna pestaña abierta.
 
 Para usarlo, doji tiene que estar en marcha (`npm start`). Después se registra en tu aplicación de IA el comando `<doji>/node_modules/.bin/tsx <doji>/mcp/index.ts`, cambiando `<doji>` por la ruta completa de la carpeta:
 
@@ -167,7 +169,12 @@ npm test        # tests
 npm run smoke -- http://127.0.0.1:4780 /tmp/capturas   # prueba completa en Chrome; necesita la app en marcha
 ```
 
-La prueba completa dibuja y borra líneas y cambia el tema y la lista: ejecútala contra una carpeta de datos de prueba (`DOJI_DATA_DIR`), no contra la tuya.
+La prueba completa dibuja y borra líneas y cambia el tema y la lista: ejecútala contra una carpeta de datos de prueba (`DOJI_DATA_DIR`), no contra la tuya. Arranca esa app con `DOJI_TEST_HOOKS=1` (activa `PUT /api/test/prices`, que da precios inventados al vigilante de alertas) y `DOJI_TELEGRAM_API=http://127.0.0.1:4799` (la prueba levanta ahí un Telegram falso):
+
+```bash
+DOJI_TEST_HOOKS=1 DOJI_TELEGRAM_API=http://127.0.0.1:4799 DOJI_DATA_DIR=/tmp/doji-prueba PORT=4781 npm start
+npm run smoke -- http://127.0.0.1:4781 /tmp/capturas
+```
 
 ## Contribuir
 

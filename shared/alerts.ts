@@ -1,5 +1,5 @@
-import { weekdaysBetween } from '../../shared/dates'
-import type { Drawing, Quote, TrendLine } from '../../shared/types'
+import { weekdaysBetween } from './dates'
+import type { Drawing, Quote, TrendLine } from './types'
 
 export type Direction = 'up' | 'down'
 

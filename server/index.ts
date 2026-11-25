@@ -1,8 +1,12 @@
 import { existsSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { mkdir, readFile } from 'node:fs/promises'
 import { type IncomingMessage, type ServerResponse, createServer } from 'node:http'
 import { dirname, join, resolve } from 'node:path'
 import sirv from 'sirv'
+import { alertMessage } from './alertMessage'
+import { createAlertMonitor } from './alertMonitor'
+import { createAlertBus, createAlertStreamRoute } from './alertStream'
 import { writeAtomic } from './atomicWrite'
 import { createHistoryCache } from './historyCache'
 import { createLiveHub } from './liveHub'
@@ -14,8 +18,10 @@ import { type FetchLike, createYahooProvider } from './provider/yahoo'
 import { type SocketLike, createYahooStream } from './provider/yahooStream'
 import { createQuoteCache } from './quoteCache'
 import { createApi, expectsBody, isLocalHost, isOwnRequest, parseRequestUrl } from './routes'
-import { createStateStore } from './stateStore'
+import { type StateStore, createStateStore } from './stateStore'
 import { createStreamRoute } from './streamRoute'
+import { type TelegramFetch, createTelegram } from './telegram'
+import { removeFile, testHooksOn } from './serverEnv'
 
 const HOST = '127.0.0.1'
 const PORT = Number(process.env.PORT ?? 4780)
@@ -54,10 +60,65 @@ const earningsFile = join(dataDir, 'cache', 'earnings.json')
 
 const networkEarningsFetch: EarningsFetch = withTimeout((url, init) => fetch(url, init), REQUEST_TIMEOUT_MS)
 
+const stateStore = createStateStore(join(dataDir, 'state.json'))
+
+const telegramFile = join(dataDir, 'telegram.json')
+
+const telegramFetch: TelegramFetch = (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
+
+const offlineTelegramFetch: TelegramFetch = async () => {
+  throw new Error('offline')
+}
+
+const telegram = createTelegram({
+  fetch: process.env.DOJI_OFFLINE && !process.env.DOJI_TELEGRAM_API ? offlineTelegramFetch : telegramFetch,
+  apiUrl: process.env.DOJI_TELEGRAM_API ?? 'https://api.telegram.org',
+  store: {
+    load: async () => JSON.parse(await readFile(telegramFile, 'utf8')),
+    save: async (config) => {
+      await mkdir(dataDir, { recursive: true })
+      await writeAtomic(telegramFile, JSON.stringify(config))
+    },
+    clear: () => removeFile(telegramFile),
+  },
+})
+
+const alertBus = createAlertBus()
+
+const alertMonitor = createAlertMonitor({
+  read: stateStore.read,
+  save: stateStore.save,
+  join: (symbols, send) => liveHub.join(symbols, send),
+  quotes: (symbols) => quotes.get(symbols),
+  announce: (alerts) => {
+    alertBus.publish(alerts)
+    alerts.forEach((alert) => {
+      telegram.send(alertMessage(alert)).catch(() => undefined)
+    })
+  },
+  now: () => new Date(),
+  every: (run, ms) => {
+    const timer = setInterval(run, ms)
+    return () => clearInterval(timer)
+  },
+  newId: randomUUID,
+})
+
+const watchedState: StateStore = {
+  read: stateStore.read,
+  save: async (state, baseRev) => {
+    const outcome = await stateStore.save(state, baseRev)
+    if (outcome.ok) alertMonitor.stateSaved({ ...state, rev: outcome.rev })
+    return outcome
+  },
+}
+
 const api = createApi({
   history: createHistoryCache({ provider, dir: join(dataDir, 'cache'), now: () => new Date() }),
   provider: { ...provider, quotes: quotes.get },
-  state: createStateStore(join(dataDir, 'state.json')),
+  state: watchedState,
+  telegram,
+  ...(testHooksOn(process.env) ? { testPrices: (prices: Record<string, number>) => alertMonitor.check(prices) } : {}),
   earnings: createEarningsSource({
     fetch: process.env.DOJI_OFFLINE ? offlineEarningsFetch : networkEarningsFetch,
     now: () => new Date(),
@@ -101,6 +162,8 @@ const liveHub = createLiveHub({ now: () => Date.now(), watch: (symbols) => liveS
 const liveStream = process.env.DOJI_OFFLINE ? null : createYahooStream({ connect: openSocket, onTick: liveHub.push, ...timers })
 
 const streamRoute = createStreamRoute({ hub: liveHub })
+
+const alertStreamRoute = createAlertStreamRoute({ bus: alertBus })
 
 const serveStatic = sirv(distDir, { single: true, dev: true })
 
@@ -175,6 +238,10 @@ const handleRequest = (req: IncomingMessage, res: ServerResponse): void => {
     streamRoute(req, res, url.searchParams)
     return
   }
+  if (url.pathname === '/api/alerts/stream' && req.method === 'GET') {
+    alertStreamRoute(req, res)
+    return
+  }
   if (url.pathname.startsWith('/api/')) {
     handleApi(req, res, url).catch(() => sendJson(res, 500, { error: 'internal' }))
     return
@@ -204,4 +271,5 @@ server.on('error', (error) => {
 server.listen(PORT, HOST, () => {
   console.log(`doji at http://${HOST}:${PORT}`)
   console.log(`data in ${dataDir}`)
+  alertMonitor.start().catch(() => undefined)
 })

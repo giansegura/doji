@@ -342,3 +342,25 @@ export const TypeButton = styled.button`
     color: ${(props) => props.theme.ui.text};
   }
 `
+
+export const TelegramForm = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 12px 8px;
+`
+
+export const TokenInput = styled.input`
+  height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+  color: ${(props) => props.theme.ui.text};
+  background: ${(props) => props.theme.ui.panel};
+  border: 1px solid ${(props) => props.theme.ui.border};
+  border-radius: 4px;
+
+  &:focus {
+    outline: none;
+    border-color: ${(props) => props.theme.ui.accent};
+  }
+`

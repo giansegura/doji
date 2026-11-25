@@ -1,32 +1,50 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { displaySymbol } from '../../shared/symbols'
-import type { Drawing, Quote } from '../../shared/types'
+import type { AlertEvent } from '../../shared/types'
 import { formatPrice } from '../chart/format'
-import { type FiredAlert, createAlertWatcher, latestPrice } from '../domain/alerts'
-import type { Action } from '../state/appReducer'
 
 export type FiredNotice = { id: string; text: string; time: string }
 
+export type OpenAlerts = (onAlerts: (alerts: AlertEvent[]) => void) => () => void
+
 type AlertsArgs = {
-  lines: Record<string, Drawing[]>
-  quotes: Record<string, Quote>
-  dispatch: (action: Action) => void
   notify?: (title: string, body: string) => void
-  now?: () => Date
+  openAlerts?: OpenAlerts
 }
+
+const ALERTS_URL = '/api/alerts/stream'
 
 const twoDigits = (value: number): string => String(value).padStart(2, '0')
 
-const dayOf = (date: Date): string => `${date.getFullYear()}-${twoDigits(date.getMonth() + 1)}-${twoDigits(date.getDate())}`
-
 const clockOf = (date: Date): string => `${twoDigits(date.getHours())}:${twoDigits(date.getMinutes())}`
 
-const disarmed = (drawings: Drawing[], ids: string[]): Drawing[] =>
-  drawings.map((drawing) => {
-    if (!ids.includes(drawing.id) || drawing.kind === 'channel' || drawing.kind === 'rect') return drawing
-    const { alert: _alert, ...quiet } = drawing
-    return quiet
-  })
+const isAlert = (value: unknown): value is AlertEvent => {
+  const alert = value as Partial<AlertEvent> | null
+  return (
+    typeof alert === 'object' &&
+    alert !== null &&
+    typeof alert.id === 'string' &&
+    typeof alert.symbol === 'string' &&
+    typeof alert.level === 'number' &&
+    typeof alert.price === 'number' &&
+    (alert.direction === 'up' || alert.direction === 'down') &&
+    typeof alert.at === 'string'
+  )
+}
+
+export const openAlertStream: OpenAlerts = (onAlerts) => {
+  if (typeof EventSource === 'undefined') return () => undefined
+  const source = new EventSource(ALERTS_URL)
+  source.onmessage = (event: MessageEvent<string>) => {
+    try {
+      const parsed: unknown = JSON.parse(event.data)
+      if (Array.isArray(parsed)) onAlerts(parsed.filter(isAlert))
+    } catch {
+      return
+    }
+  }
+  return () => source.close()
+}
 
 export const notifyDesktop = (title: string, body: string): void => {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
@@ -42,50 +60,36 @@ export const askToNotify = (): void => {
   Notification.requestPermission().catch(() => undefined)
 }
 
-export const useAlerts = ({ lines, quotes, dispatch, notify = notifyDesktop, now = () => new Date() }: AlertsArgs) => {
-  const [watcher] = useState(createAlertWatcher)
+export const useAlerts = ({ notify = notifyDesktop, openAlerts = openAlertStream }: AlertsArgs = {}) => {
   const [fired, setFired] = useState<FiredNotice[]>([])
-  const latest = useRef({ lines, dispatch, notify, now })
-  const counter = useRef(0)
+  const latest = useRef({ notify, openAlerts })
+  const seen = useRef(new Set<string>())
 
   useEffect(() => {
-    latest.current = { lines, dispatch, notify, now }
+    latest.current = { notify, openAlerts }
   })
 
   useEffect(() => {
-    const current = latest.current
-    const moment = current.now()
-    const prices = Object.fromEntries(Object.values(quotes).map((quote) => [quote.symbol, latestPrice(quote)]))
-    const hits = watcher.check(current.lines, prices, dayOf(moment))
-    if (hits.length === 0) return
     const announce = (title: string, body: string): void => {
       try {
-        current.notify(title, body)
+        latest.current.notify(title, body)
       } catch {
         return
       }
     }
-    const describe = (hit: FiredAlert): FiredNotice => {
-      counter.current += 1
-      const level = formatPrice(hit.level, hit.symbol)
-      const shown = displaySymbol(hit.symbol)
-      announce(
-        `${shown} crossed ${level}`,
-        `${hit.direction === 'up' ? 'Up' : 'Down'} through ${level}, now at ${formatPrice(hit.price, hit.symbol)}`,
-      )
-      return {
-        id: `${hit.symbol}:${hit.drawingId}:${counter.current}`,
-        text: `${shown} crossed ${level} going ${hit.direction}`,
-        time: clockOf(moment),
-      }
-    }
-    const notices = hits.map(describe)
-    setFired((previous) => [...previous, ...notices])
-    ;[...new Set(hits.map((hit) => hit.symbol))].forEach((symbol) => {
-      const ids = hits.filter((hit) => hit.symbol === symbol).map((hit) => hit.drawingId)
-      current.dispatch({ type: 'setLines', symbol, lines: disarmed(current.lines[symbol] ?? [], ids) })
+    return latest.current.openAlerts((alerts) => {
+      const fresh = alerts.filter((alert) => !seen.current.has(alert.id))
+      fresh.forEach((alert) => seen.current.add(alert.id))
+      const notices = fresh.map((alert): FiredNotice => {
+        const level = formatPrice(alert.level, alert.symbol)
+        const shown = displaySymbol(alert.symbol)
+        const reading = `${alert.direction === 'up' ? 'Up' : 'Down'} through ${level}, now at ${formatPrice(alert.price, alert.symbol)}`
+        announce(`${shown} crossed ${level}`, alert.text ? `${reading} · ${alert.text}` : reading)
+        return { id: alert.id, text: `${shown} crossed ${level} going ${alert.direction}`, time: clockOf(new Date(alert.at)) }
+      })
+      if (notices.length > 0) setFired((previous) => [...previous, ...notices])
     })
-  }, [watcher, quotes])
+  }, [])
 
   const dismiss = useCallback((id: string) => setFired((previous) => previous.filter((notice) => notice.id !== id)), [])
 

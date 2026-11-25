@@ -1,86 +1,74 @@
 import { act, renderHook } from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
-import type { Drawing, Quote } from '../../shared/types'
+import type { AlertEvent } from '../../shared/types'
 import { useAlerts } from './useAlerts'
 
-const level = (id: string, value: number, alert = true): Drawing => ({
-  kind: 'hline',
-  id,
-  pane: 'price',
-  timeframe: 'D',
-  value,
-  color: '#2962FF',
-  width: 2,
-  pricedAt: '2020-01-01',
-  ...(alert ? { alert: true } : {}),
+const alert = (over: Partial<AlertEvent> = {}): AlertEvent => ({
+  id: 'a1',
+  symbol: 'AAPL',
+  level: 190.5,
+  price: 190.62,
+  direction: 'up',
+  at: new Date(2026, 10, 24, 15, 32).toISOString(),
+  text: null,
+  ...over,
 })
 
-const quoteOf = (symbol: string, price: number): Record<string, Quote> => ({
-  [symbol]: { symbol, price, change: 0, changePercent: 0 },
-})
-
-const setup = (lines: Record<string, Drawing[]>) => {
-  const dispatch = vi.fn()
-  const notify = vi.fn()
-  const hook = renderHook((props: { quotes: Record<string, Quote> }) => useAlerts({ lines, ...props, dispatch, notify, now: () => new Date(2026, 10, 24, 15, 32) }), {
-    initialProps: { quotes: {} },
-  })
-  return { dispatch, notify, ...hook }
+const setup = (notify = vi.fn()) => {
+  const listeners: ((alerts: AlertEvent[]) => void)[] = []
+  let closed = 0
+  const openAlerts = (onAlerts: (alerts: AlertEvent[]) => void) => {
+    listeners.push(onAlerts)
+    return () => {
+      closed += 1
+    }
+  }
+  const hook = renderHook(() => useAlerts({ notify, openAlerts }))
+  const fire = (alerts: AlertEvent[]) => act(() => listeners.forEach((listener) => listener(alerts)))
+  return { notify, fire, closed: () => closed, ...hook }
 }
 
-test('Should stay quiet while the price does not cross anything', () => {
-  const { dispatch, notify, result, rerender } = setup({ KO: [level('a', 100)] })
-  rerender({ quotes: quoteOf('KO', 98) })
-  rerender({ quotes: quoteOf('KO', 99) })
+test('Should stay quiet until the server says an alert fired', () => {
+  const { notify, result } = setup()
+  expect(result.current.fired).toEqual([])
   expect(notify).not.toHaveBeenCalled()
-  expect(dispatch).not.toHaveBeenCalled()
-  expect(result.current.fired).toEqual([])
 })
 
-test('Should notify, list and disarm an alert when the price crosses it', () => {
-  const lines = { KO: [level('a', 100), level('b', 150)] }
-  const { dispatch, notify, result, rerender } = setup(lines)
-  rerender({ quotes: quoteOf('KO', 99) })
-  rerender({ quotes: quoteOf('KO', 101.5) })
-  expect(notify).toHaveBeenCalledWith('KO crossed 100.00', 'Up through 100.00, now at 101.50')
-  expect(dispatch).toHaveBeenCalledWith({ type: 'setLines', symbol: 'KO', lines: [level('a', 100, false), level('b', 150)] })
-  expect(result.current.fired).toEqual([{ id: 'KO:a:1', text: 'KO crossed 100.00 going up', time: '15:32' }])
+test('Should notify and list an alert the server fired, with the text of its line', () => {
+  const { notify, fire, result } = setup()
+  fire([alert({ text: 'R1' })])
+  expect(notify).toHaveBeenCalledWith('AAPL crossed 190.50', 'Up through 190.50, now at 190.62 · R1')
+  expect(result.current.fired).toEqual([{ id: 'a1', text: 'AAPL crossed 190.50 going up', time: '15:32' }])
 })
 
-test('Should say when the price crosses going down', () => {
-  const { notify, rerender } = setup({ KO: [level('a', 100)] })
-  rerender({ quotes: quoteOf('KO', 101) })
-  rerender({ quotes: quoteOf('KO', 99.5) })
-  expect(notify).toHaveBeenCalledWith('KO crossed 100.00', 'Down through 100.00, now at 99.50')
+test('Should say when the price crossed going down', () => {
+  const { notify, fire, result } = setup()
+  fire([alert({ direction: 'down', price: 190.3 })])
+  expect(notify).toHaveBeenCalledWith('AAPL crossed 190.50', 'Down through 190.50, now at 190.30')
+  expect(result.current.fired[0].text).toBe('AAPL crossed 190.50 going down')
 })
 
-test('Should use the price outside regular hours when there is one', () => {
-  const { notify, rerender } = setup({ KO: [level('a', 100)] })
-  rerender({ quotes: quoteOf('KO', 99) })
-  rerender({ quotes: { KO: { symbol: 'KO', price: 99, change: 0, changePercent: 0, extended: { session: 'post', price: 100.2, changePercent: 1.2 } } } })
-  expect(notify).toHaveBeenCalledTimes(1)
-})
-
-test('Should let a fired alert be dismissed from the list', () => {
-  const { result, rerender } = setup({ KO: [level('a', 100)] })
-  rerender({ quotes: quoteOf('KO', 99) })
-  rerender({ quotes: quoteOf('KO', 101) })
-  act(() => result.current.dismiss('KO:a:1'))
-  expect(result.current.fired).toEqual([])
-})
-
-test('Should still list and disarm the alert when the notification fails', () => {
-  const lines = { KO: [level('a', 100)] }
-  const dispatch = vi.fn()
-  const notify = vi.fn(() => {
-    throw new Error('blocked')
-  })
-  const { result, rerender } = renderHook(
-    (props: { quotes: Record<string, Quote> }) => useAlerts({ lines, ...props, dispatch, notify, now: () => new Date(2026, 10, 24, 15, 32) }),
-    { initialProps: { quotes: {} } },
-  )
-  rerender({ quotes: quoteOf('KO', 99) })
-  rerender({ quotes: quoteOf('KO', 101) })
+test('Should let a fired alert be dismissed from the list and list it once even if told twice', () => {
+  const { fire, result } = setup()
+  fire([alert()])
+  fire([alert()])
   expect(result.current.fired).toHaveLength(1)
-  expect(dispatch).toHaveBeenCalledWith({ type: 'setLines', symbol: 'KO', lines: [level('a', 100, false)] })
+  act(() => result.current.dismiss('a1'))
+  expect(result.current.fired).toEqual([])
+})
+
+test('Should still list the alert when the notification fails', () => {
+  const { fire, result } = setup(
+    vi.fn(() => {
+      throw new Error('denied')
+    }),
+  )
+  fire([alert()])
+  expect(result.current.fired).toHaveLength(1)
+})
+
+test('Should stop listening when the page closes', () => {
+  const { unmount, closed } = setup()
+  unmount()
+  expect(closed()).toBe(1)
 })

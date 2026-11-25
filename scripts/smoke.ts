@@ -1,6 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { mkdir, readFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
 import { join, resolve } from 'node:path'
 import { chromium } from 'playwright-core'
 import { dayInZone, mondayOf } from '../shared/dates'
@@ -17,6 +18,31 @@ if (!url || !outDir) {
 }
 
 await mkdir(outDir, { recursive: true })
+
+const FAKE_TELEGRAM_PORT = 4799
+const FAKE_BOT = 'doji_test_bot'
+const FAKE_CHAT = 4242
+const telegramMessages: { chat: unknown; text: unknown }[] = []
+const fakeTelegram = createServer((req, res) => {
+  const chunks: Buffer[] = []
+  req.on('data', (chunk: Buffer) => chunks.push(chunk))
+  req.on('end', () => {
+    const reply = (body: unknown) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(body))
+    }
+    if (req.url?.endsWith('/getMe')) return reply({ ok: true, result: { username: FAKE_BOT } })
+    if (req.url?.endsWith('/getUpdates')) return reply({ ok: true, result: [{ update_id: 1, message: { chat: { id: FAKE_CHAT }, text: '/start' } }] })
+    if (req.url?.endsWith('/sendMessage')) {
+      const body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') as { chat_id?: unknown; text?: unknown }
+      telegramMessages.push({ chat: body.chat_id, text: body.text })
+      return reply({ ok: true, result: {} })
+    }
+    res.writeHead(404)
+    res.end()
+  })
+})
+await new Promise<void>((done) => fakeTelegram.listen(FAKE_TELEGRAM_PORT, '127.0.0.1', done))
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true })
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
@@ -55,6 +81,7 @@ const step = async (name: string, run: () => Promise<void>): Promise<void> => {
     await shot(`${label} FALLO`)
     console.error(`FALLO  ${label}: ${error instanceof Error ? error.message : String(error)}`)
     await browser.close()
+fakeTelegram.close()
     process.exit(1)
   }
 }
@@ -925,7 +952,23 @@ await step('los atajos arman las herramientas y recorren la lista', async () => 
   check((await savedState()).symbol === 'AAPL', 'la flecha arriba se salió del principio de la lista')
 })
 
-await step('una alerta salta cuando el precio cruza la línea y se desarma sola', async () => {
+await step('Telegram se conecta con la clave de un bot, enlaza el chat y manda un mensaje de prueba', async () => {
+  await button('Settings').click()
+  await page.getByLabel('Bot token').fill('123456789:AAbbCCddEEffGGhhIIjjKKllMMnnOOppQQ')
+  await button('Connect').click()
+  await page.getByText(`@${FAKE_BOT} connected`, { exact: false }).waitFor({ timeout: 5000 })
+  await button('Link chat').click()
+  await page.getByText(`Alerts go to @${FAKE_BOT}.`).waitFor({ timeout: 5000 })
+  await button('Send test message').click()
+  await page.getByRole('status').filter({ hasText: 'Test message sent.' }).waitFor({ timeout: 5000 })
+  check(
+    telegramMessages.some((message) => message.chat === FAKE_CHAT && String(message.text).startsWith('doji is connected')),
+    `el mensaje de prueba no llegó a Telegram: ${JSON.stringify(telegramMessages)}`,
+  )
+  await page.keyboard.press('Escape')
+})
+
+await step('una alerta la decide el servidor: avisa en pantalla y por Telegram y se desarma sola', async () => {
   const { price } = await panes()
   const levels = async () => (await drawingsOf('AAPL')).filter((drawing) => drawing.kind === 'hline')
   await button('Horizontal line').click()
@@ -936,29 +979,29 @@ await step('una alerta salta cuando el precio cruza la línea y se desarma sola'
   await button('Alert').click()
   const [armed] = await levels()
   check(armed?.kind === 'hline' && armed.alert === true, 'la alerta no se guardó')
-  let reported = target - 1
-  const quotesRoute = /\/api\/quotes\?/
-  await page.route(quotesRoute, async (route) => {
-    const response = await route.fetch()
-    const quotes = (await response.json()) as { symbol: string }[]
-    await route.fulfill({
-      response,
-      json: quotes.map((quote) => (quote.symbol === 'AAPL' ? { ...quote, price: reported, extended: null, time: Date.now() + 600_000 } : quote)),
-    })
-  })
-  await page.waitForResponse(quotesRoute, { timeout: 25_000 })
-  reported = target + 1
-  await page.getByRole('status').filter({ hasText: 'AAPL crossed' }).first().waitFor({ timeout: 40_000 })
-  await page.unrouteAll({ behavior: 'wait' })
+  const feed = (value: number) =>
+    page.evaluate(
+      async (prices) =>
+        (await fetch('/api/test/prices', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(prices) })).json(),
+      { AAPL: value },
+    )
+  await feed(target - 1)
+  const answer = (await feed(target + 1)) as { fired: unknown[] }
+  check(answer.fired.length === 1, `el servidor no hizo saltar la alerta: ${JSON.stringify(answer)}`)
+  await page.getByRole('status').filter({ hasText: 'AAPL crossed' }).first().waitFor({ timeout: 10_000 })
+  const deadline = Date.now() + 10_000
+  while (Date.now() < deadline && !telegramMessages.some((message) => String(message.text).includes('AAPL crossed'))) await page.waitForTimeout(200)
+  check(telegramMessages.some((message) => String(message.text).startsWith('🔔 AAPL crossed')), 'la alerta no llegó por Telegram')
   const [after] = await levels()
   check(after?.kind === 'hline' && after.alert === undefined, 'la alerta no se desarmó al saltar')
+  check((await feed(target - 2)).fired.length === 0 && (await feed(target + 2)).fired.length === 0, 'la alerta saltó otra vez después de desarmarse')
   await page.getByRole('button', { name: /^Dismiss AAPL crossed/ }).first().click()
   check((await page.getByRole('status').filter({ hasText: 'AAPL crossed' }).count()) === 0, 'el aviso no se cerró')
+  await page.reload()
+  await waitForChart()
   await page.mouse.click(price.x + price.width * 0.15, price.y + price.height * 0.3)
   await page.keyboard.press('Delete')
   check((await levels()).length === 0, 'la línea de la alerta no se borró')
-  await page.reload()
-  await waitForChart()
 })
 
 await step('dos gráficos a la vez con periodos distintos y los mismos dibujos', async () => {
@@ -1809,6 +1852,7 @@ await step('una petición mal formada no tumba el servidor', async () => {
 })
 
 await browser.close()
+fakeTelegram.close()
 
 if (pageErrors.length > 0) {
   console.error(`errores en la consola del navegador:\n${pageErrors.join('\n')}`)

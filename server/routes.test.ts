@@ -2,6 +2,7 @@ import { expect, test } from 'vitest'
 import { type AppState, DEFAULT_STATE, type History } from '../shared/types'
 import { type DataProvider, providerError } from './provider/yahoo'
 import { type ApiResult, createApi, expectsBody, isLocalHost, isOwnRequest, parseRequestUrl } from './routes'
+import { type Telegram, isTelegramError, telegramError as telegramFailure } from './telegram'
 
 const historyOf = (symbol: string): History => ({
   info: { symbol, name: `${symbol} Inc.`, exchange: 'NASDAQ' },
@@ -12,6 +13,8 @@ const historyOf = (symbol: string): History => ({
 })
 
 type Overrides = {
+  telegram?: Partial<Telegram>
+  testPrices?: (prices: Record<string, number>) => Promise<unknown>
   getHistory?: (symbol: string) => Promise<History>
   search?: DataProvider['search']
   quotes?: DataProvider['quotes']
@@ -19,9 +22,10 @@ type Overrides = {
 
 const makeApi = (over: Overrides = {}) => {
   const saved: AppState[] = []
-  const requested: { history: string[]; kept: string[]; search: string[]; quotes: string[][]; logos: string[]; earnings: string[]; warmed: string[][] } = {
+  const requested: { history: string[]; kept: string[]; search: string[]; quotes: string[][]; logos: string[]; earnings: string[]; warmed: string[][]; telegram: string[] } = {
     earnings: [],
     warmed: [],
+    telegram: [],
     history: [],
     kept: [],
     search: [],
@@ -63,6 +67,21 @@ const makeApi = (over: Overrides = {}) => {
       },
       pending: () => 2,
     },
+    telegram: {
+      status: async () => ({ connected: false, bot: null, linked: false }),
+      connect: async (token) => {
+        requested.telegram.push(`connect ${token}`)
+        return { connected: true, bot: 'doji_alerts_bot', linked: false }
+      },
+      link: async () => ({ connected: true, bot: 'doji_alerts_bot', linked: true }),
+      send: async () => true,
+      test: async () => {
+        requested.telegram.push('test')
+      },
+      disconnect: async () => ({ connected: false, bot: null, linked: false }),
+      ...over.telegram,
+    },
+    ...(over.testPrices ? { testPrices: over.testPrices } : {}),
     logos: {
       get: async (symbol) => {
         requested.logos.push(symbol)
@@ -364,4 +383,44 @@ test('Should give the earnings it already has for many symbols, fetch the rest b
   })
   expect(requested.warmed).toEqual([['AAPL', 'MSFT']])
   expect(await call('GET', '/api/earnings/calendar?symbols=')).toEqual({ status: 200, body: { earnings: {}, pending: 2 } })
+})
+
+
+test('Should connect the Telegram bot, link its chat, send a test and disconnect it', async () => {
+  const { call, requested } = makeApi()
+  expect(await call('GET', '/api/telegram')).toEqual({ status: 200, body: { connected: false, bot: null, linked: false } })
+  expect(await call('PUT', '/api/telegram', { token: 'abc' })).toEqual({ status: 200, body: { connected: true, bot: 'doji_alerts_bot', linked: false } })
+  expect(await call('POST', '/api/telegram/link')).toEqual({ status: 200, body: { connected: true, bot: 'doji_alerts_bot', linked: true } })
+  expect(await call('POST', '/api/telegram/test')).toEqual({ status: 200, body: { ok: true } })
+  expect(await call('DELETE', '/api/telegram')).toEqual({ status: 200, body: { connected: false, bot: null, linked: false } })
+  expect(requested.telegram).toEqual(['connect abc', 'test'])
+  expect(await call('PUT', '/api/telegram', { token: 7 })).toEqual({ status: 400, body: { error: 'invalid_token' } })
+})
+
+test('Should tell why Telegram could not do what was asked', async () => {
+  const { call } = makeApi({
+    telegram: {
+      connect: async () => Promise.reject(telegramFailure('invalid_token')),
+      link: async () => Promise.reject(telegramFailure('no_message')),
+      test: async () => Promise.reject(telegramFailure('unavailable')),
+    },
+  })
+  expect(isTelegramError(telegramFailure('unavailable'))).toBe(true)
+  expect(isTelegramError(Object.assign(new Error('unavailable'), { kind: 'unavailable' }))).toBe(false)
+  expect(await call('PUT', '/api/telegram', { token: 'abc' })).toEqual({ status: 400, body: { error: 'invalid_token' } })
+  expect(await call('POST', '/api/telegram/link')).toEqual({ status: 409, body: { error: 'no_message' } })
+  expect(await call('POST', '/api/telegram/test')).toEqual({ status: 502, body: { error: 'unavailable' } })
+})
+
+test('Should take test prices only when the server was started for tests', async () => {
+  const fed: Record<string, number>[] = []
+  const { call } = makeApi({
+    testPrices: async (prices) => {
+      fed.push(prices)
+      return []
+    },
+  })
+  expect(await call('PUT', '/api/test/prices', { AAPL: 190.5, bad: 'x' })).toEqual({ status: 200, body: { fired: [] } })
+  expect(fed).toEqual([{ AAPL: 190.5 }])
+  expect((await makeApi().call('PUT', '/api/test/prices', { AAPL: 1 })).status).toBe(404)
 })
