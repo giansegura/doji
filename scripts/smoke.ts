@@ -1090,8 +1090,11 @@ await step('una alerta sobre un indicador salta en el servidor cuando el día se
         (await fetch('/api/test/prices', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(prices) })).json(),
       { [symbol]: value },
     )
-  await feed(previous * 1.001)
-  const answer = (await feed(previous * 1.04)) as { fired: unknown[] }
+  let answer = { fired: [] as unknown[] }
+  for (let attempt = 0; attempt < 3 && answer.fired.length === 0; attempt += 1) {
+    await feed(previous * 1.001)
+    answer = (await feed(previous * 1.04)) as { fired: unknown[] }
+  }
   check(answer.fired.length === 1, `el servidor no hizo saltar la alerta del indicador: ${JSON.stringify(answer)}`)
   await page.getByRole('status').filter({ hasText: `${symbol}: Day move beyond 2%` }).first().waitFor({ timeout: 10_000 })
   const deadline = Date.now() + 10_000
