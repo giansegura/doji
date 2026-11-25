@@ -278,3 +278,17 @@ test('Should delete only the drawings the AI made', () => {
     error: 'The AI can delete only the drawings it made. Ask the user to delete this one in doji.',
   })
 })
+
+test('Should move a rectangle whose corners were drawn right to left', () => {
+  const backwards = { ...box, p1: { date: '2026-11-16', value: 120 }, p2: { date: '2026-11-02', value: 100 } }
+  const reversed = { ...state, lines: { KO: [backwards] } }
+  const result = updateDrawing(reversed, { symbol: 'KO', drawingId: 'r', from: { date: '2026-11-20', price: 125 } })
+  expect(result.ok && result.detail).toMatchObject({ p1: { date: '2026-11-20', value: 125 }, p2: { date: '2026-11-02', value: 100 } })
+})
+
+test('Should bring a drawing to the prices after the latest split before changing it', () => {
+  const old = { ...level, pricedAt: '2020-01-01' }
+  const split = { date: '2024-06-10', numerator: 2, denominator: 1 }
+  const result = updateDrawing({ ...state, lines: { KO: [old] } }, { symbol: 'KO', drawingId: 'h', price: 60, splits: [split] })
+  expect(result.ok && result.detail).toMatchObject({ value: 60, pricedAt: '2024-06-10' })
+})

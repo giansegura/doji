@@ -424,8 +424,9 @@ export const createDojiServer = ({ api, newId, version, today = todayIso }: Serv
     ({ symbol, drawing_id: drawingId, price, from, to, extend_right: extendRight, color, width, line_style: lineStyle, opacity, text }) =>
       run(async () => {
         const key = keyOf(symbol)
+        const { splits } = await api.getHistory(key)
         const drawing = await update(api, (state) =>
-          updateDrawing(state, { symbol: key, drawingId, price, from, to, extendRight, color, width, lineStyle, opacity, text }),
+          updateDrawing(state, { symbol: key, drawingId, price, from, to, extendRight, color, width, lineStyle, opacity, text, splits }),
         )
         return { id: drawing.id, symbol: key, message: CHANGED }
       }),

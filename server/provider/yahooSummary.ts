@@ -38,13 +38,14 @@ export const createYahooSummary = (deps: { fetch: SummaryFetch }): YahooSummary 
   }
 
   const ask = async (symbol: string, modules: string, retry = true): Promise<unknown | null> => {
-    const { cookie, crumb } = await currentSession()
+    const used = currentSession()
+    const { cookie, crumb } = await used
     const query = new URLSearchParams({ modules, crumb })
     const answer = await deps.fetch(`${SUMMARY_URL}/${encodeURIComponent(symbol)}?${query}`, {
       headers: { 'User-Agent': USER_AGENT, Cookie: cookie },
     })
     if (REFUSED.includes(answer.status) && retry) {
-      session = null
+      if (session === used) session = null
       return ask(symbol, modules, false)
     }
     if (answer.status === 404) return null

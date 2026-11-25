@@ -71,9 +71,9 @@ export const createProfileSource = (deps: { summary: YahooSummary; now: () => Da
     return saving
   }
 
-  const get = async (symbol: string): Promise<CompanyProfile | null> => {
-    await loaded
-    const key = symbol.toUpperCase()
+  const running = new Map<string, Promise<CompanyProfile | null>>()
+
+  const fetchProfile = async (key: string): Promise<CompanyProfile | null> => {
     const now = deps.now().getTime()
     const previous = kept.get(key)
     if (previous && now - previous.at < KEEP_MS) return previous.profile
@@ -87,6 +87,14 @@ export const createProfileSource = (deps: { summary: YahooSummary; now: () => Da
       kept.set(key, { at: now - KEEP_MS + RETRY_MS, profile: fallback })
       return fallback
     }
+  }
+
+  const get = async (symbol: string): Promise<CompanyProfile | null> => {
+    await loaded
+    const key = symbol.toUpperCase()
+    const pending = running.get(key) ?? fetchProfile(key).finally(() => running.delete(key))
+    running.set(key, pending)
+    return pending
   }
 
   return { get }

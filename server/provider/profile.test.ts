@@ -136,3 +136,13 @@ test('Should start from the sheets kept on disk and keep there what it asks for'
   expect(asked).toEqual(['SPY price,summaryDetail,assetProfile,defaultKeyStatistics'])
   expect(Object.keys(saved.at(-1) as object)).toEqual(['KO', 'SPY'])
 })
+
+test('Should ask Yahoo once when the same sheet is asked for twice at the same time', async () => {
+  const { summary, asked } = fakeSummary([apple, new Error('down')])
+  const source = createProfileSource({ summary, now: () => NOW })
+  const [first, second] = await Promise.all([source.get('AAPL'), source.get('aapl')])
+  expect(asked).toHaveLength(1)
+  expect(first?.name).toBe('Apple Inc.')
+  expect(second?.name).toBe('Apple Inc.')
+  expect((await source.get('AAPL'))?.name).toBe('Apple Inc.')
+})

@@ -1,7 +1,8 @@
 import { LINE_TEXT_MAX_LENGTH, LIST_NAME_MAX_LENGTH, MAX_LISTS, MIN_LINE_OPACITY, NOTE_MAX_LENGTH, SMA_MAX_WIDTH, SMA_MIN_WIDTH } from '../shared/limits'
 import { toListIcon } from '../shared/listIcon'
 import { isSection } from '../shared/listItems'
-import type { AppState, Drawing, HorizontalLine, LinePoint, LineStyle, ListItem, SymbolInfo, SymbolList, TrendLine } from '../shared/types'
+import type { AppState, Drawing, HorizontalLine, LinePoint, LineStyle, ListItem, Split, SymbolInfo, SymbolList, TrendLine } from '../shared/types'
+import { adjustLinesForSplits } from '../src/domain/splits'
 import { appReducer } from '../src/state/appReducer'
 
 export type Edit<T> = { ok: true; state: AppState; detail: T } | { ok: false; error: string }
@@ -36,6 +37,7 @@ type UpdateRequest = {
   lineStyle?: LineStyle
   opacity?: number
   text?: string
+  splits?: Split[]
 }
 
 type DeleteRequest = { symbol: string; drawingId: string }
@@ -72,10 +74,10 @@ export const addLevel = (state: AppState, request: LevelRequest): Edit<Horizonta
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 
-const pointError = (from: Point, to: Point): string | null => {
+const pointError = (from: Point, to: Point, ordered = true): string | null => {
   if (!DATE.test(from.date) || !DATE.test(to.date)) return 'Dates must be written as YYYY-MM-DD.'
   if (!(from.price > 0) || !(to.price > 0) || !Number.isFinite(from.price) || !Number.isFinite(to.price)) return 'The prices must be positive numbers.'
-  return from.date < to.date ? null : 'The second point must come after the first.'
+  return !ordered || from.date < to.date ? null : 'The second point must come after the first.'
 }
 
 const linePoint = (point: Point): LinePoint => ({ date: point.date, value: point.price })
@@ -140,22 +142,23 @@ const moved = (drawing: Drawing, request: UpdateRequest): Drawing | string => {
   if (drawing.kind === 'position' || (!request.from && !request.to)) return drawing
   const from = request.from ?? { date: drawing.p1.date, price: drawing.p1.value }
   const to = request.to ?? { date: drawing.p2.date, price: drawing.p2.value }
-  const error = pointError(from, to)
+  const error = pointError(from, to, drawing.kind !== 'rect')
   return error ?? { ...drawing, p1: linePoint(from), p2: linePoint(to) }
 }
 
 export const updateDrawing = (state: AppState, request: UpdateRequest): Edit<Drawing> => {
   const symbol = keyOf(request.symbol)
   const drawings = drawingsOf(state, symbol)
-  const target = drawings.find((drawing) => drawing.id === request.drawingId)
-  if (!target) return { ok: false, error: `${symbol} has no drawing with id "${request.drawingId}".` }
+  const stored = drawings.find((drawing) => drawing.id === request.drawingId)
+  if (!stored) return { ok: false, error: `${symbol} has no drawing with id "${request.drawingId}".` }
+  const [target] = adjustLinesForSplits([stored], request.splits ?? []).lines
   const error = changeError(target, request)
   if (error) return { ok: false, error }
   const placed = moved(target, request)
   if (typeof placed === 'string') return { ok: false, error: placed }
   const extended = request.extendRight !== undefined && 'extendRight' in placed ? { ...placed, extendRight: request.extendRight } : placed
   const updated = retexted(restyled(extended, request), request.text)
-  const lines = drawings.map((drawing) => (drawing === target ? updated : drawing))
+  const lines = drawings.map((drawing) => (drawing === stored ? updated : drawing))
   return { ok: true, state: withDrawings(state, symbol, lines), detail: updated }
 }
 

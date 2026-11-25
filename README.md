@@ -121,7 +121,7 @@ Herramientas que ofrece:
 | `add_trend_line` | Dibuja una línea de tendencia entre dos puntos (día y precio), extendida a la derecha si se pide, con alerta y texto opcionales. |
 | `set_alert` | Arma o desarma la alerta de una línea existente. |
 | `update_drawing` | Mueve o cambia un dibujo: el precio de una horizontal, los puntos de una tendencia, canal o rectángulo, si se extiende, su color, grosor, trazo, opacidad o texto. |
-| `delete_drawing` | Borra un dibujo, pero solo los que hizo una IA (`get_chart` los marca con `madeByAi`); los tuyos no. La aplicación de IA pide confirmación antes de usarla. |
+| `delete_drawing` | Borra un dibujo, pero solo los que hizo una IA (`get_chart` los marca con `madeByAi`); los tuyos no. Va marcada como destructiva; que pida confirmación antes de usarla depende de la aplicación de IA y de sus permisos. |
 | `write_note` | Escribe en la nota de una acción. |
 | `create_watchlist` | Crea una lista, con sus símbolos si se le dan, sin cambiar la que tienes en pantalla. |
 | `add_to_watchlist` | Añade símbolos a una lista, al final o dentro de una de sus secciones. |
