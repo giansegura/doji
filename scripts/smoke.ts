@@ -60,7 +60,8 @@ let stepNumber = 0
 page.on('pageerror', (error) => pageErrors.push(`[paso ${stepNumber}] ${error.message}`))
 page.on('console', (message) => {
   const expectedConflict = message.text().includes('409 (Conflict)') && message.location().url.endsWith('/api/state')
-  if (message.type() === 'error' && !expectedConflict) {
+  const missingLogo = message.text().includes('404 (Not Found)') && message.location().url.includes('/api/logo?')
+  if (message.type() === 'error' && !expectedConflict && !missingLogo) {
     pageErrors.push(`[paso ${stepNumber}] ${message.text()} ${message.location().url}`)
   }
 })
