@@ -1,5 +1,7 @@
+import { MAX_METRICS_SYMBOLS } from '../../shared/limits'
 import { type CalendarAnswer, askInBatches } from '../../shared/earningsCalendarBatches'
 import { changesSince } from '../../shared/stateChanges'
+import type { SymbolMetrics } from '../../shared/symbolMetrics'
 import type { AppState, Earnings, History, Quote, SymbolInfo } from '../../shared/types'
 import type { SaveResult } from '../state/stateSync'
 
@@ -64,6 +66,22 @@ export type EarningsCalendarAnswer = CalendarAnswer
 
 export const getEarningsCalendar = (symbols: string[]): Promise<EarningsCalendarAnswer> =>
   askInBatches(symbols, (batch) => request(`/api/earnings/calendar?symbols=${batch.map(encodeURIComponent).join(',')}`))
+
+export type WatchMetricsAnswer = { metrics: Record<string, SymbolMetrics>; pending: number }
+
+export const getWatchMetrics = async (symbols: string[], withLevel: boolean, everyList = false): Promise<WatchMetricsAnswer> => {
+  const batches = Array.from({ length: Math.ceil(symbols.length / MAX_METRICS_SYMBOLS) }, (_, index) =>
+    symbols.slice(index * MAX_METRICS_SYMBOLS, (index + 1) * MAX_METRICS_SYMBOLS),
+  )
+  const options = `${withLevel ? '&level=1' : ''}${everyList ? '&all=1' : ''}`
+  const answers = await Promise.all(
+    batches.map((batch) => request<WatchMetricsAnswer>(`/api/watchlist/metrics?symbols=${batch.map(encodeURIComponent).join(',')}${options}`)),
+  )
+  return {
+    metrics: Object.assign({}, ...answers.map((answer) => answer.metrics)),
+    pending: answers.reduce((sum, answer) => sum + answer.pending, 0),
+  }
+}
 
 export const getQuotes = (symbols: string[]): Promise<Quote[]> =>
   request(`/api/quotes?symbols=${symbols.map(encodeURIComponent).join(',')}`)

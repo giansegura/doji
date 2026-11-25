@@ -1,0 +1,45 @@
+import { expect, test } from 'vitest'
+import { columnCell } from './watchColumns'
+
+const metrics = {
+  rsi: 56.734,
+  fromHighPercent: -3.2,
+  volumeRatio: 1.437,
+  level: { price: 245, kind: 'resistance' as const, percent: 2.1 },
+  changePercent: 0.5,
+  vsSma50Percent: 1,
+  vsSma200Percent: 4,
+}
+
+test('Should write each column of a symbol short enough to fit', () => {
+  expect(columnCell('rsi', { symbol: 'KO', metrics: metrics, earnings: undefined })).toEqual({ text: '56.7' })
+  expect(columnCell('fromHigh', { symbol: 'KO', metrics: metrics, earnings: undefined })).toEqual({ text: '−3.20%', title: '3.20% below the high of the last 52 weeks' })
+  expect(columnCell('relVolume', { symbol: 'KO', metrics: metrics, earnings: undefined })).toEqual({ text: '1.4×', title: 'Volume 1.44 times its 20-day average' })
+  expect(columnCell('level', { symbol: 'KO', metrics: metrics, earnings: undefined })).toEqual({ text: '+2.10%', title: 'Nearest resistance at 245.00' })
+})
+
+test('Should write the next earnings as a day, marked when it is only an estimate', () => {
+  expect(columnCell('earnings', { symbol: 'KO', metrics: undefined, earnings: { past: [], next: '2027-01-28', nextIsEstimate: false } })).toEqual({
+    text: 'Jan 28',
+    title: 'Earnings Jan 28, 2027',
+  })
+  expect(columnCell('earnings', { symbol: 'KO', metrics: undefined, earnings: { past: [], next: '2027-01-28', nextIsEstimate: true } })).toEqual({
+    text: '~Jan 28',
+    title: 'Earnings ~Jan 28, 2027',
+  })
+})
+
+test('Should write a dash for what it does not know yet', () => {
+  expect(columnCell('rsi', { symbol: 'KO', metrics: undefined, earnings: undefined })).toEqual({ text: '—' })
+  expect(columnCell('level', { symbol: 'KO', metrics: { ...metrics, level: null } })).toEqual({ text: '—' })
+  expect(columnCell('earnings', { symbol: 'KO', metrics: undefined, earnings: { past: [], next: null, nextIsEstimate: false } })).toEqual({ text: '—' })
+})
+
+test('Should write the gain of a position in percent and in money', () => {
+  const holding = { quantity: 100, price: 50 }
+  const quote = { symbol: 'KO', price: 55, change: 0, changePercent: 0, currency: 'USD' }
+  expect(columnCell('gain', { symbol: 'KO', holding, quote })).toEqual({ text: '+10.00%', title: '100 shares at 50.00' })
+  expect(columnCell('gainValue', { symbol: 'KO', holding, quote })).toEqual({ text: '+$500', title: '100 shares at 50.00' })
+  expect(columnCell('gain', { symbol: 'KO', quote })).toEqual({ text: '—' })
+  expect(columnCell('gainValue', { symbol: 'KO', holding })).toEqual({ text: '—' })
+})

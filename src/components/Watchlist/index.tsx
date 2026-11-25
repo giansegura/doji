@@ -1,6 +1,13 @@
 import { type DragEvent, type ReactNode, useEffect, useRef, useState } from 'react'
+import { useTheme } from 'styled-components'
 import { isSection } from '../../../shared/listItems'
-import type { ListItem, Quote, SortColumn, WatchlistSort } from '../../../shared/types'
+import type { SymbolMetrics } from '../../../shared/symbolMetrics'
+import type { Earnings, FlagColor, Holding, ListItem, Quote, SortColumn, WatchColumn, WatchlistSort } from '../../../shared/types'
+import { formatPercent } from '../../chart/format'
+import { formatMoney, totalsByCurrency } from '../../domain/holdings'
+import { WATCH_COLUMN_NAMES } from '../../domain/watchColumns'
+import { ColumnsPicker } from './ColumnsPicker'
+import { FlagIcon } from './FlagPicker'
 import { SectionField } from './SectionField'
 import { SectionRow } from './SectionRow'
 import { SymbolRow } from './SymbolRow'
@@ -22,6 +29,17 @@ type WatchlistProps = {
   onSort: (column: SortColumn) => void
   header?: ReactNode
   earningsSoon?: Record<string, number>
+  columns?: WatchColumn[]
+  onColumns?: (columns: WatchColumn[]) => void
+  metrics?: Record<string, SymbolMetrics>
+  earnings?: Record<string, Earnings>
+  flags?: Record<string, FlagColor>
+  onFlag?: (symbol: string, color: FlagColor | null) => void
+  onlyFlagged?: boolean
+  onOnlyFlagged?: (on: boolean) => void
+  toolbar?: ReactNode
+  filtered?: 'list' | 'all' | null
+  holdings?: Record<string, Holding>
 }
 
 type Editing = { kind: 'new' } | { kind: 'rename'; id: string } | null
@@ -29,7 +47,7 @@ type Editing = { kind: 'new' } | { kind: 'rename'; id: string } | null
 const DRAG_FORMAT = 'application/x-doji-symbol'
 const NEW_SECTION: Editing = { kind: 'new' }
 
-type ColumnSpec = { column: SortColumn; label: string; right?: boolean; wideOnly?: boolean; widestOnly?: boolean }
+type ColumnSpec = { column: SortColumn; label: string; header?: string; right?: boolean; wideOnly?: boolean; widestOnly?: boolean }
 
 const COLUMNS: ColumnSpec[] = [
   { column: 'symbol', label: 'Symbol' },
@@ -39,6 +57,12 @@ const COLUMNS: ColumnSpec[] = [
 ]
 
 const ARROWS = { asc: ' ▲', desc: ' ▼' }
+
+const NO_COLUMNS: WatchColumn[] = []
+const NO_METRICS: Record<string, SymbolMetrics> = {}
+const NO_EARNINGS: Record<string, Earnings> = {}
+const NO_FLAGS: Record<string, FlagColor> = {}
+const NO_HOLDINGS: Record<string, Holding> = {}
 
 const LIVE = 'Live prices'
 
@@ -78,7 +102,19 @@ export const Watchlist = ({
   onSort,
   header,
   earningsSoon,
+  columns = NO_COLUMNS,
+  onColumns,
+  metrics = NO_METRICS,
+  earnings = NO_EARNINGS,
+  flags = NO_FLAGS,
+  onFlag,
+  onlyFlagged = false,
+  onOnlyFlagged,
+  toolbar,
+  filtered = null,
+  holdings = NO_HOLDINGS,
 }: WatchlistProps) => {
+  const theme = useTheme()
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [editing, setEditing] = useState<Editing>(null)
   const activeRef = useRef<HTMLLIElement>(null)
@@ -95,7 +131,7 @@ export const Watchlist = ({
 
   const handleDrop = (event: DragEvent, index: number) => {
     event.preventDefault()
-    if (sort === null && dragIndex !== null && dragIndex !== index) onMove(dragIndex, index)
+    if (!fixed && dragIndex !== null && dragIndex !== index) onMove(dragIndex, index)
     setDragIndex(null)
   }
 
@@ -109,12 +145,30 @@ export const Watchlist = ({
     setEditing(null)
   }
 
+  const fixed = sort !== null || onlyFlagged || filtered !== null
+  const emptyText = filtered ? 'No symbols match this filter' : onlyFlagged ? 'No flagged symbols in this watchlist' : 'This watchlist is empty'
+
+  const showsGain = columns.includes('gain') || columns.includes('gainValue')
+  const totals = showsGain
+    ? totalsByCurrency(
+        items.flatMap((item) => (isSection(item) ? [] : [item.symbol])),
+        holdings,
+        quotes,
+      )
+    : []
+
+  const specs: ColumnSpec[] = [
+    ...COLUMNS,
+    ...columns.map((column) => ({ column, label: WATCH_COLUMN_NAMES[column].name, header: WATCH_COLUMN_NAMES[column].header, right: true })),
+  ]
+
   return (
     <Styles.Panel>
       <Styles.Header>
         {header ?? <Styles.Title>Watchlist</Styles.Title>}
         <Styles.HeaderActions>
           <Styles.LiveMark role="img" aria-label={live ? LIVE : NOT_LIVE} title={live ? LIVE : NOT_LIVE} $live={live} />
+          {onColumns && <ColumnsPicker columns={columns} onColumns={onColumns} onlyFlagged={onlyFlagged} onOnlyFlagged={onOnlyFlagged} />}
           <Styles.IconButton type="button" aria-label="Add section" title="Add section" onClick={() => setEditing(NEW_SECTION)}>
             <SectionIcon />
           </Styles.IconButton>
@@ -123,8 +177,20 @@ export const Watchlist = ({
           </Styles.IconButton>
         </Styles.HeaderActions>
       </Styles.Header>
-      <Styles.Columns>
-        {COLUMNS.map(({ column, label, right, wideOnly, widestOnly }) => (
+      {toolbar}
+      <Styles.Columns $extra={columns.length}>
+        {onFlag && (
+          <Styles.FlagSort
+            type="button"
+            aria-label={sortLabel('flag', 'Flag', sort)}
+            title={sortLabel('flag', 'Flag', sort)}
+            $sorted={sort?.column === 'flag'}
+            onClick={() => onSort('flag')}
+          >
+            <FlagIcon />
+          </Styles.FlagSort>
+        )}
+        {specs.map(({ column, label, header: shortLabel, right, wideOnly, widestOnly }) => (
           <Styles.ColumnLabel
             key={column}
             type="button"
@@ -133,21 +199,22 @@ export const Watchlist = ({
             $right={right}
             $wideOnly={wideOnly}
             $widestOnly={widestOnly}
+            $extra={columns.length}
             $sorted={sort?.column === column}
             onClick={() => onSort(column)}
           >
-            {label}
+            {shortLabel ?? label}
             {sort?.column === column && ARROWS[sort.direction]}
           </Styles.ColumnLabel>
         ))}
       </Styles.Columns>
-      {items.length === 0 && <Styles.Empty>This watchlist is empty</Styles.Empty>}
+      {items.length === 0 && <Styles.Empty>{emptyText}</Styles.Empty>}
       <Styles.Rows>
         {items.map((item, index) => (
           <Styles.Row
             key={keyOf(item)}
             ref={!isSection(item) && item.symbol === activeSymbol ? activeRef : undefined}
-            draggable={editing === null && sort === null}
+            draggable={editing === null && !fixed}
             $dragging={dragIndex === index}
             onDragStart={(event) => handleDragStart(event, index)}
             onDragOver={(event) => event.preventDefault()}
@@ -169,8 +236,14 @@ export const Watchlist = ({
                 quote={quotes[item.symbol]}
                 active={item.symbol === activeSymbol}
                 earningsIn={earningsSoon?.[item.symbol.toUpperCase()]}
+                columns={columns}
+                metrics={metrics[item.symbol.toUpperCase()]}
+                earnings={earnings[item.symbol.toUpperCase()]}
+                flag={flags[item.symbol] ?? null}
+                holding={holdings[item.symbol]}
+                onFlag={onFlag ? (color) => onFlag(item.symbol, color) : undefined}
                 onSelect={() => onSelect(item.symbol)}
-                onRemove={() => onRemove(item.symbol)}
+                onRemove={filtered === 'all' ? undefined : () => onRemove(item.symbol)}
               />
             )}
           </Styles.Row>
@@ -183,6 +256,16 @@ export const Watchlist = ({
           </Styles.Row>
         )}
       </Styles.Rows>
+      {totals.length > 0 && (
+        <Styles.Total role="status" aria-label="Total gain">
+          <Styles.TotalLabel>Total P/L</Styles.TotalLabel>
+          {totals.map((total) => (
+            <Styles.Number key={total.currency} $color={total.value < 0 ? theme.ui.down : theme.ui.up}>
+              {[formatMoney(total.value, total.currency || undefined), total.currency, `(${formatPercent(total.percent)})`].filter(Boolean).join(' ')}
+            </Styles.Number>
+          ))}
+        </Styles.Total>
+      )}
     </Styles.Panel>
   )
 }

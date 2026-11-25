@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
-import type { ListItem, Quote, SymbolInfo, WatchlistSort } from '../../../shared/types'
+import type { SymbolMetrics } from '../../../shared/symbolMetrics'
+import type { Earnings, FlagColor, Holding, ListItem, Quote, SymbolInfo, WatchColumn, WatchlistSort } from '../../../shared/types'
 import { ThemeProvider } from 'styled-components'
 import { renderWithTheme } from '../../test/render'
 import { themes } from '../../theme/tokens'
@@ -18,9 +19,21 @@ const quotes: Record<string, Quote> = {
   MSFT: { symbol: 'MSFT', price: 431.2, change: -1.72, changePercent: -0.4 },
 }
 
-const setup = (
-  over: { items?: ListItem[]; quotes?: Record<string, Quote>; sort?: WatchlistSort | null; earningsSoon?: Record<string, number> } = {},
-) => {
+type Over = {
+  items?: ListItem[]
+  quotes?: Record<string, Quote>
+  sort?: WatchlistSort | null
+  earningsSoon?: Record<string, number>
+  columns?: WatchColumn[]
+  metrics?: Record<string, SymbolMetrics>
+  earnings?: Record<string, Earnings>
+  flags?: Record<string, FlagColor>
+  onlyFlagged?: boolean
+  filtered?: 'list' | 'all' | null
+  holdings?: Record<string, Holding>
+}
+
+const setup = (over: Over = {}) => {
   const handlers = {
     onSelect: vi.fn(),
     onRemove: vi.fn(),
@@ -30,6 +43,9 @@ const setup = (
     onRenameSection: vi.fn(),
     onRemoveSection: vi.fn(),
     onSort: vi.fn(),
+    onColumns: vi.fn(),
+    onFlag: vi.fn(),
+    onOnlyFlagged: vi.fn(),
   }
   renderWithTheme(
     <Watchlist
@@ -38,6 +54,14 @@ const setup = (
       activeSymbol="AAPL"
       sort={over.sort ?? null}
       earningsSoon={over.earningsSoon}
+      columns={over.columns ?? []}
+      metrics={over.metrics ?? {}}
+      earnings={over.earnings ?? {}}
+      flags={over.flags ?? {}}
+      onlyFlagged={over.onlyFlagged ?? false}
+      filtered={over.filtered ?? null}
+      holdings={over.holdings ?? {}}
+      toolbar={<div>Barra de filtro</div>}
       {...handlers}
     />,
   )
@@ -312,6 +336,11 @@ test('Should not let the rows be dragged while the list is sorted', () => {
   expect(screen.getAllByRole('listitem').every((row) => row.getAttribute('draggable') === 'false')).toBe(true)
 })
 
+test('Should not let the rows be dragged while it only shows the flagged symbols', () => {
+  setup({ onlyFlagged: true, flags: { AAPL: 'red' } })
+  expect(screen.getAllByRole('listitem').every((row) => row.getAttribute('draggable') === 'false')).toBe(true)
+})
+
 test('Should let the rows be dragged in the order of the user', () => {
   setup()
   expect(screen.getAllByRole('listitem').every((row) => row.getAttribute('draggable') === 'true')).toBe(true)
@@ -471,4 +500,108 @@ test('Should warn on the row of a symbol that reports earnings within a week', (
   expect(screen.getByRole('img', { name: 'Earnings in 3 days' }).textContent).toBe('E 3d')
   expect(screen.getByRole('img', { name: 'Earnings today' }).textContent).toBe('E')
   expect(screen.getAllByRole('img', { name: /^Earnings/ })).toHaveLength(2)
+})
+
+test('Should show the columns picked, each sortable, with the values of each symbol', async () => {
+  const { handlers, user } = setup({
+    columns: ['rsi', 'earnings'],
+    metrics: { AAPL: { rsi: 61.25, fromHighPercent: -2, volumeRatio: 1, level: null, changePercent: 1, vsSma50Percent: 2, vsSma200Percent: 3 } },
+    earnings: { AAPL: { past: [], next: '2027-01-28', nextIsEstimate: false } },
+  })
+  const apple = row('AAPL')
+  expect(within(apple).getByText('61.3')).toBeTruthy()
+  expect(within(apple).getByText('Jan 28')).toBeTruthy()
+  expect(within(row('KO')).getAllByText('—').length).toBeGreaterThanOrEqual(2)
+  await user.click(screen.getByRole('button', { name: 'Sort by RSI 14' }))
+  expect(handlers.onSort).toHaveBeenCalledWith('rsi')
+  await user.click(screen.getByRole('button', { name: 'Sort by Next earnings' }))
+  expect(handlers.onSort).toHaveBeenCalledWith('earnings')
+  expect(screen.queryByRole('button', { name: 'Sort by Nearest level' })).toBeNull()
+})
+
+test('Should pick the columns from the menu of the header', async () => {
+  const { handlers, user } = setup({ columns: ['rsi'] })
+  await user.click(screen.getByRole('button', { name: 'Columns' }))
+  const menu = screen.getByRole('group', { name: 'Columns' })
+  expect((within(menu).getByRole('checkbox', { name: 'RSI 14' }) as HTMLInputElement).checked).toBe(true)
+  await user.click(within(menu).getByRole('checkbox', { name: 'Nearest level' }))
+  expect(handlers.onColumns).toHaveBeenLastCalledWith(['rsi', 'level'])
+  await user.click(within(menu).getByRole('checkbox', { name: 'RSI 14' }))
+  expect(handlers.onColumns).toHaveBeenLastCalledWith([])
+  await user.keyboard('{Escape}')
+  expect(screen.queryByRole('group', { name: 'Columns' })).toBeNull()
+})
+
+test('Should close the flag colours with a second click on the flag', async () => {
+  const { user } = setup()
+  await user.click(screen.getByRole('button', { name: 'Flag AAPL' }))
+  expect(screen.getByRole('group', { name: 'Flag colour' })).toBeTruthy()
+  await user.click(screen.getByRole('button', { name: 'Flag AAPL' }))
+  expect(screen.queryByRole('group', { name: 'Flag colour' })).toBeNull()
+})
+
+test('Should flag a symbol with a colour from its row and take the flag off', async () => {
+  const { handlers, user } = setup({ flags: { MSFT: 'red' } })
+  expect(screen.getByRole('button', { name: 'Flag AAPL' }).getAttribute('title')).toBe('Flag')
+  expect(screen.getByRole('button', { name: 'Flag MSFT' }).getAttribute('title')).toBe('Red flag')
+  await user.click(screen.getByRole('button', { name: 'Flag AAPL' }))
+  await user.click(within(screen.getByRole('group', { name: 'Flag colour' })).getByRole('button', { name: 'Blue' }))
+  expect(handlers.onFlag).toHaveBeenLastCalledWith('AAPL', 'blue')
+  expect(screen.queryByRole('group', { name: 'Flag colour' })).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Flag MSFT' }))
+  await user.click(screen.getByRole('button', { name: 'No flag' }))
+  expect(handlers.onFlag).toHaveBeenLastCalledWith('MSFT', null)
+  expect(handlers.onSelect).not.toHaveBeenCalled()
+})
+
+test('Should sort by flag and show only the flagged symbols from the header', async () => {
+  const { handlers, user } = setup({ onlyFlagged: false })
+  await user.click(screen.getByRole('button', { name: 'Sort by Flag' }))
+  expect(handlers.onSort).toHaveBeenCalledWith('flag')
+  await user.click(screen.getByRole('button', { name: 'Columns' }))
+  await user.click(screen.getByRole('checkbox', { name: 'Only flagged symbols' }))
+  expect(handlers.onOnlyFlagged).toHaveBeenLastCalledWith(true)
+})
+
+test('Should say when no symbol is flagged while it only shows the flagged ones', () => {
+  setup({ items: [], onlyFlagged: true })
+  expect(screen.getByText('No flagged symbols in this watchlist')).toBeTruthy()
+})
+
+test('Should show the filter bar and keep the rows in place while a filter is applied', () => {
+  setup({ filtered: 'list' })
+  expect(screen.getByText('Barra de filtro')).toBeTruthy()
+  expect(screen.getAllByRole('listitem').every((row) => row.getAttribute('draggable') === 'false')).toBe(true)
+  expect(screen.getByRole('button', { name: 'Remove AAPL' })).toBeTruthy()
+})
+
+test('Should not offer to remove a symbol while the filter shows every watchlist', () => {
+  setup({ filtered: 'all' })
+  expect(screen.queryByRole('button', { name: /^Remove / })).toBeNull()
+})
+
+test('Should say when no symbol matches the filter', () => {
+  setup({ items: [], filtered: 'list' })
+  expect(screen.getByText('No symbols match this filter')).toBeTruthy()
+})
+
+test('Should show the gain of each position and the total of each currency at the bottom', () => {
+  setup({
+    columns: ['gain', 'gainValue'],
+    holdings: { AAPL: { quantity: 10, price: 200 }, MSFT: { quantity: 2, price: 400 } },
+    quotes: {
+      AAPL: { symbol: 'AAPL', price: 220, change: 0, changePercent: 0, currency: 'USD' },
+      MSFT: { symbol: 'MSFT', price: 380, change: 0, changePercent: 0, currency: 'EUR' },
+    },
+  })
+  expect(within(row('AAPL')).getByText('+10.00%')).toBeTruthy()
+  expect(within(row('AAPL')).getByText('+$200')).toBeTruthy()
+  const total = screen.getByRole('status', { name: 'Total gain' })
+  expect(total.textContent).toContain('+$200 USD (+10.00%)')
+  expect(total.textContent).toContain('−€40 EUR (−5.00%)')
+})
+
+test('Should not show a total without the gain columns', () => {
+  setup({ holdings: { AAPL: { quantity: 10, price: 200 } } })
+  expect(screen.queryByRole('status', { name: 'Total gain' })).toBeNull()
 })

@@ -380,6 +380,7 @@ test('Should keep how the watchlist is sorted and drop a sort it does not know',
   expect(normalizeState({}).watchlistSort).toBeNull()
   expect(normalizeState({ watchlistSort: { column: 'change', direction: 'desc' } }).watchlistSort).toEqual({ column: 'change', direction: 'desc' })
   expect(normalizeState({ watchlistSort: { column: 'volume', direction: 'desc' } }).watchlistSort).toBeNull()
+  expect(normalizeState({ watchlistSort: { column: 'rsi', direction: 'asc' } }).watchlistSort).toEqual({ column: 'rsi', direction: 'asc' })
   expect(normalizeState({ watchlistSort: { column: 'last', direction: 'up' } }).watchlistSort).toBeNull()
 })
 
@@ -461,6 +462,18 @@ test('Should keep the volume profile hidden with twenty-four rows unless the con
   })
 })
 
+test('Should show the earnings and dividend marks unless the configuration hides them', () => {
+  expect(normalizeState({}).indicators.marks).toEqual({ earnings: true, dividends: true })
+  expect(normalizeState({ indicators: { marks: { earnings: false, dividends: false } } }).indicators.marks).toEqual({
+    earnings: false,
+    dividends: false,
+  })
+  expect(normalizeState({ indicators: { marks: { earnings: 0, dividends: 'no' } } }).indicators.marks).toEqual({
+    earnings: true,
+    dividends: true,
+  })
+})
+
 test('Should keep the support and resistance levels hidden with three per side unless the configuration says otherwise', () => {
   expect(normalizeState({}).indicators.levels).toEqual({ visible: false, perSide: 3 })
   expect(normalizeState({ indicators: { levels: { visible: true, perSide: 5 } } }).indicators.levels).toEqual({ visible: true, perSide: 5 })
@@ -504,4 +517,85 @@ test('Should drop a position that lacks its side or its levels, and the sizing i
   ]
   const oddSizing = { ...position, id: 'o', account: -5, riskPercent: 400 }
   expect(normalizeState({ lines: { KO: [...broken, oddSizing] } }).lines.KO).toEqual([{ ...position, id: 'o' }])
+})
+
+test('Should show no extra columns in the watchlist unless the configuration picks them, in their usual order', () => {
+  expect(normalizeState({}).watchlistColumns).toEqual([])
+  expect(normalizeState({ watchlistColumns: ['level', 'rsi', 'rsi', 'volume', 7] }).watchlistColumns).toEqual(['rsi', 'level'])
+  expect(normalizeState({ watchlistColumns: 'rsi' }).watchlistColumns).toEqual([])
+})
+
+test('Should let the watchlist grow wider for each extra column it shows', () => {
+  expect(normalizeState({ listWidth: 900 }).listWidth).toBe(640)
+  expect(normalizeState({ listWidth: 900, watchlistColumns: ['rsi', 'earnings'] }).listWidth).toBe(768)
+})
+
+test('Should keep the flag of each symbol in one of its six colours and drop the rest', () => {
+  expect(normalizeState({}).flags).toEqual({})
+  expect(normalizeState({ flags: { KO: 'red', PEP: 'pink', MSFT: 3, NVDA: 'purple' } }).flags).toEqual({ KO: 'red', NVDA: 'purple' })
+  expect(normalizeState({ flags: ['red'] }).flags).toEqual({})
+})
+
+test('Should show every symbol unless the configuration asks for the flagged ones only', () => {
+  expect(normalizeState({}).onlyFlagged).toBe(false)
+  expect(normalizeState({ onlyFlagged: true }).onlyFlagged).toBe(true)
+  expect(normalizeState({ onlyFlagged: 'yes' }).onlyFlagged).toBe(false)
+})
+
+test('Should keep the saved filters with their conditions and drop what it cannot read', () => {
+  expect(normalizeState({}).filters).toEqual([])
+  expect(normalizeState({}).activeFilterId).toBeNull()
+  const out = normalizeState({
+    filters: [
+      {
+        id: 'f1',
+        name: '  Sobrevendidas  ',
+        scope: 'all',
+        conditions: [
+          { field: 'rsi', op: 'below', value: 30 },
+          { field: 'price', op: 'below', value: 30 },
+          { field: 'vsSma200', op: 'above', value: '0' },
+          { field: 'vsSma200', op: 'above', value: 0 },
+        ],
+      },
+      { id: 'f2', name: 'Vacío', scope: 'list', conditions: [{ field: 'rsi', op: 'near', value: 1 }] },
+      { id: 'f3', name: '', scope: 'list', conditions: [{ field: 'rsi', op: 'below', value: 1 }] },
+      { id: 'f4', name: 'Lista', scope: 'other', conditions: [{ field: 'change', op: 'above', value: 2 }] },
+    ],
+    activeFilterId: 'f1',
+  })
+  expect(out.filters).toEqual([
+    {
+      id: 'f1',
+      name: 'Sobrevendidas',
+      scope: 'all',
+      conditions: [
+        { field: 'rsi', op: 'below', value: 30 },
+        { field: 'vsSma200', op: 'above', value: 0 },
+      ],
+    },
+    { id: 'f4', name: 'Lista', scope: 'list', conditions: [{ field: 'change', op: 'above', value: 2 }] },
+  ])
+  expect(out.activeFilterId).toBe('f1')
+  expect(normalizeState({ filters: [], activeFilterId: 'f9' }).activeFilterId).toBeNull()
+})
+
+test('Should keep the position of each symbol only with a positive quantity and price', () => {
+  expect(normalizeState({}).holdings).toEqual({})
+  expect(
+    normalizeState({
+      holdings: { KO: { quantity: 100, price: 58.2 }, PEP: { quantity: 0, price: 10 }, MSFT: { quantity: 5 }, NVDA: { quantity: 2, price: -1 } },
+    }).holdings,
+  ).toEqual({ KO: { quantity: 100, price: 58.2 } })
+})
+
+test('Should keep the positions away from the AI unless the user shares them', () => {
+  expect(normalizeState({}).shareHoldings).toBe(false)
+  expect(normalizeState({ shareHoldings: true }).shareHoldings).toBe(true)
+  expect(normalizeState({ watchlistColumns: ['gain', 'gainValue'] }).watchlistColumns).toEqual(['gain', 'gainValue'])
+})
+
+test('Should keep only the first saved filter of each id', () => {
+  const filter = (id: string, name: string) => ({ id, name, scope: 'list', conditions: [{ field: 'rsi', op: 'below', value: 30 }] })
+  expect(normalizeState({ filters: [filter('a', 'Uno'), filter('a', 'Dos'), filter('b', 'Tres')] }).filters.map((saved) => saved.name)).toEqual(['Uno', 'Tres'])
 })

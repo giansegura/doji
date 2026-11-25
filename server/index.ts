@@ -22,6 +22,7 @@ import { type StateStore, createStateStore } from './stateStore'
 import { createStreamRoute } from './streamRoute'
 import { type TelegramFetch, createTelegram } from './telegram'
 import { removeFile, testHooksOn } from './serverEnv'
+import { createWatchMetrics } from './watchMetrics'
 
 const HOST = '127.0.0.1'
 const PORT = Number(process.env.PORT ?? 4780)
@@ -113,8 +114,11 @@ const watchedState: StateStore = {
   },
 }
 
+const historyCache = createHistoryCache({ provider, dir: join(dataDir, 'cache'), now: () => new Date() })
+
 const api = createApi({
-  history: createHistoryCache({ provider, dir: join(dataDir, 'cache'), now: () => new Date() }),
+  history: historyCache,
+  metrics: createWatchMetrics({ history: historyCache }),
   provider: { ...provider, quotes: quotes.get },
   state: watchedState,
   telegram,

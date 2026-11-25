@@ -23,7 +23,7 @@ const MACD_FIELDS = [
 ] as const
 
 export const StudiesPanel = ({ indicators, onIndicators }: StudiesPanelProps) => {
-  const { bollinger, macd, volumeProfile, levels } = indicators
+  const { bollinger, macd, volumeProfile, levels, marks } = indicators
 
   const setBollinger = (patch: Partial<Indicators['bollinger']>) =>
     onIndicators({ ...indicators, bollinger: { ...bollinger, ...patch } })
@@ -31,6 +31,8 @@ export const StudiesPanel = ({ indicators, onIndicators }: StudiesPanelProps) =>
   const setMacd = (patch: Partial<Indicators['macd']>) => onIndicators({ ...indicators, macd: { ...macd, ...patch } })
 
   const setLevels = (patch: Partial<Indicators['levels']>) => onIndicators({ ...indicators, levels: { ...levels, ...patch } })
+
+  const setMarks = (patch: Partial<Indicators['marks']>) => onIndicators({ ...indicators, marks: { ...marks, ...patch } })
 
   const setProfile = (patch: Partial<Indicators['volumeProfile']>) =>
     onIndicators({ ...indicators, volumeProfile: { ...volumeProfile, ...patch } })
@@ -120,6 +122,15 @@ export const StudiesPanel = ({ indicators, onIndicators }: StudiesPanelProps) =>
             />
           </Styles.MenuItem>
         ))}
+      <Styles.MenuSection>Marks</Styles.MenuSection>
+      <Styles.MenuRow>
+        <input type="checkbox" checked={marks.earnings} onChange={(event) => setMarks({ earnings: event.target.checked })} />
+        <Styles.RowLabel>Earnings marks</Styles.RowLabel>
+      </Styles.MenuRow>
+      <Styles.MenuRow>
+        <input type="checkbox" checked={marks.dividends} onChange={(event) => setMarks({ dividends: event.target.checked })} />
+        <Styles.RowLabel>Dividend marks</Styles.RowLabel>
+      </Styles.MenuRow>
     </>
   )
 }

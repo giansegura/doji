@@ -18,6 +18,10 @@ import {
   SMA_MIN_WIDTH,
 } from './limits'
 import { toListWidth } from './listWidth'
+import { WATCH_COLUMNS, toWatchColumns } from './watchColumns'
+import { toFlags } from './flags'
+import { toFilters } from './filters'
+import { toHoldings } from './holdings'
 import {
   type AppState,
   type ChartSettings,
@@ -293,6 +297,7 @@ const toIndicators = (raw: unknown): Indicators => {
   const rows = asFinite(profile.rows)
   const levels = asRecord(indicators.levels)
   const perSide = asFinite(levels.perSide)
+  const marks = asRecord(indicators.marks)
   const defaults = DEFAULT_STATE.indicators
   return {
     volume: { visible: asBoolean(volume.visible, defaults.volume.visible) },
@@ -331,6 +336,10 @@ const toIndicators = (raw: unknown): Indicators => {
           ? perSide
           : defaults.levels.perSide,
     },
+    marks: {
+      earnings: asBoolean(marks.earnings, defaults.marks.earnings),
+      dividends: asBoolean(marks.dividends, defaults.marks.dividends),
+    },
   }
 }
 
@@ -351,7 +360,7 @@ const toChart = (raw: unknown): ChartSettings => {
   }
 }
 
-const SORT_COLUMNS: SortColumn[] = ['symbol', 'last', 'change', 'ext']
+const SORT_COLUMNS: SortColumn[] = ['symbol', 'last', 'change', 'ext', 'flag', ...WATCH_COLUMNS]
 
 const toSort = (raw: unknown): WatchlistSort | null => {
   const sort = asRecord(raw)
@@ -374,6 +383,9 @@ export const normalizeState = (raw: unknown): AppState => {
   const watchlists = toLists(source)
   const activeId = asText(source.activeWatchlistId)
   const rev = asFinite(source.rev)
+  const columns = toWatchColumns(source.watchlistColumns)
+  const filters = toFilters(source.filters)
+  const activeFilterId = asText(source.activeFilterId)
   return {
     version: 1,
     rev: rev !== null && Number.isInteger(rev) && rev >= 1 ? rev : 1,
@@ -384,11 +396,18 @@ export const normalizeState = (raw: unknown): AppState => {
     activeWatchlistId: watchlists.some((list) => list.id === activeId) ? (activeId as string) : watchlists[0].id,
     indicators: toIndicators(source.indicators),
     chart: toChart(source.chart),
-    listWidth: toListWidth(source.listWidth),
+    listWidth: toListWidth(source.listWidth, columns.length),
     lines: toLines(source.lines),
     notes: toNotes(source.notes),
     secondChart: asTimeframe(source.secondChart),
     watchlistSort: toSort(source.watchlistSort),
+    watchlistColumns: columns,
+    flags: toFlags(source.flags),
+    onlyFlagged: source.onlyFlagged === true,
+    filters,
+    activeFilterId: filters.some((filter) => filter.id === activeFilterId) ? activeFilterId : null,
+    holdings: toHoldings(source.holdings),
+    shareHoldings: source.shareHoldings === true,
     lineLooks: toLineLooks(source.lineLooks),
     earningsBadge: source.earningsBadge === true,
   }

@@ -19,6 +19,7 @@ const setup = (indicators: Indicators = DEFAULT_STATE.indicators) => {
     onExportConfig: vi.fn(),
     onImportConfig: vi.fn(),
     onSplit: vi.fn(),
+    onShareHoldings: vi.fn(),
   }
   renderWithTheme(
     <TopBar
@@ -29,6 +30,7 @@ const setup = (indicators: Indicators = DEFAULT_STATE.indicators) => {
       chart={DEFAULT_STATE.chart}
       notice={null}
       split={false}
+      shareHoldings={false}
       {...handlers}
     />,
   )
@@ -336,6 +338,15 @@ test('Should keep the configuration menu closed until asked', async () => {
   expect(screen.getByRole('button', { name: 'Import settings…' })).toBeTruthy()
 })
 
+test('Should keep the positions away from the AI until the user shares them', async () => {
+  const { handlers, user } = setup()
+  await openConfigMenu(user)
+  const share = screen.getByRole('checkbox', { name: 'Share positions with the AI' }) as HTMLInputElement
+  expect(share.checked).toBe(false)
+  await user.click(share)
+  expect(handlers.onShareHoldings).toHaveBeenCalledWith(true)
+})
+
 test('Should ask for the configuration to be exported', async () => {
   const { handlers, user } = setup()
   await openConfigMenu(user)
@@ -493,6 +504,15 @@ test('Should set the rows of the volume profile', async () => {
   await openIndicators(user)
   await typeInto(user, 'Volume profile rows', '40')
   expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ volumeProfile: { visible: true, rows: 40 } }))
+})
+
+test('Should hide the earnings marks and the dividend marks each on its own', async () => {
+  const { handlers, user } = setup()
+  await openIndicators(user)
+  await user.click(screen.getByRole('checkbox', { name: 'Earnings marks' }))
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ marks: { earnings: false, dividends: true } }))
+  await user.click(screen.getByRole('checkbox', { name: 'Dividend marks' }))
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ marks: { earnings: true, dividends: false } }))
 })
 
 test('Should switch the MACD on and set its three lengths', async () => {

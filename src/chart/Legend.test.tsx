@@ -28,6 +28,7 @@ type Options = {
   timeframe?: 'D' | 'W'
   info?: SymbolInfo
   earnings?: string | null
+  dividend?: string | null
 }
 
 const setup = (over: Options = {}) =>
@@ -40,6 +41,7 @@ const setup = (over: Options = {}) =>
       rsiPaneTop={over.rsiPaneTop === undefined ? 500 : over.rsiPaneTop}
       macdPaneTop={over.macdPaneTop ?? null}
       earnings={over.earnings ?? null}
+      dividend={over.dividend ?? null}
     />,
   )
 
@@ -212,4 +214,12 @@ test('Should say when the next earnings come, and nothing without them', () => {
   first.unmount()
   setup()
   expect(text()).not.toContain('Earnings')
+})
+
+test('Should show the dividend paid on the bar under the cursor', () => {
+  const first = setup({ dividend: 'Dividend 0.26' })
+  expect(screen.getByText('Dividend 0.26')).toBeTruthy()
+  first.unmount()
+  setup()
+  expect(text()).not.toContain('Dividend')
 })

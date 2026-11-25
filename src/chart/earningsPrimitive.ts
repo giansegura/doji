@@ -9,6 +9,7 @@ export type EarningsPrimitive = ISeriesPrimitive<Time> & { redraw: () => void }
 
 const RADIUS = 7
 const BOTTOM_GAP = 10
+const ROW_GAP = 17
 const FULL_CIRCLE = Math.PI * 2
 const FONT = 'bold 9px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
 
@@ -25,17 +26,19 @@ export const createEarningsPrimitive = (source: EarningsSource): EarningsPrimiti
         context.textAlign = 'center'
         context.textBaseline = 'middle'
         context.lineWidth = 1.5
-        source.marks().forEach(({ x, kind }) => {
+        source.marks().forEach(({ x, kind, row = 0 }) => {
+          const top = y - row * ROW_GAP
+          const hollow = kind === 'next'
           context.beginPath()
-          context.arc(x, y, RADIUS, 0, FULL_CIRCLE)
-          context.fillStyle = kind === 'past' ? colors.past : colors.background
+          context.arc(x, top, RADIUS, 0, FULL_CIRCLE)
+          context.fillStyle = hollow ? colors.background : colors.past
           context.fill()
-          if (kind === 'next') {
+          if (hollow) {
             context.strokeStyle = colors.next
             context.stroke()
           }
-          context.fillStyle = kind === 'past' ? colors.text : colors.next
-          context.fillText('E', x, y)
+          context.fillStyle = hollow ? colors.next : colors.text
+          context.fillText(kind === 'dividend' ? 'D' : 'E', x, top)
         })
         context.restore()
       })

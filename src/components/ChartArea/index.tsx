@@ -1,6 +1,6 @@
 import { type RefObject, useState } from 'react'
 import { displaySymbol } from '../../../shared/symbols'
-import type { ChartSettings, Drawing, DrawingKind, History, Indicators, LineLook, Timeframe } from '../../../shared/types'
+import type { ChartSettings, Drawing, DrawingKind, History, Indicators, LineLook, Timeframe, Holding } from '../../../shared/types'
 import { ChartView } from '../../chart/ChartView'
 import type { LivePrice } from '../../domain/liveBar'
 import type { Tool } from '../../state/appReducer'
@@ -26,6 +26,8 @@ type ChartAreaProps = {
   onLook: (kind: DrawingKind, look: LineLook) => void
   onToolDone: () => void
   onRetry: () => void
+  holding?: Holding
+  currency?: string
 }
 
 const NO_LINES: Drawing[] = []
@@ -54,6 +56,8 @@ export const ChartArea = ({
   onLook,
   onToolDone,
   onRetry,
+  holding,
+  currency,
 }: ChartAreaProps) => {
   const [lastShown, setLastShown] = useState<History | null>(hasBars(history) ? history : null)
   const loading = status === 'loading'
@@ -96,6 +100,8 @@ export const ChartArea = ({
         looks={looks}
         onLook={loading ? ignore : onLook}
         onToolDone={loading ? ignore : onToolDone}
+        holding={loading ? undefined : holding}
+        currency={currency}
       />
       {loading && <Styles.Veil role="status">{`Loading ${displaySymbol(symbol)}…`}</Styles.Veil>}
     </>

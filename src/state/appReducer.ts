@@ -1,7 +1,9 @@
-import { LIST_NAME_MAX_LENGTH, MAX_LISTS, NOTE_MAX_LENGTH } from '../../shared/limits'
+import { LIST_NAME_MAX_LENGTH, MAX_FILTERS, MAX_LISTS, NOTE_MAX_LENGTH, WATCH_COLUMN_WIDTH } from '../../shared/limits'
 import { toListIcon } from '../../shared/listIcon'
 import { isSection } from '../../shared/listItems'
 import { clampListWidth } from '../../shared/listWidth'
+import { isWatchColumn, toWatchColumns } from '../../shared/watchColumns'
+import { isHolding } from '../../shared/holdings'
 import { sameLook } from '../domain/lineLooks'
 import type {
   AppState,
@@ -16,6 +18,10 @@ import type {
   DrawingKind,
   LineLook,
   WatchlistSort,
+  WatchColumn,
+  FlagColor,
+  SavedFilter,
+  Holding,
 } from '../../shared/types'
 
 export type Tool = 'cursor' | 'trendline' | 'hline' | 'channel' | 'rect' | 'measure' | 'long' | 'short'
@@ -45,6 +51,15 @@ export type Action =
   | { type: 'toggleSecondChart' }
   | { type: 'setSecondChart'; timeframe: Timeframe }
   | { type: 'setWatchlistSort'; sort: WatchlistSort | null }
+  | { type: 'setWatchlistColumns'; columns: WatchColumn[] }
+  | { type: 'setFlag'; symbol: string; color: FlagColor | null }
+  | { type: 'setOnlyFlagged'; on: boolean }
+  | { type: 'saveFilter'; filter: SavedFilter }
+  | { type: 'setHolding'; symbol: string; holding: Holding | null }
+  | { type: 'setShareHoldings'; on: boolean }
+  | { type: 'deleteFilter'; id: string }
+  | { type: 'applyFilter'; id: string | null }
+  | { type: 'createWatchlistWith'; id: string; name: string; items: SymbolInfo[] }
   | { type: 'rememberLook'; kind: DrawingKind; look: LineLook }
   | { type: 'setEarningsBadge'; on: boolean }
 
@@ -157,8 +172,57 @@ const selectWatchlist = (state: AppState, id: string): AppState => {
 }
 
 const setListWidth = (state: AppState, raw: number): AppState => {
-  const listWidth = clampListWidth(raw)
+  const listWidth = clampListWidth(raw, state.watchlistColumns.length)
   return listWidth === state.listWidth ? state : { ...state, listWidth }
+}
+
+const saveFilter = (state: AppState, filter: SavedFilter): AppState => {
+  const known = state.filters.some((saved) => saved.id === filter.id)
+  if (!known && state.filters.length >= MAX_FILTERS) return state
+  const filters = known ? state.filters.map((saved) => (saved.id === filter.id ? filter : saved)) : [...state.filters, filter]
+  return { ...state, filters, activeFilterId: filter.id }
+}
+
+const deleteFilter = (state: AppState, id: string): AppState => ({
+  ...state,
+  filters: state.filters.filter((filter) => filter.id !== id),
+  activeFilterId: state.activeFilterId === id ? null : state.activeFilterId,
+})
+
+const applyFilter = (state: AppState, id: string | null): AppState => {
+  if (id !== null && !state.filters.some((filter) => filter.id === id)) return state
+  return state.activeFilterId === id ? state : { ...state, activeFilterId: id }
+}
+
+const createWatchlistWith = (state: AppState, id: string, name: string, items: SymbolInfo[]): AppState => {
+  const created = createWatchlist(state, id, name)
+  return created === state ? state : withActiveItems(created, items)
+}
+
+const setHolding = (state: AppState, symbol: string, holding: Holding | null): AppState => {
+  if (holding !== null && !isHolding(holding)) return state
+  const { [symbol]: previous, ...others } = state.holdings
+  if (!previous && !holding) return state
+  return { ...state, holdings: holding ? { ...others, [symbol]: holding } : others }
+}
+
+const setFlag = (state: AppState, symbol: string, color: FlagColor | null): AppState => {
+  const { [symbol]: previous, ...others } = state.flags
+  if ((previous ?? null) === color) return state
+  return { ...state, flags: color ? { ...others, [symbol]: color } : others }
+}
+
+const setWatchlistColumns = (state: AppState, raw: WatchColumn[]): AppState => {
+  const watchlistColumns = toWatchColumns(raw)
+  const added = watchlistColumns.length - state.watchlistColumns.length
+  const sorted = state.watchlistSort?.column
+  const keepsSort = !isWatchColumn(sorted) || watchlistColumns.includes(sorted)
+  return {
+    ...state,
+    watchlistColumns,
+    listWidth: clampListWidth(state.listWidth + added * WATCH_COLUMN_WIDTH, watchlistColumns.length),
+    watchlistSort: keepsSort ? state.watchlistSort : null,
+  }
 }
 
 const addSection = (state: AppState, id: string, rawTitle: string): AppState => {
@@ -234,6 +298,15 @@ export const appReducer = (state: AppState, action: Action): AppState => {
   if (action.type === 'toggleSecondChart') return toggleSecondChart(state)
   if (action.type === 'setSecondChart') return setSecondChart(state, action.timeframe)
   if (action.type === 'setWatchlistSort') return { ...state, watchlistSort: action.sort }
+  if (action.type === 'setWatchlistColumns') return setWatchlistColumns(state, action.columns)
+  if (action.type === 'setFlag') return setFlag(state, action.symbol, action.color)
+  if (action.type === 'saveFilter') return saveFilter(state, action.filter)
+  if (action.type === 'setHolding') return setHolding(state, action.symbol, action.holding)
+  if (action.type === 'setShareHoldings') return state.shareHoldings === action.on ? state : { ...state, shareHoldings: action.on }
+  if (action.type === 'deleteFilter') return deleteFilter(state, action.id)
+  if (action.type === 'applyFilter') return applyFilter(state, action.id)
+  if (action.type === 'createWatchlistWith') return createWatchlistWith(state, action.id, action.name, action.items)
+  if (action.type === 'setOnlyFlagged') return state.onlyFlagged === action.on ? state : { ...state, onlyFlagged: action.on }
   if (action.type === 'rememberLook') return rememberLook(state, action.kind, action.look)
   if (action.type === 'setEarningsBadge') return state.earningsBadge === action.on ? state : { ...state, earningsBadge: action.on }
   return setLines(state, action.symbol, action.lines)

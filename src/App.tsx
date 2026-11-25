@@ -2,15 +2,18 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ThemeProvider } from 'styled-components'
 import { todayIso } from '../shared/dates'
 import { symbolsOf } from '../shared/listItems'
-import type { AppState, Bar, Drawing, DrawingKind, LineLook, SymbolInfo } from '../shared/types'
+import type { AppState, Bar, Drawing, DrawingKind, LineLook, SavedFilter, SymbolInfo } from '../shared/types'
 import { ChartArea } from './components/ChartArea'
 import { EarningsCalendar } from './components/EarningsCalendar'
+import { FilterBar } from './components/FilterBar'
+import { FilterEditor } from './components/FilterEditor'
 import { LeftToolbar } from './components/LeftToolbar'
 import { ListPicker } from './components/ListPicker'
 import { AlertToasts } from './components/AlertToasts'
 import { ListResizer } from './components/ListResizer'
 import { ReplayBar } from './components/ReplayBar'
 import { NotesPanel } from './components/NotesPanel'
+import { PositionPanel } from './components/PositionPanel'
 import { SymbolSearch } from './components/SymbolSearch'
 import { TimeframePicker } from './components/TimeframePicker'
 import { TopBar } from './components/TopBar'
@@ -22,10 +25,13 @@ import { freshQuotes } from './domain/liveBar'
 import { newId } from './domain/newId'
 import { replayBars } from './domain/replay'
 import { tabTitle } from './domain/tabTitle'
+import { METRIC_FIELDS, allSymbols, filterItems } from './domain/filters'
+import { onlyFlagged } from './domain/flags'
 import { nextSort, sortItems } from './domain/watchlistSort'
 import { adjustLinesForSplits } from './domain/splits'
 import { useAlerts } from './hooks/useAlerts'
 import { useEarningsCalendar } from './hooks/useEarningsCalendar'
+import { useWatchMetrics } from './hooks/useWatchMetrics'
 import { useHistory } from './hooks/useHistory'
 import { useLivePrice } from './hooks/useLivePrice'
 import { usePrefetchHistories } from './hooks/usePrefetchHistories'
@@ -46,25 +52,56 @@ type SearchMode = 'chart' | 'watchlist' | null
 
 const NO_DRAWINGS: Drawing[] = []
 
+const NO_FIELDS: never[] = []
+
+const MAX_EXTRA_QUOTES = 120
+
+const NEW_FILTER: Omit<SavedFilter, 'id'> = { name: '', scope: 'list', conditions: [{ field: 'rsi', op: 'below', value: 30 }] }
+
+type FilterDraft = { filter: SavedFilter; editing: boolean }
+
 const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   const [tool, setTool] = useState<Tool>('cursor')
   const [searchMode, setSearchMode] = useState<SearchMode>(null)
   const [calendarOpen, setCalendarOpen] = useState(false)
+  const [filterDraft, setFilterDraft] = useState<FilterDraft | null>(null)
   const screenshotRef = useRef<(() => void) | null>(null)
   const { status, history, errorCode, retry } = useHistory(state.symbol)
   const list = activeWatchlist(state)
   const listSymbols = symbolsOf(list.items).map((item) => item.symbol)
-  const { quotes: tracked, live } = useQuotes([...new Set([...listSymbols, state.symbol])])
+  const columns = state.watchlistColumns
+  const filter = state.filters.find((saved) => saved.id === state.activeFilterId) ?? null
+  const everywhere = filter?.scope === 'all'
+  const fields = filter?.conditions.map((condition) => condition.field) ?? NO_FIELDS
+  const everySymbol = useMemo(() => allSymbols(state.watchlists), [state.watchlists])
+  const scopeItems = everywhere ? everySymbol : list.items
+  const scopeSymbols = symbolsOf(scopeItems).map((item) => item.symbol)
+  const metrics = useWatchMetrics(scopeSymbols, {
+    enabled: columns.some((column) => column !== 'earnings') || fields.some((field) => METRIC_FIELDS.includes(field)),
+    withLevel: columns.includes('level') || fields.includes('level'),
+    everyList: everywhere,
+  })
+  usePrefetchHistories(listSymbols)
+  const today = todayIso()
+  const calendarSymbols = useMemo(() => calendarItems(state.watchlists).map((item) => item.symbol), [state.watchlists])
+  const wantsEarnings = columns.includes('earnings') || fields.includes('earningsDays')
+  const calendar = useEarningsCalendar(calendarSymbols, calendarOpen || (everywhere && wantsEarnings))
+  const listEarnings = useEarningsCalendar(listSymbols, state.earningsBadge || (!everywhere && wantsEarnings))
+  const viewEarnings = everywhere ? calendar.earnings : listEarnings.earnings
+  const filteredItems = filter ? filterItems(scopeItems, filter, { metrics, earnings: viewEarnings, today }) : list.items
+  const extraSymbols = everywhere ? symbolsOf(filteredItems).slice(0, MAX_EXTRA_QUOTES).map((item) => item.symbol) : NO_FIELDS
+  const { quotes: tracked, live } = useQuotes([...new Set([...listSymbols, ...extraSymbols, state.symbol])])
   const quotes = useMemo(() => freshQuotes(tracked, history), [tracked, history])
   const livePrice = useLivePrice(history, quotes[state.symbol])
   const { fired, dismiss } = useAlerts()
-  const shownItems = sortItems(list.items, quotes, state.watchlistSort)
+  const sortedItems = sortItems(filteredItems, quotes, state.watchlistSort, {
+    metrics,
+    earnings: viewEarnings,
+    flags: state.flags,
+    holdings: state.holdings,
+  })
+  const shownItems = state.onlyFlagged ? onlyFlagged(sortedItems, state.flags) : sortedItems
   const shownSymbols = symbolsOf(shownItems).map((item) => item.symbol)
-  usePrefetchHistories(listSymbols)
-  const today = todayIso()
-  const allSymbols = useMemo(() => calendarItems(state.watchlists).map((item) => item.symbol), [state.watchlists])
-  const calendar = useEarningsCalendar(allSymbols, calendarOpen)
-  const listEarnings = useEarningsCalendar(listSymbols, state.earningsBadge)
   const soon = useMemo(() => earningsSoon(listEarnings.earnings, today), [listEarnings.earnings, today])
   const drawings = state.lines[state.symbol] ?? NO_DRAWINGS
   const { changeDrawings, forgetDrawings } = useShortcuts({ symbol: state.symbol, drawings, symbols: shownSymbols, dispatch, onTool: setTool })
@@ -108,6 +145,8 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
     onLook: (kind: DrawingKind, look: LineLook) => dispatch({ type: 'rememberLook', kind, look }),
     onToolDone: () => setTool('cursor'),
     onRetry: retry,
+    holding: state.holdings[state.symbol],
+    currency: quotes[state.symbol]?.currency,
   }
 
   const handlePick = (info: SymbolInfo) => {
@@ -145,6 +184,8 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
           }}
           split={state.secondChart !== null}
           onSplit={() => dispatch({ type: 'toggleSecondChart' })}
+          shareHoldings={state.shareHoldings}
+          onShareHoldings={(on) => dispatch({ type: 'setShareHoldings', on })}
         />
       </Styles.Top>
       <Styles.Tools>
@@ -179,7 +220,11 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
         )}
       </Styles.Chart>
       <Styles.List>
-        <ListResizer width={state.listWidth} onResize={(width) => dispatch({ type: 'setListWidth', width })} />
+        <ListResizer
+          width={state.listWidth}
+          extraColumns={columns.length}
+          onResize={(width) => dispatch({ type: 'setListWidth', width })}
+        />
         <Watchlist
           items={shownItems}
           sort={state.watchlistSort}
@@ -207,6 +252,39 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
           onRenameSection={(id, title) => dispatch({ type: 'renameSection', id, title })}
           onRemoveSection={(id) => dispatch({ type: 'removeSection', id })}
           earningsSoon={state.earningsBadge ? soon : undefined}
+          columns={columns}
+          onColumns={(picked) => dispatch({ type: 'setWatchlistColumns', columns: picked })}
+          metrics={metrics}
+          earnings={viewEarnings}
+          filtered={filter ? filter.scope : null}
+          holdings={state.holdings}
+          toolbar={
+            <FilterBar
+              filters={state.filters}
+              active={filter}
+              shown={symbolsOf(shownItems).length}
+              total={scopeSymbols.length}
+              onApply={(id) => dispatch({ type: 'applyFilter', id })}
+              onNew={() => setFilterDraft({ filter: { ...NEW_FILTER, id: newId() }, editing: false })}
+              onEdit={() => filter && setFilterDraft({ filter, editing: true })}
+              onSaveAsList={() => {
+                if (!filter) return
+                dispatch({ type: 'createWatchlistWith', id: newId(), name: filter.name, items: symbolsOf(shownItems) })
+                dispatch({ type: 'applyFilter', id: null })
+              }}
+            />
+          }
+          flags={state.flags}
+          onFlag={(symbol, color) => dispatch({ type: 'setFlag', symbol, color })}
+          onlyFlagged={state.onlyFlagged}
+          onOnlyFlagged={(on) => dispatch({ type: 'setOnlyFlagged', on })}
+        />
+        <PositionPanel
+          symbol={state.symbol}
+          holding={state.holdings[state.symbol]}
+          price={quotes[state.symbol]?.price ?? null}
+          currency={quotes[state.symbol]?.currency}
+          onChange={(holding) => dispatch({ type: 'setHolding', symbol: state.symbol, holding })}
         />
         <NotesPanel
           symbol={state.symbol}
@@ -216,6 +294,21 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
       </Styles.List>
       {searchMode && (
         <SymbolSearch onPick={handlePick} onClose={() => setSearchMode(null)} stayOpen={searchMode === 'watchlist'} />
+      )}
+      {filterDraft && (
+        <FilterEditor
+          filter={filterDraft.filter}
+          editing={filterDraft.editing}
+          onSave={(saved) => {
+            dispatch({ type: 'saveFilter', filter: saved })
+            setFilterDraft(null)
+          }}
+          onDelete={(id) => {
+            dispatch({ type: 'deleteFilter', id })
+            setFilterDraft(null)
+          }}
+          onClose={() => setFilterDraft(null)}
+        />
       )}
       {calendarOpen && (
         <EarningsCalendar

@@ -2,7 +2,7 @@ import { mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from 'vitest'
-import type { Bar, History, Split } from '../shared/types'
+import type { Bar, Dividend, History, Split } from '../shared/types'
 import { createHistoryCache, mergeHistory } from './historyCache'
 import { type DataProvider, isProviderError, providerError } from './provider/yahoo'
 
@@ -11,10 +11,11 @@ const HOUR = 60 * MINUTE
 
 const bar = (time: string, close: number): Bar => ({ time, open: close, high: close, low: close, close, volume: 1 })
 
-const history = (bars: Bar[], splits: Split[] = [], fetchedAt = 'x'): History => ({
+const history = (bars: Bar[], splits: Split[] = [], fetchedAt = 'x', dividends: Dividend[] = []): History => ({
   info: { symbol: 'AAPL', name: 'Apple Inc.', exchange: 'NASDAQ' },
   bars,
   splits,
+  dividends,
   fetchedAt,
   stale: false,
 })
@@ -140,6 +141,27 @@ test('Should not download everything again for a split it already knows', async 
   const refreshed = await cache.get('AAPL')
   expect(calls).toHaveLength(2)
   expect(refreshed.splits).toEqual([split])
+})
+
+test('Should keep the known dividends and add the new ones of the tail', async () => {
+  const old: Dividend = { date: '2026-08-11', amount: 0.26 }
+  const fresh: Dividend = { date: '2026-11-20', amount: 0.27 }
+  const { cache, advance } = await makeCache([history(full.bars, [], 'x', [old]), history(tail.bars, [], 'x', [fresh])])
+  await cache.get('AAPL')
+  advance(61_000)
+  expect((await cache.get('AAPL')).dividends).toEqual([old, fresh])
+})
+
+test('Should download everything again once when the cached history predates dividends', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'doji-cache-'))
+  await writeFile(join(dir, 'AAPL.json'), JSON.stringify({ ...full, dividends: undefined, fetchedAt: '2026-11-23T19:59:00.000Z' }))
+  const { cache, calls, advance } = await makeCache([history(full.bars, [], 'x', [{ date: '2026-08-11', amount: 0.26 }]), tail], { dir })
+  advance(61_000)
+  const loaded = await cache.get('AAPL')
+  advance(61_000)
+  await cache.get('AAPL')
+  expect(calls.map((call) => call.fromDate)).toEqual([undefined, '2026-11-10'])
+  expect(loaded.dividends).toEqual([{ date: '2026-08-11', amount: 0.26 }])
 })
 
 test('Should download everything again after twelve hours', async () => {
@@ -291,13 +313,13 @@ test('Should remember after a restart when the last full download was', async ()
 test('Should not hand out when the last full download was', async () => {
   const { cache, dir } = await makeCache([full])
   const answered = await cache.get('AAPL')
-  expect(Object.keys(answered).sort()).toEqual(['bars', 'fetchedAt', 'info', 'splits', 'stale'])
+  expect(Object.keys(answered).sort()).toEqual(['bars', 'dividends', 'fetchedAt', 'info', 'splits', 'stale'])
   const restarted = createHistoryCache({
     provider: { history: async () => full, search: async () => [], quotes: async () => [], logoUrl: async () => null },
     dir,
     now: () => new Date('2026-11-23T20:00:05Z'),
   })
-  expect(Object.keys(await restarted.get('AAPL')).sort()).toEqual(['bars', 'fetchedAt', 'info', 'splits', 'stale'])
+  expect(Object.keys(await restarted.get('AAPL')).sort()).toEqual(['bars', 'dividends', 'fetchedAt', 'info', 'splits', 'stale'])
 })
 
 test('Should answer with the downloaded history even when it cannot be written to disk', async () => {
@@ -346,6 +368,34 @@ test('Should hand over the copy on disk in a new process without asking the sour
   const kept = await second.cache.peek('AAPL')
   expect(kept.bars).toEqual(full.bars)
   expect(second.calls).toEqual([])
+})
+
+test('Should say what it keeps without downloading anything', async () => {
+  const { cache, calls } = await makeCache([full])
+  expect(await cache.kept('AAPL')).toBeNull()
+  expect(calls).toEqual([])
+  await cache.get('AAPL')
+  expect((await cache.kept('aapl'))?.bars).toEqual(full.bars)
+  expect(calls).toHaveLength(1)
+})
+
+test('Should read from disk what it does not have in memory without keeping it there', async () => {
+  const first = await makeCache([full])
+  await first.cache.get('AAPL')
+  const second = await makeCache([tail], { dir: first.dir })
+  expect((await second.cache.kept('AAPL'))?.bars).toEqual(full.bars)
+  await writeFile(join(first.dir, 'AAPL.json'), JSON.stringify({ ...tail, fetchedAt: '2026-11-23T20:00:00.000Z' }))
+  expect((await second.cache.kept('AAPL'))?.bars).toEqual(tail.bars)
+  expect(second.calls).toEqual([])
+})
+
+test('Should refresh a history without keeping it in memory when asked', async () => {
+  const { cache, calls, dir } = await makeCache([full])
+  const fresh = await cache.get('AAPL', false)
+  expect(fresh.bars).toEqual(full.bars)
+  expect(calls).toHaveLength(1)
+  await writeFile(join(dir, 'AAPL.json'), JSON.stringify({ ...tail, fetchedAt: '2026-11-23T20:00:00.000Z' }))
+  expect((await cache.kept('AAPL'))?.bars).toEqual(tail.bars)
 })
 
 test('Should download a history it is asked to hand over but does not keep', async () => {

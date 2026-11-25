@@ -1,4 +1,5 @@
 import { MAX_CALENDAR_SYMBOLS } from '../shared/earningsCalendarBatches'
+import { MAX_METRICS_SYMBOLS } from '../shared/limits'
 import { normalizeState } from '../shared/normalizeState'
 import { type StateChanges, applyChanges } from '../shared/stateChanges'
 import { SYMBOL_PATTERN } from '../shared/symbols'
@@ -8,6 +9,7 @@ import type { EarningsSource } from './provider/earnings'
 import { type Telegram, type TelegramErrorKind, isTelegramError } from './telegram'
 import { type DataProvider, isProviderError } from './provider/yahoo'
 import type { StateStore } from './stateStore'
+import type { WatchMetrics } from './watchMetrics'
 
 export type ApiRequest = { method: string; path: string; query: URLSearchParams; body: unknown }
 
@@ -20,6 +22,7 @@ type ApiDeps = {
   logos: LogoStore
   earnings: EarningsSource
   telegram: Telegram
+  metrics: WatchMetrics
   testPrices?: (prices: Record<string, number>) => Promise<unknown>
 }
 
@@ -30,6 +33,16 @@ const OWN_FETCH_SITES = ['same-origin', 'none']
 const WRITING_METHODS = ['PUT', 'PATCH']
 
 const ok = (body: unknown): ApiResult => ({ status: 200, body })
+
+const symbolsIn = (query: URLSearchParams, most: number): string[] =>
+  [
+    ...new Set(
+      (query.get('symbols') ?? '')
+        .split(',')
+        .filter((symbol) => SYMBOL_PATTERN.test(symbol))
+        .map((symbol) => symbol.toUpperCase()),
+    ),
+  ].slice(0, most)
 
 const fail = (status: number, error: string): ApiResult => ({ status, body: { error } })
 
@@ -117,15 +130,13 @@ export const createApi = (deps: ApiDeps): Route => {
       if (!SYMBOL_PATTERN.test(symbol)) return fail(400, 'invalid_symbol')
       return ok(await deps.earnings.get(symbol))
     },
+    'GET /api/watchlist/metrics': async ({ query }) => {
+      const symbols = symbolsIn(query, MAX_METRICS_SYMBOLS)
+      if (symbols.length === 0) return ok({ metrics: {}, pending: 0 })
+      return ok(await deps.metrics.read(symbols, query.get('level') === '1', query.get('all') === '1'))
+    },
     'GET /api/earnings/calendar': async ({ query }) => {
-      const symbols = [
-        ...new Set(
-          (query.get('symbols') ?? '')
-            .split(',')
-            .filter((symbol) => SYMBOL_PATTERN.test(symbol))
-            .map((symbol) => symbol.toUpperCase()),
-        ),
-      ].slice(0, MAX_CALENDAR_SYMBOLS)
+      const symbols = symbolsIn(query, MAX_CALENDAR_SYMBOLS)
       if (symbols.length > 0) deps.earnings.warm(symbols).catch(() => undefined)
       const earnings = Object.fromEntries(
         symbols.flatMap((symbol) => {

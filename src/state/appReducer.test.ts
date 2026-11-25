@@ -356,3 +356,86 @@ test('Should switch the earnings warning of the watchlist on and off', () => {
   expect(appReducer(on, { type: 'setEarningsBadge', on: true })).toBe(on)
   expect(appReducer(on, { type: 'setEarningsBadge', on: false }).earningsBadge).toBe(false)
 })
+
+test('Should add a column to the watchlist and widen the list to make room for it', () => {
+  const one = appReducer({ ...base, listWidth: 400 }, { type: 'setWatchlistColumns', columns: ['rsi'] })
+  expect(one.watchlistColumns).toEqual(['rsi'])
+  expect(one.listWidth).toBe(464)
+  const two = appReducer(one, { type: 'setWatchlistColumns', columns: ['earnings', 'rsi'] })
+  expect(two.watchlistColumns).toEqual(['rsi', 'earnings'])
+  expect(two.listWidth).toBe(528)
+  expect(appReducer(two, { type: 'setWatchlistColumns', columns: ['rsi'] }).listWidth).toBe(464)
+})
+
+test('Should not widen the list past its limit nor keep sorting by a column it hides', () => {
+  const wide = appReducer({ ...base, listWidth: 640 }, { type: 'setWatchlistColumns', columns: ['rsi', 'level'] })
+  expect(wide.listWidth).toBe(768)
+  const sorted = appReducer(wide, { type: 'setWatchlistSort', sort: { column: 'level', direction: 'asc' } })
+  const hidden = appReducer(sorted, { type: 'setWatchlistColumns', columns: ['rsi'] })
+  expect(hidden.watchlistSort).toBeNull()
+  expect(hidden.listWidth).toBe(704)
+  expect(appReducer(hidden, { type: 'setListWidth', width: 2000 }).listWidth).toBe(704)
+})
+
+test('Should flag a symbol in every list, change its colour and take the flag off', () => {
+  const red = appReducer(base, { type: 'setFlag', symbol: 'KO', color: 'red' })
+  expect(red.flags).toEqual({ KO: 'red' })
+  expect(appReducer(red, { type: 'setFlag', symbol: 'KO', color: 'blue' }).flags).toEqual({ KO: 'blue' })
+  expect(appReducer(red, { type: 'setFlag', symbol: 'KO', color: null }).flags).toEqual({})
+  expect(appReducer(red, { type: 'setFlag', symbol: 'KO', color: 'red' })).toBe(red)
+})
+
+test('Should switch between every symbol and the flagged ones only', () => {
+  const only = appReducer(base, { type: 'setOnlyFlagged', on: true })
+  expect(only.onlyFlagged).toBe(true)
+  expect(appReducer(only, { type: 'setOnlyFlagged', on: true })).toBe(only)
+})
+
+const oversold = {
+  id: 'f1',
+  name: 'Sobrevendidas',
+  scope: 'list' as const,
+  conditions: [{ field: 'rsi' as const, op: 'below' as const, value: 30 }],
+}
+
+test('Should save a new filter and apply it, then replace it when edited', () => {
+  const saved = appReducer(base, { type: 'saveFilter', filter: oversold })
+  expect(saved.filters).toEqual([oversold])
+  expect(saved.activeFilterId).toBe('f1')
+  const edited = appReducer(saved, { type: 'saveFilter', filter: { ...oversold, name: 'RSI < 25' } })
+  expect(edited.filters).toEqual([{ ...oversold, name: 'RSI < 25' }])
+})
+
+test('Should apply a saved filter, clear it and delete it', () => {
+  const saved = appReducer(appReducer(base, { type: 'saveFilter', filter: oversold }), { type: 'applyFilter', id: null })
+  expect(saved.activeFilterId).toBeNull()
+  expect(appReducer(saved, { type: 'applyFilter', id: 'nope' })).toBe(saved)
+  const applied = appReducer(saved, { type: 'applyFilter', id: 'f1' })
+  expect(applied.activeFilterId).toBe('f1')
+  const deleted = appReducer(applied, { type: 'deleteFilter', id: 'f1' })
+  expect(deleted.filters).toEqual([])
+  expect(deleted.activeFilterId).toBeNull()
+})
+
+test('Should save the symbols a filter shows as a new list and open it', () => {
+  const items = [
+    { symbol: 'KO', name: 'Coca-Cola', exchange: 'NYSE' },
+    { symbol: 'PEP', name: 'PepsiCo', exchange: 'NASDAQ' },
+  ]
+  const out = appReducer(base, { type: 'createWatchlistWith', id: 'new', name: ' Sobrevendidas ', items })
+  expect(out.watchlists.at(-1)).toEqual({ id: 'new', name: 'Sobrevendidas', items })
+  expect(out.activeWatchlistId).toBe('new')
+})
+
+test('Should set, change and remove the position of a symbol', () => {
+  const held = appReducer(base, { type: 'setHolding', symbol: 'KO', holding: { quantity: 100, price: 58.2 } })
+  expect(held.holdings).toEqual({ KO: { quantity: 100, price: 58.2 } })
+  expect(appReducer(held, { type: 'setHolding', symbol: 'KO', holding: { quantity: 0, price: 58.2 } })).toBe(held)
+  expect(appReducer(held, { type: 'setHolding', symbol: 'KO', holding: null }).holdings).toEqual({})
+})
+
+test('Should share the positions with the AI only when switched on', () => {
+  const shared = appReducer(base, { type: 'setShareHoldings', on: true })
+  expect(shared.shareHoldings).toBe(true)
+  expect(appReducer(shared, { type: 'setShareHoldings', on: true })).toBe(shared)
+})

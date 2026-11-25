@@ -5,8 +5,9 @@ import { addDays } from '../shared/dates'
 import type { DataProvider } from './provider/yahoo'
 
 export type HistoryCache = {
-  get: (symbol: string) => Promise<History>
+  get: (symbol: string, keep?: boolean) => Promise<History>
   peek: (symbol: string) => Promise<History>
+  kept: (symbol: string) => Promise<History | null>
 }
 
 export const FRESH_MS = 15_000
@@ -63,11 +64,13 @@ export const mergeHistory = (cached: History, tail: History): History => {
   const from = fresh[0]?.time
   const kept = from === undefined ? cached.bars : cached.bars.filter((bar) => bar.time < from)
   const splits = new Map([...cached.splits, ...tail.splits].map((split) => [split.date, split]))
+  const dividends = new Map([...(cached.dividends ?? []), ...(tail.dividends ?? [])].map((dividend) => [dividend.date, dividend]))
   const tradedAt = fresh.length > 0 ? tail.tradedAt : cached.tradedAt
   return {
     info: tail.info,
     bars: [...kept, ...fresh],
     splits: [...splits.values()].sort(byDate((split) => split.date)),
+    dividends: [...dividends.values()].sort(byDate((dividend) => dividend.date)),
     fetchedAt: tail.fetchedAt,
     stale: false,
     ...(tradedAt === undefined ? {} : { tradedAt }),
@@ -113,7 +116,7 @@ export const createHistoryCache = (deps: { provider: DataProvider; dir: string; 
 
   const download = async (symbol: string, cached: Entry | null): Promise<Download> => {
     const lastBar = cached?.history.bars.at(-1)
-    if (!cached || !lastBar || !(nowMs() - cached.fullAt < FULL_REFRESH_MS)) {
+    if (!cached || !lastBar || !cached.history.dividends || !(nowMs() - cached.fullAt < FULL_REFRESH_MS)) {
       return { history: await deps.provider.history(symbol), whole: true }
     }
     const tail = await deps.provider.history(symbol, addDays(lastBar.time, -TAIL_DAYS))
@@ -124,30 +127,30 @@ export const createHistoryCache = (deps: { provider: DataProvider; dir: string; 
     return { history: await deps.provider.history(symbol), whole: true }
   }
 
-  const refresh = async (symbol: string, cached: Entry | null): Promise<History> => {
+  const refresh = async (symbol: string, cached: Entry | null, keep: boolean): Promise<History> => {
     const fresh = await download(symbol, cached)
     const entry = { history: fresh.history, fullAt: fresh.whole || !cached ? nowMs() : cached.fullAt }
-    memory.set(symbol, entry)
+    if (keep || memory.has(symbol)) memory.set(symbol, entry)
     await write(symbol, entry, fresh.whole).catch(() => undefined)
     return fresh.history
   }
 
-  const load = async (symbol: string): Promise<History> => {
-    const cached = await readCached(symbol)
+  const load = async (symbol: string, keep: boolean): Promise<History> => {
+    const cached = keep ? await readCached(symbol) : (memory.get(symbol) ?? (await readDisk(symbol)))
     if (cached && nowMs() - Date.parse(cached.history.fetchedAt) < FRESH_MS) return cached.history
     try {
-      return await refresh(symbol, cached)
+      return await refresh(symbol, cached, keep)
     } catch (error) {
       if (!cached) throw error
       return { ...cached.history, stale: true }
     }
   }
 
-  const get = (symbol: string): Promise<History> => {
+  const get = (symbol: string, keep = true): Promise<History> => {
     const key = symbol.toUpperCase()
     const running = inFlight.get(key)
     if (running) return running
-    const started = load(key).finally(() => inFlight.delete(key))
+    const started = load(key, keep).finally(() => inFlight.delete(key))
     inFlight.set(key, started)
     return started
   }
@@ -157,5 +160,10 @@ export const createHistoryCache = (deps: { provider: DataProvider; dir: string; 
     return kept ? kept.history : get(symbol)
   }
 
-  return { get, peek }
+  const kept = async (symbol: string): Promise<History | null> => {
+    const key = symbol.toUpperCase()
+    return (memory.get(key) ?? (await readDisk(key)))?.history ?? null
+  }
+
+  return { get, peek, kept }
 }

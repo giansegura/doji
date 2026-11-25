@@ -15,6 +15,8 @@ export type Bar = {
 
 export type Split = { date: string; numerator: number; denominator: number }
 
+export type Dividend = { date: string; amount: number }
+
 export type SymbolInfo = { symbol: string; name: string; exchange: string }
 
 export type ListSection = { kind: 'section'; id: string; title: string }
@@ -23,7 +25,19 @@ export type ListItem = SymbolInfo | ListSection
 
 export type SymbolList = { id: string; name: string; items: ListItem[]; icon?: string }
 
-export type SortColumn = 'symbol' | 'last' | 'change' | 'ext'
+export type WatchColumn = 'rsi' | 'fromHigh' | 'relVolume' | 'earnings' | 'level' | 'gain' | 'gainValue'
+
+export type Holding = { quantity: number; price: number }
+
+export type FlagColor = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple'
+
+export type FilterField = 'change' | 'rsi' | 'fromHigh' | 'relVolume' | 'level' | 'vsSma50' | 'vsSma200' | 'earningsDays'
+
+export type FilterCondition = { field: FilterField; op: 'above' | 'below'; value: number }
+
+export type SavedFilter = { id: string; name: string; scope: 'list' | 'all'; conditions: FilterCondition[] }
+
+export type SortColumn = 'symbol' | 'last' | 'change' | 'ext' | 'flag' | WatchColumn
 
 export type WatchlistSort = { column: SortColumn; direction: 'asc' | 'desc' }
 
@@ -31,6 +45,7 @@ export type History = {
   info: SymbolInfo
   bars: Bar[]
   splits: Split[]
+  dividends?: Dividend[]
   fetchedAt: string
   stale: boolean
   tradedAt?: number
@@ -49,6 +64,7 @@ export type Quote = {
   time?: number
   timezone?: string
   volume?: number
+  currency?: string
 }
 
 export type TickSession = ExtendedSession | 'regular'
@@ -140,6 +156,7 @@ export type Indicators = {
   macd: { visible: boolean; fast: number; slow: number; signal: number }
   volumeProfile: { visible: boolean; rows: number }
   levels: { visible: boolean; perSide: number }
+  marks: { earnings: boolean; dividends: boolean }
 }
 
 export type ChartType = 'candles' | 'bars' | 'line' | 'area' | 'baseline'
@@ -165,6 +182,13 @@ export type AppState = {
   notes: Record<string, string>
   secondChart: Timeframe | null
   watchlistSort: WatchlistSort | null
+  watchlistColumns: WatchColumn[]
+  flags: Record<string, FlagColor>
+  onlyFlagged: boolean
+  filters: SavedFilter[]
+  activeFilterId: string | null
+  holdings: Record<string, Holding>
+  shareHoldings: boolean
   lineLooks: Partial<Record<DrawingKind, LineLook>>
   earningsBadge: boolean
 }
@@ -201,6 +225,7 @@ export const DEFAULT_STATE: AppState = {
     macd: { visible: false, fast: 12, slow: 26, signal: 9 },
     volumeProfile: { visible: false, rows: 24 },
     levels: { visible: false, perSide: 3 },
+    marks: { earnings: true, dividends: true },
   },
   chart: { type: 'candles', scale: 'normal', invert: false, cursor: 'normal' },
   listWidth: LIST_DEFAULT_WIDTH,
@@ -208,6 +233,13 @@ export const DEFAULT_STATE: AppState = {
   notes: {},
   secondChart: null,
   watchlistSort: null,
+  watchlistColumns: [],
+  flags: {},
+  onlyFlagged: false,
+  filters: [],
+  activeFilterId: null,
+  holdings: {},
+  shareHoldings: false,
   lineLooks: {},
   earningsBadge: false,
 }

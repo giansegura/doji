@@ -1,11 +1,12 @@
 import { addDays } from '../shared/dates'
 import { type Level, supportsAndResistances } from '../shared/levels'
+import { fromYearHigh } from '../shared/symbolMetrics'
 import { priceDigits } from '../shared/symbols'
-import type { Bar, Drawing, History, LinePoint, Quote, SmaConfig, Timeframe } from '../shared/types'
+import type { Bar, Dividend, Drawing, History, LinePoint, Quote, SmaConfig, Timeframe } from '../shared/types'
 import { alertLevel } from '../shared/alerts'
 import { toMonthly } from '../src/domain/monthly'
 import { positionReading } from '../src/domain/position'
-import { rsi, sma } from '../src/domain/rsi'
+import { rsi, sma } from '../shared/rsi'
 import { adjustLinesForSplits } from '../src/domain/splits'
 import { bollinger, ema, macd } from '../src/domain/studies'
 import { toWeekly } from '../src/domain/weekly'
@@ -72,6 +73,18 @@ const swingsOf = (bars: Bar[], above: boolean, digits: number) => {
     .slice(-SWINGS_SHOWN)
 }
 
+const RECENT_DIVIDENDS = 4
+
+const dividendsOf = (dividends: Dividend[], today: string, close: number) => {
+  const paid = dividends.filter((dividend) => dividend.date <= today)
+  const since = addDays(today, -YEAR_DAYS)
+  const year = paid.filter((dividend) => dividend.date > since).reduce((sum, dividend) => sum + dividend.amount, 0)
+  return {
+    recent: paid.slice(-RECENT_DIVIDENDS),
+    yieldPercent: year > 0 && close > 0 ? roundTo((year / close) * 100, PERCENT_DIGITS) : null,
+  }
+}
+
 const yearRange = (daily: Bar[], close: number, digits: number) => {
   const since = addDays((daily.at(-1) as Bar).time, -YEAR_DAYS)
   const year = daily.filter((bar) => bar.time >= since)
@@ -81,6 +94,7 @@ const yearRange = (daily: Bar[], close: number, digits: number) => {
     high: roundTo(high, digits),
     low: roundTo(low, digits),
     positionPercent: high === low ? null : roundTo(((close - low) / (high - low)) * 100, PERCENT_DIGITS),
+    fromHighPercent: fromYearHigh(daily),
   }
 }
 
@@ -164,6 +178,7 @@ export const summarizeChart = ({ history, timeframe, bars: count, averages, draw
       },
     },
     range52Weeks: yearRange(daily, close, digits),
+    dividends: dividendsOf(history.dividends ?? [], last.time, close),
     averages: averagesFor(averages).map((average) => {
       const value = lastOf(average.kind === 'ema' ? ema(closes, average.length) : sma(closes, average.length))
       return {
@@ -232,6 +247,7 @@ export const scanRow = (summary: ChartSummary) => ({
   vsSma50Percent: distanceTo(summary, 'SMA 50'),
   vsSma200Percent: distanceTo(summary, 'SMA 200'),
   range52WeeksPercent: summary.range52Weeks.positionPercent,
+  fromHigh52Percent: summary.range52Weeks.fromHighPercent,
   macdHistogram: summary.macd.histogram,
   volumeRatio: summary.volume.ratio,
   alerts: summary.drawings.filter((drawing) => 'alert' in drawing && drawing.alert).length,
