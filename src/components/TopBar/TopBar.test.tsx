@@ -687,3 +687,10 @@ test('Should set the minimum size of the open gaps', async () => {
   await typeInto(user, 'Minimum gap %', '2')
   expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ gaps: { visible: true, minPercent: 2 } }))
 })
+
+test('Should switch the RSI divergences on', async () => {
+  const { handlers, user } = setup()
+  await openIndicators(user)
+  await user.click(screen.getByRole('checkbox', { name: 'RSI divergences' }))
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ divergences: { visible: true } }))
+})

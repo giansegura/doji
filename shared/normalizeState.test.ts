@@ -688,3 +688,8 @@ test('Should keep the open gaps hidden with a one percent minimum unless the con
   expect(normalizeState({ indicators: { gaps: { visible: true, minPercent: 2.5 } } }).indicators.gaps).toEqual({ visible: true, minPercent: 2.5 })
   expect(normalizeState({ indicators: { gaps: { visible: true, minPercent: 0 } } }).indicators.gaps).toEqual({ visible: true, minPercent: 1 })
 })
+
+test('Should keep the RSI divergences hidden unless the configuration shows them', () => {
+  expect(normalizeState({}).indicators.divergences).toEqual({ visible: false })
+  expect(normalizeState({ indicators: { divergences: { visible: true } } }).indicators.divergences).toEqual({ visible: true })
+})

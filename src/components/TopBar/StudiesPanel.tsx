@@ -156,6 +156,14 @@ export const StudiesPanel = ({ indicators, onIndicators }: StudiesPanelProps) =>
           </Styles.MenuRow>
         ))}
       <Styles.MenuRow>
+        <input
+          type="checkbox"
+          checked={indicators.divergences.visible}
+          onChange={(event) => onIndicators({ ...indicators, divergences: { visible: event.target.checked } })}
+        />
+        <Styles.RowLabel>RSI divergences</Styles.RowLabel>
+      </Styles.MenuRow>
+      <Styles.MenuRow>
         <input type="checkbox" checked={gaps.visible} onChange={(event) => setGaps({ visible: event.target.checked })} />
         <Styles.RowLabel>Open gaps</Styles.RowLabel>
       </Styles.MenuRow>

@@ -887,6 +887,23 @@ await step('los huecos sin cerrar se sombrean al encenderlos y se quitan al apag
   await button('Show 1 year').click()
 })
 
+await step('las divergencias del RSI se dibujan sobre el precio y el RSI al encenderlas', async () => {
+  const { price, rsi } = await panes()
+  await button('Show 5 years').click()
+  const cleanPrice = await regionShot(price)
+  const cleanRsi = await regionShot(rsi)
+  await button('Indicators').click()
+  await page.getByRole('checkbox', { name: 'RSI divergences' }).click()
+  await page.keyboard.press('Escape')
+  check((await savedState()).indicators.divergences.visible, 'las divergencias no se guardaron')
+  check((await regionShot(price)) !== cleanPrice && (await regionShot(rsi)) !== cleanRsi, 'no se dibujó ninguna divergencia en cinco años')
+  await button('Indicators').click()
+  await page.getByRole('checkbox', { name: 'RSI divergences' }).click()
+  await page.keyboard.press('Escape')
+  check((await regionShot(price)) === cleanPrice, 'quedan líneas de divergencias al apagarlas')
+  await button('Show 1 year').click()
+})
+
 await step('la leyenda dice cuándo son los próximos resultados', async () => {
   await page.getByText(/^Earnings ~?[A-Z][a-z]{2} \d{1,2}, \d{4}( · EPS est\. [−-]?\d+\.\d{2})?$/).waitFor({ timeout: 15_000 })
   const earnings = await page.evaluate(async () => (await fetch('/api/earnings?symbol=AAPL')).json())

@@ -366,6 +366,7 @@ const toIndicators = (raw: unknown): Indicators => {
       visible: asBoolean(patterns.visible, defaults.patterns.visible),
       kinds: Array.isArray(patterns.kinds) ? defaults.patterns.kinds.filter((kind) => (patterns.kinds as unknown[]).includes(kind)) : defaults.patterns.kinds,
     },
+    divergences: { visible: asBoolean(asRecord(indicators.divergences).visible, defaults.divergences.visible) },
     gaps: {
       visible: asBoolean(gaps.visible, defaults.gaps.visible),
       minPercent: gapMinimum !== null && gapMinimum >= GAP_MIN_PERCENT && gapMinimum <= GAP_MAX_PERCENT ? gapMinimum : defaults.gaps.minPercent,
