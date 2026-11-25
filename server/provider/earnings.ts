@@ -45,8 +45,16 @@ export const parseEarnings = (raw: unknown, now: Date): Earnings => {
   return { past, next, nextIsEstimate: next !== null && result.calendarEvents?.earnings?.isEarningsDateEstimate === true }
 }
 
+const asOf = (earnings: Earnings, now: Date): Earnings => {
+  const today = now.toISOString().slice(0, 10)
+  if (!earnings.next || earnings.next >= today) return earnings
+  const past = earnings.nextIsEstimate ? earnings.past : [...earnings.past, earnings.next]
+  return { past, next: null, nextIsEstimate: false }
+}
+
 export const createEarningsSource = (deps: { fetch: EarningsFetch; now: () => Date }): EarningsSource => {
   const kept = new Map<string, Kept>()
+  const running = new Map<string, Promise<Earnings>>()
   let session: Promise<Session> | null = null
 
   const openSession = async (): Promise<Session> => {
@@ -84,11 +92,8 @@ export const createEarningsSource = (deps: { fetch: EarningsFetch; now: () => Da
     return parseEarnings(JSON.parse(await answer.text()), deps.now())
   }
 
-  const get = async (symbol: string): Promise<Earnings> => {
-    const key = symbol.toUpperCase()
+  const refresh = async (key: string, previous: Kept | undefined): Promise<Earnings> => {
     const now = deps.now().getTime()
-    const previous = kept.get(key)
-    if (previous && now - previous.at < KEEP_MS) return previous.earnings
     try {
       const earnings = await ask(key, true)
       kept.set(key, { at: now, earnings })
@@ -98,6 +103,15 @@ export const createEarningsSource = (deps: { fetch: EarningsFetch; now: () => Da
       kept.set(key, { at: now - KEEP_MS + RETRY_MS, earnings: fallback })
       return fallback
     }
+  }
+
+  const get = async (symbol: string): Promise<Earnings> => {
+    const key = symbol.toUpperCase()
+    const previous = kept.get(key)
+    if (previous && deps.now().getTime() - previous.at < KEEP_MS) return asOf(previous.earnings, deps.now())
+    const started = running.get(key) ?? refresh(key, previous).finally(() => running.delete(key))
+    running.set(key, started)
+    return asOf(await started, deps.now())
   }
 
   return { get }

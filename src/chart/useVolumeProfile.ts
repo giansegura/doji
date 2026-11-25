@@ -16,6 +16,18 @@ export const visibleBars = (bars: Bar[], range: { from: number; to: number } | n
   return bars.slice(Math.max(Math.ceil(range.from), 0), Math.max(Math.floor(range.to) + 1, 0))
 }
 
+export const createProfileMemo = () => {
+  let cache: { bars: Bar[] | null; key: string; profile: Profile | null } = { bars: null, key: '', profile: null }
+  return (bars: Bar[], range: { from: number; to: number } | null, rows: number): Profile | null => {
+    const shown = visibleBars(bars, range)
+    const key = `${shown.length}:${shown[0]?.time}:${shown.at(-1)?.time}:${rows}`
+    if (bars !== cache.bars || key !== cache.key) {
+      cache = { bars, key, profile: volumeProfile(shown.map((bar) => ({ ...bar, volume: bar.volume ?? 0 })), rows) }
+    }
+    return cache.profile
+  }
+}
+
 export const useVolumeProfile = ({ handles, bars, settings, colors }: UseVolumeProfileArgs): void => {
   const latest = useRef({ bars, rows: settings.rows, colors })
   const primitiveRef = useRef<VolumeProfilePrimitive | null>(null)
@@ -29,14 +41,8 @@ export const useVolumeProfile = ({ handles, bars, settings, colors }: UseVolumeP
 
   useEffect(() => {
     if (!settings.visible || !main || !chart) return undefined
-    let cache: { key: string; profile: Profile | null } = { key: '', profile: null }
-    const profile = (): Profile | null => {
-      const range = chart.timeScale().getVisibleLogicalRange()
-      const shown = visibleBars(latest.current.bars, range)
-      const key = `${shown.length}:${shown[0]?.time}:${shown.at(-1)?.time}:${shown.at(-1)?.close}:${latest.current.rows}`
-      if (key !== cache.key) cache = { key, profile: volumeProfile(shown.map((bar) => ({ ...bar, volume: bar.volume ?? 0 })), latest.current.rows) }
-      return cache.profile
-    }
+    const memo = createProfileMemo()
+    const profile = (): Profile | null => memo(latest.current.bars, chart.timeScale().getVisibleLogicalRange(), latest.current.rows)
     const primitive = createVolumeProfilePrimitive({ profile, colors: () => latest.current.colors })
     const redraw = () => primitive.redraw()
     main.attachPrimitive(primitive)

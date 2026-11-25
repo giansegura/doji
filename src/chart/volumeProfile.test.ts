@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { visibleBars } from './useVolumeProfile'
+import { createProfileMemo, visibleBars } from './useVolumeProfile'
 import { profileLayout, volumeProfile } from './volumeProfile'
 
 const bar = (low: number, high: number, volume: number, up = true) => ({
@@ -30,6 +30,14 @@ test('Should point at the row that traded the most and the rows that hold sevent
   const profile = volumeProfile(bars, 10)
   expect(profile?.poc).toBe(4)
   expect(profile?.valueArea).toEqual({ from: 4, to: 6 })
+})
+
+test('Should keep a profile when every bar traded at one price', () => {
+  const profile = volumeProfile([bar(100, 100, 500)], 4)
+  expect(profile).not.toBeNull()
+  expect(profile?.rows.reduce((sum, row) => sum + row.up + row.down, 0)).toBe(500)
+  const busiest = profile?.rows[profile.poc]
+  expect(busiest && busiest.low <= 100 && busiest.high >= 100).toBe(true)
 })
 
 test('Should give no profile without volume or without bars', () => {
@@ -64,4 +72,14 @@ test('Should take only the bars inside the visible range', () => {
   expect(visibleBars(bars, { from: 2.5, to: 5.4 }).map((item) => item.time)).toEqual(['2026-01-04', '2026-01-05', '2026-01-06'])
   expect(visibleBars(bars, { from: -3, to: 1 }).map((item) => item.time)).toEqual(['2026-01-01', '2026-01-02'])
   expect(visibleBars(bars, null)).toEqual([])
+})
+
+test('Should work the profile out again when the bars change, even if only a volume did', () => {
+  const memo = createProfileMemo()
+  const bars = [{ time: '2026-11-23', ...bar(100, 104, 400) }]
+  const range = { from: 0, to: 0 }
+  const first = memo(bars, range, 4)
+  expect(memo(bars, range, 4)).toBe(first)
+  const louder = [{ ...bars[0], volume: 800 }]
+  expect(memo(louder, range, 4)?.rows[0].up).toBe(200)
 })

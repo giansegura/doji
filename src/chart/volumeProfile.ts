@@ -29,6 +29,8 @@ const spread = (rows: ProfileRow[], bar: ProfileBar, bottom: number, step: numbe
   }
 }
 
+const FLAT_PAD = 0.005
+
 const pocOf = (rows: ProfileRow[]): number =>
   rows.reduce((best, row, index) => (totalOf(row) > totalOf(rows[best]) ? index : best), 0)
 
@@ -54,9 +56,11 @@ const valueAreaOf = (rows: ProfileRow[], poc: number): { from: number; to: numbe
 export const volumeProfile = (bars: ProfileBar[], count: number): Profile | null => {
   const traded = bars.filter((bar) => bar.volume > 0 && Number.isFinite(bar.high) && Number.isFinite(bar.low))
   if (traded.length === 0) return null
-  const bottom = Math.min(...traded.map((bar) => bar.low))
-  const top = Math.max(...traded.map((bar) => bar.high))
-  if (top <= bottom) return null
+  const lowest = Math.min(...traded.map((bar) => bar.low))
+  const highest = Math.max(...traded.map((bar) => bar.high))
+  const pad = highest > lowest ? 0 : Math.max(Math.abs(highest) * FLAT_PAD, FLAT_PAD)
+  const bottom = lowest - pad
+  const top = highest + pad
   const rows = rowsBetween(bottom, top, count)
   const step = (top - bottom) / count
   traded.forEach((bar) => spread(rows, bar, bottom, step))

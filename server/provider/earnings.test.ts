@@ -99,3 +99,29 @@ test('Should answer with no earnings, and with what it had before, when Yahoo fa
   clock += 13 * 3_600_000
   expect((await source.get('AAPL')).next).toBe('2027-01-28')
 })
+
+test('Should not hand out as next a date that went by while it was kept, and count it as reported', async () => {
+  let clock = Date.parse('2027-01-28T20:00:00Z')
+  const { fetch } = yahoo(['c1'])
+  const source = createEarningsSource({ fetch, now: () => new Date(clock) })
+  expect((await source.get('AAPL')).next).toBe('2027-01-28')
+  clock += 9 * 3_600_000
+  expect(await source.get('AAPL')).toEqual({
+    past: ['2026-01-29', '2026-04-30', '2026-07-30', '2026-11-02', '2027-01-28'],
+    next: null,
+    nextIsEstimate: false,
+  })
+})
+
+test('Should ask Yahoo once when the same symbol is asked for twice at the same time', async () => {
+  let summaries = 0
+  const { fetch } = yahoo(['c1'], () => {
+    summaries += 1
+    return summaries === 1 ? { status: 200, body: JSON.stringify(aapl) } : { status: 500 }
+  })
+  const source = createEarningsSource({ fetch, now: () => NOW })
+  const [first, second] = await Promise.all([source.get('AAPL'), source.get('aapl')])
+  expect(summaries).toBe(1)
+  expect(second).toEqual(first)
+  expect((await source.get('AAPL')).next).toBe('2027-01-28')
+})
