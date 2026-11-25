@@ -62,16 +62,17 @@ test('Should send the alerts to the open pages as an event stream', async () => 
   const bus = createAlertBus()
   const { response, until } = await open(await start(createAlertStreamRoute({ bus })))
   expect(response.headers.get('content-type')).toBe('text/event-stream; charset=utf-8')
-  expect(await until('retry')).toContain('retry: 3000')
+  expect(await until('retry: 3000\n')).toContain('retry: 3000')
   bus.publish([alert])
-  expect(await until('KO')).toContain(`data: ${JSON.stringify([alert])}\n\n`)
+  const frame = `data: ${JSON.stringify([alert])}\n\n`
+  expect(await until(frame)).toContain(frame)
 })
 
 test('Should stop listening when the page goes away and refuse too many pages', async () => {
   const bus = createAlertBus()
   const url = await start(createAlertStreamRoute({ bus, maxClients: 1 }))
   const first = await open(url)
-  await first.until('retry')
+  await first.until('retry: 3000\n')
   expect(bus.size()).toBe(1)
   expect((await fetch(url)).status).toBe(503)
   aborts.splice(0).forEach((abort) => abort.abort())

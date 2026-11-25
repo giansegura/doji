@@ -23,6 +23,8 @@ export type Telegram = {
 const TOKEN = /^\d{5,15}:[\w-]{30,60}$/
 const TEST_MESSAGE = 'doji is connected. Your price alerts will arrive here.'
 const DISCONNECTED: TelegramStatus = { connected: false, bot: null, linked: false }
+const UPDATES_PAGE = 100
+const MAX_UPDATE_PAGES = 20
 
 const ERROR_NAME = 'TelegramError'
 
@@ -47,7 +49,14 @@ const chatOf = (update: unknown): number | null => {
   return typeof id === 'number' ? id : null
 }
 
+const lastUpdateId = (updates: unknown[]): number | null => {
+  const id = (updates.at(-1) as { update_id?: unknown } | undefined)?.update_id
+  return typeof id === 'number' ? id : null
+}
+
 export const createTelegram = (deps: { fetch: TelegramFetch; apiUrl: string; store: TelegramStore }): Telegram => {
+  let generation = 0
+
   const load = async (): Promise<Config | null> => configFrom(await deps.store.load().catch(() => null))
 
   const call = async (token: string, method: string, body?: object): Promise<{ ok: boolean; result?: unknown }> => {
@@ -64,6 +73,7 @@ export const createTelegram = (deps: { fetch: TelegramFetch; apiUrl: string; sto
   }
 
   const connect = async (raw: string): Promise<TelegramStatus> => {
+    generation += 1
     const token = raw.trim()
     if (!TOKEN.test(token)) throw telegramError('invalid_token')
     const answer = await call(token, 'getMe')
@@ -74,13 +84,27 @@ export const createTelegram = (deps: { fetch: TelegramFetch; apiUrl: string; sto
     return statusOf(config)
   }
 
+  const newestChat = async (token: string): Promise<number | undefined> => {
+    let chat: number | undefined
+    let offset: number | null = null
+    for (let page = 0; page < MAX_UPDATE_PAGES; page += 1) {
+      const answer = await call(token, offset === null ? 'getUpdates' : `getUpdates?offset=${offset}`)
+      const updates = answer.ok && Array.isArray(answer.result) ? answer.result : []
+      chat = updates.map(chatOf).filter((id): id is number => id !== null).at(-1) ?? chat
+      const last = lastUpdateId(updates)
+      if (updates.length < UPDATES_PAGE || last === null) return chat
+      offset = last + 1
+    }
+    return chat
+  }
+
   const link = async (): Promise<TelegramStatus> => {
+    const started = generation
     const config = await load()
     if (!config) throw telegramError('not_connected')
-    const answer = await call(config.token, 'getUpdates')
-    const updates = Array.isArray(answer.result) ? answer.result : []
-    const chatId = updates.map(chatOf).filter((id): id is number => id !== null).at(-1)
-    if (!answer.ok || chatId === undefined) throw telegramError('no_message')
+    const chatId = await newestChat(config.token)
+    if (generation !== started) throw telegramError('not_connected')
+    if (chatId === undefined) throw telegramError('no_message')
     const linked = { ...config, chatId }
     await deps.store.save(linked)
     return statusOf(linked)
@@ -101,6 +125,7 @@ export const createTelegram = (deps: { fetch: TelegramFetch; apiUrl: string; sto
   }
 
   const disconnect = async (): Promise<TelegramStatus> => {
+    generation += 1
     await deps.store.clear()
     return DISCONNECTED
   }

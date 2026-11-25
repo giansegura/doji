@@ -10,11 +10,12 @@ const stateWith = (lines: Record<string, Drawing[]>, rev = 5): AppState => ({ ..
 
 const tick = (symbol: string, price: number): LiveTick => ({ symbol, price, change: 0, changePercent: 0, time: 1, session: 'regular', volume: null })
 
-const harness = (initial: AppState, over: { conflicts?: number; quotes?: Quote[] } = {}) => {
+const harness = (initial: AppState, over: { conflicts?: number; quotes?: Quote[]; failures?: number } = {}) => {
   const box = {
     state: initial,
     saves: 0,
     conflicts: over.conflicts ?? 0,
+    failures: over.failures ?? 0,
     joined: [] as string[][],
     left: 0,
     send: null as ((ticks: LiveTick[]) => void) | null,
@@ -27,6 +28,10 @@ const harness = (initial: AppState, over: { conflicts?: number; quotes?: Quote[]
     read: async () => box.state,
     save: async (state, baseRev): Promise<SaveOutcome> => {
       box.saves += 1
+      if (box.failures > 0) {
+        box.failures -= 1
+        throw new Error('disk full')
+      }
       if (box.conflicts > 0) {
         box.conflicts -= 1
         box.state = { ...box.state, rev: box.state.rev + 1 }
@@ -119,4 +124,37 @@ test('Should follow the symbols armed after a save of the state', async () => {
   expect(box.joined).toEqual([['AAPL']])
   monitor.stateSaved(stateWith({ AAPL: [level('a', 300)] }, 7))
   expect(box.joined).toHaveLength(1)
+})
+
+test('Should still announce an alert when saving its disarm keeps failing', async () => {
+  const { box, monitor } = harness(stateWith({ KO: [level('k', 100)] }), { failures: 10 })
+  await monitor.start()
+  box.send?.([tick('KO', 99)])
+  await monitor.settled()
+  box.send?.([tick('KO', 101)])
+  await monitor.settled()
+  expect(box.announced.map((alert) => alert.level)).toEqual([100])
+  expect(box.state.lines.KO[0]).toHaveProperty('alert', true)
+})
+
+test('Should disarm after a failed save once a later attempt works', async () => {
+  const { box, monitor } = harness(stateWith({ KO: [level('k', 100)] }), { failures: 1 })
+  await monitor.start()
+  box.send?.([tick('KO', 99)])
+  await monitor.settled()
+  box.send?.([tick('KO', 101)])
+  await monitor.settled()
+  expect(box.state.lines.KO[0]).not.toHaveProperty('alert')
+})
+
+test('Should leave armed a line moved to another level while its old level fired', async () => {
+  const { box, monitor } = harness(stateWith({ KO: [level('k', 100)] }))
+  await monitor.start()
+  box.send?.([tick('KO', 99)])
+  await monitor.settled()
+  box.state = stateWith({ KO: [level('k', 120)] }, 6)
+  box.send?.([tick('KO', 101)])
+  await monitor.settled()
+  expect(box.announced.map((alert) => alert.level)).toEqual([100])
+  expect(box.state.lines.KO[0]).toMatchObject({ value: 120, alert: true })
 })

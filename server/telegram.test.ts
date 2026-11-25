@@ -96,3 +96,39 @@ test('Should forget the bot on disconnect', async () => {
   expect(await telegram.disconnect()).toEqual({ connected: false, bot: null, linked: false })
   expect(box.config).toBeNull()
 })
+
+test('Should read every page of pending messages and link the chat of the newest one', async () => {
+  const first = Array.from({ length: 100 }, (_, index) => ({ update_id: index + 1, message: { chat: { id: 111 }, text: 'spam' } }))
+  const second = [{ update_id: 101, message: { chat: { id: 222 }, text: 'hola' } }]
+  const urls: string[] = []
+  const fetch: TelegramFetch = async (url) => {
+    urls.push(url)
+    const reply = (body: unknown) => ({ status: 200, text: async () => JSON.stringify(body) })
+    if (url.endsWith('/getUpdates')) return reply({ ok: true, result: first })
+    if (url.endsWith('/getUpdates?offset=101')) return reply({ ok: true, result: second })
+    return reply({ ok: true, result: [] })
+  }
+  const { box, store } = memory()
+  box.config = { token: TOKEN, bot: 'doji_alerts_bot' }
+  const telegram = createTelegram({ fetch, apiUrl: API, store })
+  expect(await telegram.link()).toEqual({ connected: true, bot: 'doji_alerts_bot', linked: true })
+  expect(box.config).toMatchObject({ chatId: 222 })
+  expect(urls).toEqual([`${API}/bot${TOKEN}/getUpdates`, `${API}/bot${TOKEN}/getUpdates?offset=101`])
+})
+
+test('Should not bring a bot back when it was disconnected while linking', async () => {
+  let release: () => void = () => undefined
+  const waiting = new Promise<void>((done) => (release = done))
+  const fetch: TelegramFetch = async () => {
+    await waiting
+    return { status: 200, text: async () => JSON.stringify({ ok: true, result: [{ update_id: 1, message: { chat: { id: 111 } } }] }) }
+  }
+  const { box, store } = memory()
+  box.config = { token: TOKEN, bot: 'doji_alerts_bot' }
+  const telegram = createTelegram({ fetch, apiUrl: API, store })
+  const linking = telegram.link()
+  await telegram.disconnect()
+  release()
+  await expect(linking).rejects.toSatisfy((error: unknown) => isTelegramError(error) && error.kind === 'not_connected')
+  expect(box.config).toBeNull()
+})

@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, unlink } from 'node:fs/promises'
+import { mkdir, readFile } from 'node:fs/promises'
 import { type IncomingMessage, type ServerResponse, createServer } from 'node:http'
 import { dirname, join, resolve } from 'node:path'
 import sirv from 'sirv'
@@ -21,6 +21,7 @@ import { createApi, expectsBody, isLocalHost, isOwnRequest, parseRequestUrl } fr
 import { type StateStore, createStateStore } from './stateStore'
 import { createStreamRoute } from './streamRoute'
 import { type TelegramFetch, createTelegram } from './telegram'
+import { removeFile, testHooksOn } from './serverEnv'
 
 const HOST = '127.0.0.1'
 const PORT = Number(process.env.PORT ?? 4780)
@@ -78,9 +79,7 @@ const telegram = createTelegram({
       await mkdir(dataDir, { recursive: true })
       await writeAtomic(telegramFile, JSON.stringify(config))
     },
-    clear: async () => {
-      await unlink(telegramFile).catch(() => undefined)
-    },
+    clear: () => removeFile(telegramFile),
   },
 })
 
@@ -119,7 +118,7 @@ const api = createApi({
   provider: { ...provider, quotes: quotes.get },
   state: watchedState,
   telegram,
-  ...(process.env.DOJI_TEST_HOOKS ? { testPrices: (prices: Record<string, number>) => alertMonitor.check(prices) } : {}),
+  ...(testHooksOn(process.env) ? { testPrices: (prices: Record<string, number>) => alertMonitor.check(prices) } : {}),
   earnings: createEarningsSource({
     fetch: process.env.DOJI_OFFLINE ? offlineEarningsFetch : networkEarningsFetch,
     now: () => new Date(),

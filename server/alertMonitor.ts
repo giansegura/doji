@@ -1,4 +1,4 @@
-import { type FiredAlert, armedSymbols, createAlertWatcher, latestPrice } from '../shared/alerts'
+import { type FiredAlert, alertLevels, armedSymbols, createAlertWatcher, latestPrice } from '../shared/alerts'
 import type { AlertEvent, AppState, Drawing, LiveTick, Quote } from '../shared/types'
 import type { SaveOutcome } from './stateStore'
 
@@ -34,12 +34,15 @@ const quiet = (drawing: Drawing): Drawing => {
   return rest as Drawing
 }
 
-const withDisarmed = (state: AppState, hits: FiredAlert[]): AppState => ({
+const firedOn = (hit: FiredAlert, symbol: string, drawing: Drawing, today: string): boolean =>
+  hit.symbol === symbol && hit.drawingId === drawing.id && alertLevels(drawing, today).some((level) => level === hit.level)
+
+const withDisarmed = (state: AppState, hits: FiredAlert[], today: string): AppState => ({
   ...state,
   lines: Object.fromEntries(
     Object.entries(state.lines).map(([symbol, drawings]) => [
       symbol,
-      drawings.map((drawing) => (hits.some((hit) => hit.symbol === symbol && hit.drawingId === drawing.id) ? quiet(drawing) : drawing)),
+      drawings.map((drawing) => (hits.some((hit) => firedOn(hit, symbol, drawing, today)) ? quiet(drawing) : drawing)),
     ]),
   ),
 })
@@ -63,12 +66,21 @@ export const createAlertMonitor = (deps: MonitorDeps): AlertMonitor => {
     return next
   }
 
-  const disarm = async (hits: FiredAlert[]): Promise<AppState | null> => {
-    for (let attempt = 0; attempt < SAVE_ATTEMPTS; attempt += 1) {
+  const disarmOnce = async (hits: FiredAlert[], today: string): Promise<AppState | null> => {
+    try {
       const fresh = await deps.read()
-      const next = withDisarmed(fresh, hits)
+      const next = withDisarmed(fresh, hits, today)
       const outcome = await deps.save(next, fresh.rev)
-      if (outcome.ok) return { ...next, rev: outcome.rev }
+      return outcome.ok ? { ...next, rev: outcome.rev } : null
+    } catch {
+      return null
+    }
+  }
+
+  const disarm = async (hits: FiredAlert[], today: string): Promise<AppState | null> => {
+    for (let attempt = 0; attempt < SAVE_ATTEMPTS; attempt += 1) {
+      const saved = await disarmOnce(hits, today)
+      if (saved) return saved
     }
     return null
   }
@@ -77,10 +89,11 @@ export const createAlertMonitor = (deps: MonitorDeps): AlertMonitor => {
     enqueue(async () => {
       if (!state || Object.keys(prices).length === 0) return []
       const moment = deps.now()
-      const hits = watcher.check(state.lines, prices, dayOf(moment))
+      const today = dayOf(moment)
+      const hits = watcher.check(state.lines, prices, today)
       if (hits.length === 0) return []
       const before = state
-      const saved = await disarm(hits)
+      const saved = await disarm(hits, today)
       if (saved) stateSaved(saved)
       const events = hits.map((hit) => ({
         id: deps.newId(),
