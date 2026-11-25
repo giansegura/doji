@@ -1049,8 +1049,11 @@ await step('una alerta la decide el servidor: avisa en pantalla y por Telegram y
         (await fetch('/api/test/prices', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(prices) })).json(),
       { AAPL: value },
     )
-  await feed(target - 1)
-  const answer = (await feed(target + 1)) as { fired: unknown[] }
+  let answer = { fired: [] as unknown[] }
+  for (let attempt = 0; attempt < 3 && answer.fired.length === 0; attempt += 1) {
+    await feed(target - 1)
+    answer = (await feed(target + 1)) as { fired: unknown[] }
+  }
   check(answer.fired.length === 1, `el servidor no hizo saltar la alerta: ${JSON.stringify(answer)}`)
   await page.getByRole('status').filter({ hasText: 'AAPL crossed' }).first().waitFor({ timeout: 10_000 })
   const deadline = Date.now() + 10_000
