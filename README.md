@@ -57,7 +57,13 @@ Para otro puerto: `PORT=4790 npm start`.
   - `Supr` borra la línea seleccionada; `Esc` cancela una línea a medias o suelta la herramienta.
   - Una línea puede acabar más allá de la última vela. Ese tramo se cuenta en días de bolsa: sin fines de semana y, en acciones de EE. UU., sin los festivos de su bolsa.
 - **Otras herramientas de dibujo**, en la misma barra izquierda. Se seleccionan, mueven, colorean y borran igual que una línea de tendencia.
+  - La barra agrupa las herramientas: líneas (tendencia, horizontal, rayo horizontal y vertical), formas (canal, rectángulo y zona horizontal), texto y posiciones. Cada grupo enseña la herramienta que usaste la última vez o la que está armada; la pequeña esquina de su botón abre el menú con las demás.
   - "Horizontal line": un clic pone un nivel que cruza todo el gráfico, con su precio en el eje. Se arrastra arriba y abajo desde cualquier punto.
+  - "Horizontal ray": un clic pone un nivel que empieza en ese día y sigue hacia la derecha. Se arrastra en precio y en fecha, y admite alerta (a partir de su día) y texto.
+  - "Vertical line": un clic marca un día de arriba abajo; se arrastra a otro día.
+  - "Horizontal zone": dos clics en dos precios; marca la banda entre ellos de lado a lado, por ejemplo un soporte como zona y no como línea. Cada borde se arrastra por su punto central y la zona entera desde cualquiera de sus bordes. Puede llevar texto.
+  - "Text": un clic pone una nota en ese día y ese precio, con el texto "Text" listo para cambiarlo en el campo de su barra. Se arrastra desde cualquier punto de la nota.
+  - Flecha: en el panel "Line style" de una línea de tendencia, "Arrow" le pone punta en su segundo extremo.
   - "Parallel channel": tres clics. Los dos primeros trazan la línea base y el tercero da el ancho. El punto central de la segunda línea cambia el ancho; cualquiera de las dos líneas mueve el canal entero.
   - "Rectangle": dos clics en esquinas opuestas. Cada esquina lo redimensiona y los lados lo mueven.
   - Canales y rectángulos solo se agarran por sus bordes: un clic dentro mueve el gráfico, no el dibujo.

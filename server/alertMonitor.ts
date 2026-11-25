@@ -1,4 +1,5 @@
 import { type FiredAlert, alertLevels, armedSymbols, createAlertWatcher, latestPrice } from '../shared/alerts'
+import { withoutAlert } from '../shared/drawings'
 import { type IndicatorHit, createIndicatorWatcher, indicatorLabel, withLivePrice } from '../shared/indicatorAlerts'
 import type { AlertEvent, AppState, Drawing, LiveTick, Quote } from '../shared/types'
 import type { SaveOutcome } from './stateStore'
@@ -33,12 +34,6 @@ const twoDigits = (value: number): string => String(value).padStart(2, '0')
 
 const dayOf = (date: Date): string => `${date.getFullYear()}-${twoDigits(date.getMonth() + 1)}-${twoDigits(date.getDate())}`
 
-const quiet = (drawing: Drawing): Drawing => {
-  if (drawing.kind === 'channel' || drawing.kind === 'rect') return drawing
-  const { alert: _alert, ...rest } = drawing
-  return rest as Drawing
-}
-
 const firedOn = (hit: FiredAlert, symbol: string, drawing: Drawing, today: string): boolean =>
   hit.symbol === symbol && hit.drawingId === drawing.id && alertLevels(drawing, today).some((level) => level === hit.level)
 
@@ -53,7 +48,7 @@ const withDisarmed = (state: AppState, today: string, hits: FiredAlert[], indica
   lines: Object.fromEntries(
     Object.entries(state.lines).map(([symbol, drawings]) => [
       symbol,
-      drawings.map((drawing) => (hits.some((hit) => firedOn(hit, symbol, drawing, today)) ? quiet(drawing) : drawing)),
+      drawings.map((drawing) => (hits.some((hit) => firedOn(hit, symbol, drawing, today)) ? withoutAlert(drawing) : drawing)),
     ]),
   ),
 })

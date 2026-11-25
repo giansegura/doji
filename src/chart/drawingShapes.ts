@@ -1,4 +1,4 @@
-import type { Channel, Drawing, HorizontalLine, LinePoint, Position, Rectangle, TrendLine } from '../../shared/types'
+import type { Channel, Drawing, HorizontalLine, LinePoint, Position, PriceZone, Rectangle, TextNote, TrendLine, VerticalLine } from '../../shared/types'
 import { HANDLE_REACH, HIT_TOLERANCE, type XY, distanceToSegment, rightEnd } from './lineGeometry'
 
 export type ShapeGeometry = {
@@ -14,7 +14,7 @@ export type Handle = { part: string; at: XY }
 
 export type Zone = { tone: 'profit' | 'loss'; points: XY[] }
 
-export type Outline = { segments: Segment[]; fill: XY[] | null; handles: Handle[]; zones?: Zone[] }
+export type Outline = { segments: Segment[]; fill: XY[] | null; handles: Handle[]; zones?: Zone[]; area?: XY[] }
 
 type TwoPoints = { p1: LinePoint; p2: LinePoint }
 
@@ -45,10 +45,66 @@ const trendOutline = (line: TrendLine, geometry: ShapeGeometry): Outline | null 
 const levelOutline = (line: HorizontalLine, geometry: ShapeGeometry): Outline | null => {
   const y = geometry.toY(line.value)
   if (y === null) return null
+  const start = line.from ? geometry.toXY({ date: line.from, value: line.value }) : null
+  if (line.from && !start) return null
+  const left = start ? start.x : 0
   return {
-    segments: [[{ x: 0, y }, { x: geometry.width, y }]],
+    segments: [[{ x: left, y }, { x: geometry.width, y }]],
     fill: null,
-    handles: [{ part: 'level', at: { x: geometry.width / 2, y } }],
+    handles: [{ part: 'level', at: start ? { x: left, y } : { x: geometry.width / 2, y } }],
+  }
+}
+
+export const VERTICAL_REACH = 10_000
+
+const verticalOutline = (line: VerticalLine, geometry: ShapeGeometry): Outline | null => {
+  const at = geometry.toXY({ date: line.date, value: 0 })
+  if (!at) return null
+  return { segments: [[{ x: at.x, y: 0 }, { x: at.x, y: VERTICAL_REACH }]], fill: null, handles: [] }
+}
+
+const zoneOutline = (zone: PriceZone, geometry: ShapeGeometry): Outline | null => {
+  const top = geometry.toY(zone.top)
+  const bottom = geometry.toY(zone.bottom)
+  if (top === null || bottom === null) return null
+  const right = geometry.width
+  return {
+    segments: [
+      [{ x: 0, y: top }, { x: right, y: top }],
+      [{ x: 0, y: bottom }, { x: right, y: bottom }],
+    ],
+    fill: [
+      { x: 0, y: top },
+      { x: right, y: top },
+      { x: right, y: bottom },
+      { x: 0, y: bottom },
+    ],
+    handles: [
+      { part: 'top', at: { x: right / 2, y: top } },
+      { part: 'bottom', at: { x: right / 2, y: bottom } },
+    ],
+  }
+}
+
+export const NOTE_CHAR_WIDTH = 7
+export const NOTE_PADDING = 8
+export const NOTE_HEIGHT = 18
+
+const noteOutline = (note: TextNote, geometry: ShapeGeometry): Outline | null => {
+  const at = geometry.toXY(note.p1)
+  if (!at) return null
+  const right = at.x + NOTE_PADDING * 2 + note.text.length * NOTE_CHAR_WIDTH
+  const top = at.y - NOTE_HEIGHT
+  return {
+    segments: [],
+    fill: null,
+    handles: [],
+    area: [
+      { x: at.x, y: top },
+      { x: right, y: top },
+      { x: right, y: at.y },
+      { x: at.x, y: at.y },
+    ],
   }
 }
 
@@ -134,6 +190,9 @@ const positionOutline = (position: Position, geometry: ShapeGeometry): Outline |
 export const outlineOf = (drawing: Drawing, geometry: ShapeGeometry): Outline | null => {
   if (drawing.kind === 'position') return positionOutline(drawing, geometry)
   if (drawing.kind === 'hline') return levelOutline(drawing, geometry)
+  if (drawing.kind === 'vline') return verticalOutline(drawing, geometry)
+  if (drawing.kind === 'zone') return zoneOutline(drawing, geometry)
+  if (drawing.kind === 'note') return noteOutline(drawing, geometry)
   if (drawing.kind === 'channel') return channelOutline(drawing, geometry)
   if (drawing.kind === 'rect') return rectOutline(drawing, geometry)
   return trendOutline(drawing, geometry)
@@ -141,7 +200,7 @@ export const outlineOf = (drawing: Drawing, geometry: ShapeGeometry): Outline | 
 
 export const hitTestOutline = (p: XY, outline: Outline): string | null => {
   const handle = outline.handles.find(({ at }) => Math.hypot(p.x - at.x, p.y - at.y) <= HANDLE_REACH)
-  const inside = (outline.zones ?? []).some(({ points }) => {
+  const inside = [...(outline.zones ?? []), ...(outline.area ? [{ points: outline.area }] : [])].some(({ points }) => {
     const xs = points.map((point) => point.x)
     const ys = points.map((point) => point.y)
     return p.x >= Math.min(...xs) && p.x <= Math.max(...xs) && p.y >= Math.min(...ys) && p.y <= Math.max(...ys)
@@ -185,9 +244,43 @@ const moveEnd = <T extends TwoPoints>(geometry: ShapeGeometry, drawing: T, part:
 }
 
 const moveLevel = (geometry: ShapeGeometry, line: HorizontalLine, start: XY, to: XY): HorizontalLine | null => {
+  if (line.from) {
+    const anchor = geometry.toXY({ date: line.from, value: line.value })
+    const moved = anchor ? movePoint(geometry, { date: line.from, value: line.value }, shifted(anchor, to.x - start.x, to.y - start.y)) : null
+    return moved ? { ...line, value: moved.value, from: moved.date } : null
+  }
   const y = geometry.toY(line.value)
   const moved = y === null ? null : geometry.toPoint({ x: to.x, y: y + to.y - start.y })
   return moved ? { ...line, value: moved.value } : null
+}
+
+const moveVertical = (geometry: ShapeGeometry, line: VerticalLine, to: XY): VerticalLine | null => {
+  const moved = geometry.toPoint(to)
+  return moved ? { ...line, date: moved.date } : null
+}
+
+const valueAt = (geometry: ShapeGeometry, value: number, dy: number): number | null => {
+  const y = geometry.toY(value)
+  return y === null ? null : (geometry.toPoint({ x: 0, y: y + dy })?.value ?? null)
+}
+
+const moveZone = (geometry: ShapeGeometry, zone: PriceZone, part: string, start: XY, to: XY): PriceZone | null => {
+  const dy = to.y - start.y
+  if (part === 'top' || part === 'bottom') {
+    const moved = valueAt(geometry, zone[part], dy)
+    if (moved === null) return null
+    const other = part === 'top' ? zone.bottom : zone.top
+    return { ...zone, top: Math.max(moved, other), bottom: Math.min(moved, other) }
+  }
+  const top = valueAt(geometry, zone.top, dy)
+  const bottom = valueAt(geometry, zone.bottom, dy)
+  return top === null || bottom === null ? null : { ...zone, top, bottom }
+}
+
+const moveNote = (geometry: ShapeGeometry, note: TextNote, start: XY, to: XY): TextNote | null => {
+  const at = geometry.toXY(note.p1)
+  const p1 = at ? movePoint(geometry, note.p1, shifted(at, to.x - start.x, to.y - start.y)) : null
+  return p1 ? { ...note, p1 } : null
 }
 
 const moveCorner = (geometry: ShapeGeometry, rect: Rectangle, part: string, to: XY): Rectangle | null => {
@@ -248,6 +341,9 @@ const movePosition = (geometry: ShapeGeometry, position: Position, part: string,
 export const moveDrawing = (geometry: ShapeGeometry, drawing: Drawing, part: string, start: XY, to: XY): Drawing | null => {
   if (drawing.kind === 'position') return movePosition(geometry, drawing, part, start, to)
   if (drawing.kind === 'hline') return moveLevel(geometry, drawing, start, to)
+  if (drawing.kind === 'vline') return moveVertical(geometry, drawing, to)
+  if (drawing.kind === 'zone') return moveZone(geometry, drawing, part, start, to)
+  if (drawing.kind === 'note') return moveNote(geometry, drawing, start, to)
   if (drawing.kind === 'channel') return moveChannel(geometry, drawing, part, start, to)
   if (part === 'p1' || part === 'p2') return moveEnd(geometry, drawing, part, to)
   if (drawing.kind === 'rect' && part !== BODY) return moveCorner(geometry, drawing, part, to)

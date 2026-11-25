@@ -1,6 +1,7 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { LINE_TEXT_MAX_LENGTH, MIN_LINE_OPACITY } from '../../shared/limits'
-import type { Drawing, LineStyle, Position } from '../../shared/types'
+import { isTrend } from '../../shared/drawings'
+import type { Drawing, LineStyle, Position, TrendLine } from '../../shared/types'
 import { LINE_COLORS } from '../theme/tokens'
 import * as Styles from './styles'
 
@@ -37,13 +38,20 @@ const withPriceShown = (line: Drawing, shown: boolean): Drawing => {
   return shown ? rest : { ...rest, hidePrice: true as const }
 }
 
+const takesText = (line: Drawing): boolean =>
+  line.kind === undefined || line.kind === 'trend' || line.kind === 'hline' || line.kind === 'note' || line.kind === 'zone' || line.kind === 'vline'
+
 const withText = (line: Drawing, text: string): Drawing => {
-  if (line.kind !== undefined && line.kind !== 'trend' && line.kind !== 'hline') return line
-  const { text: _old, ...rest } = line
+  if (!takesText(line)) return line
+  if (line.kind === 'note') return text ? { ...line, text } : line
+  const { text: _old, ...rest } = line as Exclude<Drawing, { kind: 'note' }> & { text?: string }
   return (text ? { ...rest, text } : rest) as Drawing
 }
 
-const takesText = (line: Drawing): boolean => line.kind === undefined || line.kind === 'trend' || line.kind === 'hline'
+const withArrow = (line: TrendLine, on: boolean): Drawing => {
+  const { arrow: _old, ...rest } = line
+  return on ? { ...rest, arrow: true } : rest
+}
 
 type DraftFieldProps = {
   label: string
@@ -124,7 +132,8 @@ const LineTextField = ({ line, onChange }: { line: Drawing; onChange: (line: Dra
     saved={'text' in line ? (line.text ?? '') : ''}
     maxLength={LINE_TEXT_MAX_LENGTH}
     onCommit={(text) => {
-      onChange(withText(line, text))
+      const next = withText(line, text)
+      if (next !== line) onChange(next)
       return true
     }}
   />
@@ -182,6 +191,12 @@ const BellIcon = () => (
   </svg>
 )
 
+const ArrowIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+    <path d="M3.5 14.5L14 4M14 4H9M14 4v5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)
+
 const TrashIcon = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">
     <path d="M3.5 5h11M7 5V3.5h4V5M5 5l.6 9.5h6.8L13 5M7.5 7.5v4.5M10.5 7.5v4.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -221,6 +236,13 @@ const StylePanel = ({ line, onChange }: { line: Drawing; onChange: (line: Drawin
           </Styles.ToolbarButton>
         ))}
       </Styles.StyleRow>
+      {isTrend(line) && (
+        <Styles.StyleRow>
+          <Styles.ToolbarButton type="button" title="Arrow" aria-label="Arrow" aria-pressed={line.arrow === true} onClick={() => onChange(withArrow(line, !line.arrow))}>
+            <ArrowIcon />
+          </Styles.ToolbarButton>
+        </Styles.StyleRow>
+      )}
       <Styles.StyleRow>
         <Styles.OpacitySlider
           type="range"

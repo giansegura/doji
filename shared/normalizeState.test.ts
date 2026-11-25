@@ -640,3 +640,26 @@ test('Should keep the indicator alerts of each symbol and drop the ones it canno
     ],
   })
 })
+
+test('Should keep vertical lines, rays, zones, text notes and arrows, and drop them when they lack what makes them', () => {
+  const base = { pane: 'price', timeframe: 'D', color: '#fff', width: 1, pricedAt: '2020-01-01' }
+  const out = normalizeState({
+    lines: {
+      KO: [
+        { ...base, id: 'v', kind: 'vline', date: '2026-11-20' },
+        { ...base, id: 'v2', kind: 'vline' },
+        { ...base, id: 'y', kind: 'hline', value: 60, from: '2026-11-02' },
+        { ...base, id: 'z', kind: 'zone', top: 62, bottom: 60 },
+        { ...base, id: 'z2', kind: 'zone', top: 62 },
+        { ...base, id: 'n', kind: 'note', p1: { date: '2026-11-20', value: 61 }, text: 'Earnings' },
+        { ...base, id: 'n2', kind: 'note', p1: { date: '2026-11-20', value: 61 }, text: '' },
+        { ...base, id: 'a', p1: { date: '2026-11-02', value: 58 }, p2: { date: '2026-11-20', value: 61 }, extendRight: false, arrow: true },
+      ],
+    },
+  })
+  expect(out.lines.KO.map((drawing) => drawing.id)).toEqual(['v', 'y', 'z', 'n', 'a'])
+  expect(out.lines.KO[1]).toMatchObject({ kind: 'hline', value: 60, from: '2026-11-02' })
+  expect(out.lines.KO[2]).toMatchObject({ kind: 'zone', top: 62, bottom: 60 })
+  expect(out.lines.KO[3]).toMatchObject({ kind: 'note', text: 'Earnings' })
+  expect(out.lines.KO[4]).toMatchObject({ arrow: true })
+})

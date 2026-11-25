@@ -1,4 +1,5 @@
 import type { Drawing, DrawingBase, DrawingKind, LineLook, LinePoint, PaneId, PositionSide, Timeframe } from '../../shared/types'
+import { canAlert, withoutAlert } from '../../shared/drawings'
 import { withLook } from '../domain/lineLooks'
 import type { Tool } from '../state/appReducer'
 import { type ShapeGeometry, hitTestOutline, moveDrawing, offsetAt, outlineOf } from './drawingShapes'
@@ -7,7 +8,7 @@ import type { Measure } from './measure'
 
 export type PaneGeometry = ShapeGeometry
 
-export type Draft = { pane: PaneId; p1: LinePoint; p2: LinePoint; kind?: 'rect' | 'channel'; offset?: number }
+export type Draft = { pane: PaneId; p1: LinePoint; p2: LinePoint; kind?: 'rect' | 'channel' | 'zone'; offset?: number }
 
 export type CursorKind = 'default' | 'pointer' | 'crosshair' | 'grabbing'
 
@@ -42,7 +43,7 @@ export type DrawingController = {
   getSelectedId: () => string | null
 }
 
-type ShapeTool = 'trendline' | 'rect' | 'channel'
+type ShapeTool = 'trendline' | 'rect' | 'channel' | 'zone'
 
 type Placing = { kind: 'placing'; tool: ShapeTool; pane: PaneId; p1: LinePoint; p2: LinePoint | null; start: XY }
 
@@ -58,20 +59,21 @@ const POSITION_RISK = 40
 const REWARD_TO_RISK = 2
 
 const RELEASE_DISTANCE = 5
+const NEW_NOTE = 'Text'
 const IDLE: Mode = { kind: 'idle' }
 
 const samePoint = (a: LinePoint, b: LinePoint): boolean => a.date === b.date && a.value === b.value
 
 const withAlertOf = (drawing: Drawing, stored: Drawing): Drawing => {
-  if (drawing.kind === 'channel' || drawing.kind === 'rect') return drawing
-  const { alert: _alert, ...quiet } = drawing
-  const armed = stored.kind !== 'channel' && stored.kind !== 'rect' && stored.alert === true
-  return armed ? { ...quiet, alert: true } : quiet
+  if (!canAlert(drawing)) return drawing
+  const quiet = withoutAlert(drawing)
+  return canAlert(stored) && stored.alert === true ? ({ ...quiet, alert: true } as Drawing) : quiet
 }
 
 const draftOf = (placing: Placing, p2: LinePoint, offset: number): Draft => {
   const { pane, p1, tool } = placing
   if (tool === 'rect') return { pane, kind: 'rect', p1, p2 }
+  if (tool === 'zone') return { pane, kind: 'zone', p1, p2 }
   if (tool === 'channel') return { pane, kind: 'channel', p1, p2, offset }
   return { pane, p1, p2 }
 }
@@ -163,6 +165,9 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
   const shapeOf = (placing: Placing, p2: LinePoint, offset: number): Drawing => {
     const { pane, p1 } = placing
     if (placing.tool === 'rect') return styled('rect', pane, (base) => ({ ...base, kind: 'rect', p1, p2 }))
+    if (placing.tool === 'zone') {
+      return styled('zone', pane, (base) => ({ ...base, kind: 'zone', top: Math.max(p1.value, p2.value), bottom: Math.min(p1.value, p2.value) }))
+    }
     if (placing.tool === 'channel') return styled('channel', pane, (base) => ({ ...base, kind: 'channel', p1, p2, offset }))
     return styled('trend', pane, (base) => ({ ...base, p1, p2, extendRight: false }))
   }
@@ -181,6 +186,7 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
     const p2 = pointAt(placing.pane, xy)
     if (!p2 || samePoint(placing.p1, p2)) return
     if (placing.tool === 'channel' && placing.p1.date === p2.date) return
+    if (placing.tool === 'zone' && placing.p1.value === p2.value) return
     if (placing.tool !== 'channel') {
       add(shapeOf(placing, p2, 0))
       return
@@ -232,10 +238,24 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
     return true
   }
 
-  const placeLevel = (pane: PaneId, xy: XY): boolean => {
+  const placeLevel = (pane: PaneId, xy: XY, ray: boolean): boolean => {
     const at = pointAt(pane, xy)
     if (!at) return false
-    add(styled('hline', pane, (base) => ({ ...base, kind: 'hline', value: at.value })))
+    add(styled('hline', pane, (base) => ({ ...base, kind: 'hline', value: at.value, ...(ray ? { from: at.date } : {}) })))
+    return true
+  }
+
+  const placeVertical = (pane: PaneId, xy: XY): boolean => {
+    const at = pointAt(pane, xy)
+    if (!at) return false
+    add(styled('vline', pane, (base) => ({ ...base, kind: 'vline', date: at.date })))
+    return true
+  }
+
+  const placeNote = (pane: PaneId, xy: XY): boolean => {
+    const at = pointAt(pane, xy)
+    if (!at) return false
+    add(styled('note', pane, (base) => ({ ...base, kind: 'note', p1: at, text: NEW_NOTE })))
     return true
   }
 
@@ -292,7 +312,9 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
     }
     clearMeasure()
     if (tool === 'measure') return startMeasuring(pane, xy)
-    if (tool === 'hline') return placeLevel(pane, xy)
+    if (tool === 'hline' || tool === 'ray') return placeLevel(pane, xy, tool === 'ray')
+    if (tool === 'vline') return placeVertical(pane, xy)
+    if (tool === 'note') return placeNote(pane, xy)
     if (tool === 'long' || tool === 'short') return placePosition(tool, pane, xy)
     if (tool !== 'cursor') return startPlacing(tool, pane, xy)
     const hit = hitAt(pane, xy)

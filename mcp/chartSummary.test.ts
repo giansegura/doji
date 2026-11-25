@@ -314,3 +314,22 @@ test('Should say which drawings the AI made and which were drawn in euros', () =
     { id: 'euros', kind: 'horizontal', pane: 'price', level: 210, alert: false, currency: 'EUR' },
   ])
 })
+
+test('Should describe the vertical lines, rays, zones, text notes and arrows', () => {
+  const base = { pane: 'price' as const, timeframe: 'D' as const, color: '#2962FF', width: 2, pricedAt: '2020-01-01' }
+  const drawings: Drawing[] = [
+    { ...base, id: 'v', kind: 'vline', date: lastDate },
+    { ...base, id: 'y', kind: 'hline', value: 230, from: lastDate },
+    { ...base, id: 'z', kind: 'zone', top: 240, bottom: 235 },
+    { ...base, id: 'n', kind: 'note', p1: { date: lastDate, value: 250 }, text: 'Earnings' },
+    { ...base, id: 'a', p1: { date: lastDate, value: 240 }, p2: { date: lastDate, value: 245 }, extendRight: false, arrow: true },
+  ]
+  const described = summarizeChart(input({ drawings })).drawings
+  expect(described.slice(0, 4)).toEqual([
+    { id: 'v', kind: 'vertical', pane: 'price', date: lastDate },
+    { id: 'y', kind: 'horizontal', pane: 'price', level: 230, alert: false, from: lastDate },
+    { id: 'z', kind: 'zone', pane: 'price', top: 240, bottom: 235 },
+    { id: 'n', kind: 'text', pane: 'price', at: { date: lastDate, level: 250 }, text: 'Earnings' },
+  ])
+  expect(described[4]).toMatchObject({ id: 'a', kind: 'trend', arrow: true })
+})

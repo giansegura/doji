@@ -179,7 +179,7 @@ const toLineText = (value: unknown): { text?: string } => {
   return text ? { text } : {}
 }
 
-const DRAWING_KINDS: DrawingKind[] = ['trend', 'hline', 'channel', 'rect', 'position']
+const DRAWING_KINDS: DrawingKind[] = ['trend', 'hline', 'channel', 'rect', 'position', 'vline', 'zone', 'note']
 
 const toLook = (raw: unknown, kind: DrawingKind): LineLook | null => {
   const item = asRecord(raw)
@@ -233,13 +233,26 @@ const toDrawing = (raw: unknown): Drawing | null => {
   const alert = item.alert === true ? { alert: true as const } : {}
   const hidePrice = item.hidePrice === true ? { hidePrice: true as const } : {}
   const text = toLineText(item.text)
-  if (item.kind === 'hline') return value === null ? null : { ...base, kind: 'hline', value, ...alert, ...hidePrice, ...text }
+  if (item.kind === 'hline') {
+    const from = asDate(item.from)
+    return value === null ? null : { ...base, kind: 'hline', value, ...alert, ...hidePrice, ...text, ...(from ? { from } : {}) }
+  }
+  if (item.kind === 'vline') {
+    const date = asDate(item.date)
+    return date ? { ...base, kind: 'vline', date, ...text } : null
+  }
+  if (item.kind === 'zone') {
+    const top = asFinite(item.top)
+    const bottom = asFinite(item.bottom)
+    return top === null || bottom === null ? null : { ...base, kind: 'zone', top: Math.max(top, bottom), bottom: Math.min(top, bottom), ...text }
+  }
+  if (item.kind === 'note') return p1 && text.text ? { ...base, kind: 'note', p1, text: text.text } : null
   if (item.kind === 'position') return toPosition(item, base, p1, p2)
   if (!p1 || !p2) return null
   if (item.kind === 'channel') return offset === null ? null : { ...base, kind: 'channel', p1, p2, offset }
   if (item.kind === 'rect') return { ...base, kind: 'rect', p1, p2 }
   if (item.kind !== undefined && item.kind !== 'trend') return null
-  return { ...base, p1, p2, extendRight: asBoolean(item.extendRight, false), ...alert, ...text }
+  return { ...base, p1, p2, extendRight: asBoolean(item.extendRight, false), ...alert, ...text, ...(item.arrow === true ? { arrow: true as const } : {}) }
 }
 
 const toLines = (raw: unknown): Record<string, Drawing[]> =>

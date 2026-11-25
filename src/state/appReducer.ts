@@ -25,7 +25,7 @@ import type {
   IndicatorAlert,
 } from '../../shared/types'
 
-export type Tool = 'cursor' | 'trendline' | 'hline' | 'channel' | 'rect' | 'measure' | 'long' | 'short'
+export type Tool = 'cursor' | 'trendline' | 'hline' | 'ray' | 'vline' | 'channel' | 'rect' | 'zone' | 'note' | 'measure' | 'long' | 'short'
 
 export type Action =
   | { type: 'setTheme'; theme: ThemeName }

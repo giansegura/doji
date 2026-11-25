@@ -129,9 +129,16 @@ export type TrendLine = DrawingBase & {
   extendRight: boolean
   alert?: boolean
   text?: string
+  arrow?: true
 }
 
-export type HorizontalLine = DrawingBase & { kind: 'hline'; value: number; alert?: boolean; hidePrice?: true; text?: string }
+export type HorizontalLine = DrawingBase & { kind: 'hline'; value: number; alert?: boolean; hidePrice?: true; text?: string; from?: string }
+
+export type VerticalLine = DrawingBase & { kind: 'vline'; date: string; text?: string }
+
+export type PriceZone = DrawingBase & { kind: 'zone'; top: number; bottom: number; text?: string }
+
+export type TextNote = DrawingBase & { kind: 'note'; p1: LinePoint; text: string }
 
 export type Channel = DrawingBase & { kind: 'channel'; p1: LinePoint; p2: LinePoint; offset: number }
 
@@ -151,7 +158,7 @@ export type Position = DrawingBase & {
   riskPercent?: number
 }
 
-export type Drawing = TrendLine | HorizontalLine | Channel | Rectangle | Position
+export type Drawing = TrendLine | HorizontalLine | Channel | Rectangle | Position | VerticalLine | PriceZone | TextNote
 
 export type AlertEvent = {
   id: string
@@ -177,7 +184,7 @@ export type Earnings = {
   nextEstimate?: number
 }
 
-export type DrawingKind = 'trend' | 'hline' | 'channel' | 'rect' | 'position'
+export type DrawingKind = 'trend' | 'hline' | 'channel' | 'rect' | 'position' | 'vline' | 'zone' | 'note'
 
 export type LineLook = Pick<DrawingBase, 'color' | 'width' | 'lineStyle' | 'opacity'> & { hidePrice?: true }
 

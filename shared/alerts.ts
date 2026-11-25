@@ -1,4 +1,5 @@
 import { weekdaysBetween } from './dates'
+import { canAlert, isTrend } from './drawings'
 import type { Drawing, Quote, TrendLine } from './types'
 
 export type Direction = 'up' | 'down'
@@ -10,10 +11,7 @@ export type AlertWatcher = {
   symbols: (lines: Record<string, Drawing[]>) => string[]
 }
 
-const isArmed = (drawing: Drawing): boolean =>
-  drawing.pane === 'price' &&
-  (drawing.kind === undefined || drawing.kind === 'trend' || drawing.kind === 'hline' || drawing.kind === 'position') &&
-  drawing.alert === true
+const isArmed = (drawing: Drawing): boolean => drawing.pane === 'price' && canAlert(drawing) && drawing.alert === true
 
 const trendLevel = (line: TrendLine, today: string): number | null => {
   const [left, right] = line.p1.date <= line.p2.date ? [line.p1, line.p2] : [line.p2, line.p1]
@@ -24,9 +22,8 @@ const trendLevel = (line: TrendLine, today: string): number | null => {
 }
 
 export const alertLevel = (drawing: Drawing, today: string): number | null => {
-  if (drawing.kind === 'hline') return drawing.value
-  if (drawing.kind === 'channel' || drawing.kind === 'rect' || drawing.kind === 'position') return null
-  return trendLevel(drawing, today)
+  if (drawing.kind === 'hline') return drawing.from && today < drawing.from ? null : drawing.value
+  return isTrend(drawing) ? trendLevel(drawing, today) : null
 }
 
 export const alertLevels = (drawing: Drawing, today: string): number[] => {
