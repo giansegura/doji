@@ -794,7 +794,9 @@ test('Should pin a support or resistance level as a line of the user with one cl
   const { record, controller } = harness({ levels: [90, 130] })
   expect(controller.pointerMove('price', { x: 40, y: 93 })).toBe('pointer')
   expect(controller.pointerMove('price', { x: 40, y: 110 })).toBe('default')
-  expect(controller.pointerDown('price', { x: 40, y: 93 })).toBe(true)
+  expect(controller.pointerDown('price', { x: 40, y: 93 })).toBe(false)
+  expect(record.lines).toEqual([])
+  controller.click('price', { x: 40, y: 93 })
   expect(record.lines).toEqual([
     {
       kind: 'hline',
@@ -817,7 +819,9 @@ test('Should leave the levels alone on the RSI pane and under a drawing of the u
   const line = { id: 'mine', pane: 'price' as const, timeframe: 'D' as const, p1: { date: 'd0', value: 90 }, p2: { date: 'd100', value: 90 }, color: '#2962FF', width: 2, extendRight: false, pricedAt: '2020-08-31' }
   const { record, controller } = harness({ levels: [90], lines: [line] })
   expect(controller.pointerDown('rsi', { x: 40, y: 90 })).toBe(false)
+  controller.click('rsi', { x: 40, y: 90 })
   controller.pointerDown('price', { x: 40, y: 90 })
+  controller.click('price', { x: 40, y: 90 })
   expect(record.selected).toBe('mine')
   expect(record.lines).toHaveLength(1)
 })

@@ -2,7 +2,7 @@ import { mondayOf } from './dates'
 import { priceDigits } from './symbols'
 import type { Bar } from './types'
 
-export type Level = { price: number; touches: number; both: boolean; ath: boolean }
+export type Level = { price: number; touches: number; both: boolean; ath: boolean; distance: number }
 
 export type Levels = { price: number; tolerance: number; resistances: Level[]; supports: Level[] }
 
@@ -134,11 +134,12 @@ const pick = (zones: Zone[], wanted: number, tolerance: number, taken: Zone[]): 
   return chosen
 }
 
-const toLevel = (symbol: string, zone: Zone): Level => ({
+const toLevel = (symbol: string, zone: Zone, price: number): Level => ({
   price: Number(zone.price.toFixed(priceDigits(symbol, zone.price))),
   touches: zone.touches,
   both: zone.both,
   ath: zone.ath,
+  distance: (zone.price - price) / price,
 })
 
 export const supportsAndResistances = (symbol: string, bars: Bar[], perSide: number): Levels | null => {
@@ -150,7 +151,7 @@ export const supportsAndResistances = (symbol: string, bars: Bar[], perSide: num
   const tolerance = toleranceOf(weeks)
   const allTimeHigh = Math.max(...weeks.map((week) => week.high))
   const athZone: Zone | null =
-    allTimeHigh > price * (1 + tolerance) && allTimeHigh <= price * (1 + ATH_REACH)
+    allTimeHigh > price && allTimeHigh <= price * (1 + ATH_REACH)
       ? { price: allTimeHigh, touches: 1, score: Number.POSITIVE_INFINITY, both: false, ath: true }
       : null
   const notAth = (zone: Zone): boolean => !athZone || Math.abs(zone.price - athZone.price) > athZone.price * tolerance
@@ -166,9 +167,9 @@ export const supportsAndResistances = (symbol: string, bars: Bar[], perSide: num
   return {
     price,
     tolerance,
-    resistances: resistances.map((zone) => toLevel(symbol, zone)).sort((a, b) => a.price - b.price),
-    supports: fill(perSide, isBelow, [])
-      .map((zone) => toLevel(symbol, zone))
+    resistances: resistances.map((zone) => toLevel(symbol, zone, price)).sort((a, b) => a.price - b.price),
+    supports: fill(perSide, isBelow, resistances)
+      .map((zone) => toLevel(symbol, zone, price))
       .sort((a, b) => b.price - a.price),
   }
 }

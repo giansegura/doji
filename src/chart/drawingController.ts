@@ -33,6 +33,7 @@ export type DrawingController = {
   pointerDown: (pane: PaneId, xy: XY) => boolean
   pointerMove: (pane: PaneId, xy: XY) => CursorKind
   pointerUp: (pane: PaneId, xy: XY) => void
+  click: (pane: PaneId, xy: XY) => void
   key: (key: 'Escape' | 'Delete') => void
   cancel: () => void
   select: (id: string | null) => void
@@ -268,12 +269,6 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
     if (tool === 'hline') return placeLevel(pane, xy)
     if (tool !== 'cursor') return startPlacing(tool, pane, xy)
     const hit = hitAt(pane, xy)
-    const level = hit ? null : levelAt(pane, xy)
-    if (!hit && level !== null && deps.levelLook) {
-      const look = deps.levelLook()
-      add(withLook({ ...baseOf(pane, look), kind: 'hline', value: level }, look))
-      return true
-    }
     if (!hit) {
       select(null)
       return false
@@ -314,6 +309,13 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
     if (moved > RELEASE_DISTANCE) advance(mode, xy)
   }
 
+  const click = (pane: PaneId, xy: XY): void => {
+    const level = tool === 'cursor' && mode.kind === 'idle' && !hitAt(pane, xy) ? levelAt(pane, xy) : null
+    if (level === null || !deps.levelLook) return
+    const look = deps.levelLook()
+    add(withLook({ ...baseOf(pane, look), kind: 'hline', value: level }, look))
+  }
+
   const cancel = (): void => {
     if (mode.kind !== 'dragging') return
     const { original } = mode
@@ -348,6 +350,7 @@ export const createDrawingController = (deps: ControllerDeps): DrawingController
     pointerDown,
     pointerMove,
     pointerUp,
+    click,
     key,
     cancel,
     select,

@@ -83,3 +83,25 @@ test('Should round the levels to the decimals of the symbol', () => {
   expect(all.length).toBeGreaterThan(0)
   expect(all.every((level) => Number(level.price.toFixed(4)) === level.price)).toBe(true)
 })
+
+test('Should show the all-time high as a resistance even when the price is just under it', () => {
+  const rise = Array.from({ length: 200 }, (_, week) => 50 + week * 0.25)
+  const levels = supportsAndResistances('KO', barsFrom(rise), 3)
+  const top = Math.max(...barsFrom(rise).map((bar) => bar.high))
+  expect(levels?.resistances.find((level) => level.ath)?.price).toBeCloseTo(top, 1)
+})
+
+test('Should keep a support and a resistance apart from each other too', () => {
+  const levels = supportsAndResistances('KO', barsFrom([...triangle(300, 90, 110, 10), 96, 96, 96]), 3)
+  const tolerance = levels?.tolerance ?? 0
+  const nearestAbove = levels?.resistances[0]?.price ?? Number.POSITIVE_INFINITY
+  const nearestBelow = levels?.supports[0]?.price ?? 0
+  expect(nearestAbove - nearestBelow).toBeGreaterThan(nearestBelow * tolerance * 2)
+})
+
+test('Should measure how far each level is from the price before rounding it', () => {
+  const levels = supportsAndResistances('KO', barsFrom([...triangle(300, 100, 120, 20), 108, 109, 110]), 3)
+  const price = levels?.price ?? 0
+  expect(levels?.resistances.every((level) => level.distance > 0 && Math.abs(level.distance - (level.price - price) / price) < 0.0001)).toBe(true)
+  expect(levels?.supports.every((level) => level.distance <= 0)).toBe(true)
+})

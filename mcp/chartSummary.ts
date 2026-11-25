@@ -127,7 +127,7 @@ export const summarizeChart = ({ history, timeframe, bars: count, averages, draw
     price: level.price,
     touches: level.touches,
     allTimeHigh: level.ath,
-    distancePercent: roundTo(((level.price - close) / close) * 100, PERCENT_DIGITS),
+    distancePercent: roundTo(level.distance * 100, PERCENT_DIGITS),
   })
   return {
     symbol: history.info.symbol,

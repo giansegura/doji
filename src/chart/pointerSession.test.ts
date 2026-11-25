@@ -36,6 +36,9 @@ const setup = (options: Options = {}) => {
       cancel: () => {
         record.calls.push('cancel')
       },
+      click: (pane, xy) => {
+        record.calls.push(`click ${pane} ${xy.x},${xy.y}`)
+      },
     },
     panes: ['price', 'rsi'],
     measure: (pane) => {
@@ -275,4 +278,20 @@ test('Should forget the press once the button is released', () => {
   session.cancel()
   session.move(event(150, 120))
   expect(record.vertical).toEqual([])
+})
+
+test('Should hand back as a click a press the controller left to the chart when the pointer barely moved', () => {
+  const { record, session, event } = setup({ accepts: false })
+  session.down(event(150, 80))
+  session.move(event(152, 81))
+  session.up(event(152, 81, { buttons: 0 }))
+  expect(record.calls.filter((call) => !call.startsWith('move'))).toEqual(['down price 50,30', 'click price 52,31'])
+})
+
+test('Should not hand back a click when the chart was dragged', () => {
+  const { record, session, event } = setup({ accepts: false })
+  session.down(event(150, 80))
+  session.move(event(190, 82))
+  session.up(event(151, 80, { buttons: 0 }))
+  expect(record.calls.some((call) => call.startsWith('click'))).toBe(false)
 })
