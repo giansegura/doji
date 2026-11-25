@@ -62,6 +62,8 @@ Para otro puerto: `PORT=4790 npm start`.
   - Cuentan también los precios de pre y post mercado.
   - Una línea de tendencia que no se extiende a la derecha deja de avisar pasada su última fecha.
   - El nivel de una línea de tendencia se calcula contando días laborables entre sus extremos. En semanas con festivos puede quedar ligeramente por encima o por debajo de lo que se ve dibujado.
+- **Ficha de la empresa:** el panel "Company", entre la posición y las notas, enseña de la acción en pantalla la capitalización (o el patrimonio, en los fondos), el PER y el PER esperado, la rentabilidad por dividendo, el rango de 52 semanas, el sector y la industria (o la categoría del fondo), la próxima fecha de resultados, la beta, los empleados, el país, una descripción corta y su web. Lo que Yahoo no da no sale; las divisas e índices casi no tienen ficha.
+  - Solo se pide al abrir el panel. Se guarda un día en `data/cache/profiles.json`, con la misma sesión de Yahoo que las fechas de resultados.
 - **Posiciones:** "Long position" y "Short position" en la barra izquierda. Un clic pone la entrada; el stop sale debajo (o encima, en corto) y el objetivo al doble de distancia. Pinta la zona de ganancia en verde y la de pérdida en rojo, con el precio y el % de cada una y la relación beneficio/riesgo (R:R).
   - Se arrastran por sus agarres: el objetivo, el stop (cada uno siempre en su lado de la entrada), la entrada (los niveles se quedan) y el borde derecho (la duración). Desde dentro de la caja se mueve entera.
   - Con la posición seleccionada, "Account" y "Risk %" calculan cuántas acciones comprar para arriesgar ese porcentaje de la cuenta si salta el stop.
@@ -111,6 +113,7 @@ Herramientas que ofrece:
 | `scan_watchlist` | Revisa una lista entera: precio, cambio, RSI, distancia a las SMA 50 y 200, rango de 52 semanas y distancia a su máximo, MACD, volumen, alertas, notas y distancia a los niveles más cercanos. |
 | `get_chart` | Resumen de un gráfico con indicadores calculados por doji, máximos y mínimos recientes, últimas velas, tus dibujos y tu nota. |
 | `get_earnings_calendar` | Quién presenta resultados entre dos fechas, en todas tus listas o en una, con la hora (antes de abrir o tras el cierre) si se sabe. |
+| `get_company_profile` | La ficha de una empresa o fondo: capitalización (o patrimonio), PER, rentabilidad por dividendo, beta, rango de 52 semanas, sector o categoría, país, empleados, web y descripción. |
 | `add_horizontal_line` | Dibuja una línea horizontal, con alerta si se pide. |
 | `set_alert` | Arma o desarma la alerta de una línea existente. |
 | `write_note` | Escribe en la nota de una acción. |

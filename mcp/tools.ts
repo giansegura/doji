@@ -245,6 +245,22 @@ export const createDojiServer = ({ api, newId, version, today = todayIso }: Serv
   )
 
   server.registerTool(
+    'get_company_profile',
+    {
+      title: 'Company sheet',
+      description:
+        'Gives the sheet of a company or fund from Yahoo Finance: name, kind (stock or ETF), currency, market cap or total assets, trailing and forward P/E, dividend yield as a fraction, beta, 52-week high and low, sector and industry (or category for funds), country, employees, website and a short description.',
+      inputSchema: { symbol: symbolField },
+      annotations: { readOnlyHint: true },
+    },
+    ({ symbol }) =>
+      run(async () => {
+        const key = keyOf(symbol)
+        return { symbol: key, ...(await api.getProfile(key)) }
+      }),
+  )
+
+  server.registerTool(
     'add_horizontal_line',
     {
       title: 'Add a horizontal line',

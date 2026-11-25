@@ -1,8 +1,29 @@
 import { expect, test } from 'vitest'
-import { type AppState, DEFAULT_STATE, type History } from '../shared/types'
+import { type AppState, type CompanyProfile, DEFAULT_STATE, type History } from '../shared/types'
 import { type DataProvider, providerError } from './provider/yahoo'
 import { type ApiResult, createApi, expectsBody, isLocalHost, isOwnRequest, parseRequestUrl } from './routes'
 import { type Telegram, isTelegramError, telegramError as telegramFailure } from './telegram'
+
+const EMPTY_PROFILE: CompanyProfile = {
+  kind: 'EQUITY',
+  name: null,
+  currency: 'USD',
+  marketCap: null,
+  totalAssets: null,
+  trailingPE: null,
+  forwardPE: null,
+  dividendYield: null,
+  beta: null,
+  high52: null,
+  low52: null,
+  sector: null,
+  industry: null,
+  category: null,
+  country: null,
+  employees: null,
+  website: null,
+  summary: null,
+}
 
 const historyOf = (symbol: string): History => ({
   info: { symbol, name: `${symbol} Inc.`, exchange: 'NASDAQ' },
@@ -54,6 +75,9 @@ const makeApi = (over: Overrides = {}) => {
         return historyOf(symbol)
       },
       kept: async () => null,
+    },
+    profiles: {
+      get: async (symbol) => (symbol === 'ZZZZ' ? null : { ...EMPTY_PROFILE, name: `${symbol} Inc.` }),
     },
     metrics: {
       read: async (symbols, withLevel, everyList) => {
@@ -415,6 +439,13 @@ test('Should give the watchlist columns of many symbols and say how many are sti
   await call('GET', '/api/watchlist/metrics?symbols=KO&all=1')
   expect(requested.metrics).toEqual(['KO,PEP with level', 'KO', 'KO from every list'])
   expect(await call('GET', '/api/watchlist/metrics?symbols=')).toEqual({ status: 200, body: { metrics: {}, pending: 0 } })
+})
+
+test('Should give the sheet of a company and say when Yahoo has none', async () => {
+  const { call } = makeApi()
+  expect(await call('GET', '/api/profile?symbol=AAPL')).toEqual({ status: 200, body: { ...EMPTY_PROFILE, name: 'AAPL Inc.' } })
+  expect(await call('GET', '/api/profile?symbol=ZZZZ')).toEqual({ status: 404, body: { error: 'not_found' } })
+  expect(await call('GET', '/api/profile?symbol=../x')).toEqual({ status: 400, body: { error: 'invalid_symbol' } })
 })
 
 test('Should connect the Telegram bot, link its chat, send a test and disconnect it', async () => {

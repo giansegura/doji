@@ -2,7 +2,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { expect, test } from 'vitest'
 import { addWeekdays } from '../shared/dates'
-import { type AppState, DEFAULT_STATE, type Drawing, type History, type Quote } from '../shared/types'
+import { type AppState, type CompanyProfile, DEFAULT_STATE, type Drawing, type History, type Quote } from '../shared/types'
 import type { DojiApi } from './dojiApi'
 import { createDojiServer } from './tools'
 
@@ -87,6 +87,10 @@ const fakeApi = (
     },
     getQuotes: async (symbols) =>
       symbols.map((symbol): Quote => ({ symbol, price: 100, change: 1, changePercent: 1, extended: null })),
+    getProfile: async (symbol) => {
+      if (symbol === 'ZZZZ') throw new Error('Yahoo has no company data for ZZZZ.')
+      return { name: `${symbol} Inc.`, sector: 'Consumer Defensive' } as CompanyProfile
+    },
     getEarningsCalendar: async (symbols) => {
       box.calendarAsked.push(symbols)
       return {
@@ -132,6 +136,7 @@ test('Should offer its tools and tell the reading ones from the writing ones and
     ['scan_watchlist', true, false],
     ['get_chart', true, false],
     ['get_earnings_calendar', true, false],
+    ['get_company_profile', true, false],
     ['add_horizontal_line', false, false],
     ['set_alert', false, false],
     ['write_note', false, true],
@@ -497,4 +502,10 @@ test('Should keep the positions of the user out of the charts until the user sha
     gain: Number(((close - 50) * 10).toFixed(2)),
   })
   expect((await shared.call('scan_watchlist')).data.rows[1].positionGainPercent).toBe(data.position.gainPercent)
+})
+
+test('Should give the sheet of a company', async () => {
+  const { call } = await connect(fakeApi().api)
+  expect((await call('get_company_profile', { symbol: 'ko' })).data).toEqual({ symbol: 'KO', name: 'KO Inc.', sector: 'Consumer Defensive' })
+  expect(await call('get_company_profile', { symbol: 'ZZZZ' })).toEqual({ failed: true, text: 'Yahoo has no company data for ZZZZ.', data: null })
 })

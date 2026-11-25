@@ -12,12 +12,14 @@ import { ListPicker } from './components/ListPicker'
 import { AlertToasts } from './components/AlertToasts'
 import { ListResizer } from './components/ListResizer'
 import { ReplayBar } from './components/ReplayBar'
+import { CompanyPanel } from './components/CompanyPanel'
 import { NotesPanel } from './components/NotesPanel'
 import { PositionPanel } from './components/PositionPanel'
 import { SymbolSearch } from './components/SymbolSearch'
 import { TimeframePicker } from './components/TimeframePicker'
 import { TopBar } from './components/TopBar'
 import { Watchlist } from './components/Watchlist'
+import { earningsDay } from './domain/companyProfile'
 import { configFileName, serializeConfig } from './domain/configFile'
 import { downloadText } from './domain/download'
 import { calendarItems, earningsSoon } from './domain/earningsCalendar'
@@ -30,6 +32,8 @@ import { onlyFlagged } from './domain/flags'
 import { nextSort, sortItems } from './domain/watchlistSort'
 import { adjustLinesForSplits } from './domain/splits'
 import { useAlerts } from './hooks/useAlerts'
+import { useCompanyProfile } from './hooks/useCompanyProfile'
+import { useEarnings } from './hooks/useEarnings'
 import { useEarningsCalendar } from './hooks/useEarningsCalendar'
 import { useWatchMetrics } from './hooks/useWatchMetrics'
 import { useHistory } from './hooks/useHistory'
@@ -65,6 +69,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   const [searchMode, setSearchMode] = useState<SearchMode>(null)
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [filterDraft, setFilterDraft] = useState<FilterDraft | null>(null)
+  const [companyOpen, setCompanyOpen] = useState(false)
   const screenshotRef = useRef<(() => void) | null>(null)
   const { status, history, errorCode, retry } = useHistory(state.symbol)
   const list = activeWatchlist(state)
@@ -94,6 +99,8 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   const quotes = useMemo(() => freshQuotes(tracked, history), [tracked, history])
   const livePrice = useLivePrice(history, quotes[state.symbol])
   const { fired, dismiss } = useAlerts()
+  const profile = useCompanyProfile(state.symbol, companyOpen)
+  const symbolEarnings = useEarnings(state.symbol)
   const sortedItems = sortItems(filteredItems, quotes, state.watchlistSort, {
     metrics,
     earnings: viewEarnings,
@@ -285,6 +292,13 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
           price={quotes[state.symbol]?.price ?? null}
           currency={quotes[state.symbol]?.currency}
           onChange={(holding) => dispatch({ type: 'setHolding', symbol: state.symbol, holding })}
+        />
+        <CompanyPanel
+          symbol={state.symbol}
+          open={companyOpen}
+          profile={profile}
+          nextEarnings={earningsDay(symbolEarnings)}
+          onToggle={() => setCompanyOpen((current) => !current)}
         />
         <NotesPanel
           symbol={state.symbol}

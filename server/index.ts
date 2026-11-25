@@ -23,6 +23,8 @@ import { createStreamRoute } from './streamRoute'
 import { type TelegramFetch, createTelegram } from './telegram'
 import { removeFile, testHooksOn } from './serverEnv'
 import { createWatchMetrics } from './watchMetrics'
+import { createProfileSource } from './provider/profile'
+import { createYahooSummary } from './provider/yahooSummary'
 
 const HOST = '127.0.0.1'
 const PORT = Number(process.env.PORT ?? 4780)
@@ -114,6 +116,10 @@ const watchedState: StateStore = {
   },
 }
 
+const summary = createYahooSummary({ fetch: process.env.DOJI_OFFLINE ? offlineEarningsFetch : networkEarningsFetch })
+
+const profilesFile = join(dataDir, 'cache', 'profiles.json')
+
 const historyCache = createHistoryCache({ provider, dir: join(dataDir, 'cache'), now: () => new Date() })
 
 const api = createApi({
@@ -123,8 +129,20 @@ const api = createApi({
   state: watchedState,
   telegram,
   ...(testHooksOn(process.env) ? { testPrices: (prices: Record<string, number>) => alertMonitor.check(prices) } : {}),
+  profiles: createProfileSource({
+    summary,
+    now: () => new Date(),
+    store: {
+      load: async () => JSON.parse(await readFile(profilesFile, 'utf8')),
+      save: async (data) => {
+        await mkdir(dirname(profilesFile), { recursive: true })
+        await writeAtomic(profilesFile, JSON.stringify(data))
+      },
+    },
+  }),
   earnings: createEarningsSource({
     fetch: process.env.DOJI_OFFLINE ? offlineEarningsFetch : networkEarningsFetch,
+    summary,
     now: () => new Date(),
     store: {
       load: async () => JSON.parse(await readFile(earningsFile, 'utf8')),

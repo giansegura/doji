@@ -1460,6 +1460,18 @@ await step('una posición guarda acciones y precio medio, pinta su línea y su g
   check(Object.keys(after.holdings).length === 0 && after.watchlistColumns.length === 0 && after.listWidth === before.listWidth, 'no quedó todo como estaba')
 })
 
+await step('la ficha de la empresa enseña sus cifras al abrir el panel', async () => {
+  const symbol = (await savedState()).symbol
+  await button(`Company sheet for ${symbol}`).click()
+  await page.getByText('Market cap', { exact: true }).waitFor({ timeout: 20_000 })
+  check((await page.getByText('52-week range', { exact: true }).count()) === 1, 'la ficha no da el rango de 52 semanas')
+  check((await page.getByText('Sector', { exact: true }).count()) === 1, 'la ficha no da el sector')
+  const sheet = await page.evaluate(async (wanted) => (await fetch(`/api/profile?symbol=${wanted}`)).json(), symbol)
+  check(typeof sheet.marketCap === 'number' && sheet.marketCap > 0, `la ficha no trae la capitalización: ${JSON.stringify(sheet).slice(0, 200)}`)
+  await button(`Company sheet for ${symbol}`).click()
+  check((await page.getByText('Market cap', { exact: true }).count()) === 0, 'la ficha no se plegó')
+})
+
 await step('oculta y muestra el RSI', async () => {
   await button('Indicators').click()
   await page.getByRole('checkbox', { name: 'RSI', exact: true }).click()

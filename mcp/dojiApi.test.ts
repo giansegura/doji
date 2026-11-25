@@ -38,6 +38,16 @@ test('Should ask for the history and the quotes of symbols, escaping them', asyn
   ])
 })
 
+test('Should ask for the sheet of a company and say when there is none', async () => {
+  const fetch = reply(200, { name: 'Apple Inc.' })
+  expect(await createDojiApi({ baseUrl: BASE, fetch }).getProfile('AAPL')).toEqual({ name: 'Apple Inc.' })
+  expect(callsOf(fetch)).toEqual([[`${BASE}/api/profile?symbol=AAPL`, 'GET']])
+  const missing = await createDojiApi({ baseUrl: BASE, fetch: reply(404, { error: 'not_found' }) })
+    .getProfile('EURUSD=X')
+    .catch((failure: unknown) => failure)
+  expect((missing as Error).message).toBe('Yahoo has no company data for EURUSD=X.')
+})
+
 test('Should say that a symbol is unknown', async () => {
   const api = createDojiApi({ baseUrl: BASE, fetch: reply(404, { error: 'not_found' }) })
   const error = await api.getHistory('ZZZZ').catch((failure: unknown) => failure)

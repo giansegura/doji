@@ -6,6 +6,7 @@ import { SYMBOL_PATTERN } from '../shared/symbols'
 import type { HistoryCache } from './historyCache'
 import type { Logo, LogoStore } from './logoStore'
 import type { EarningsSource } from './provider/earnings'
+import type { ProfileSource } from './provider/profile'
 import { type Telegram, type TelegramErrorKind, isTelegramError } from './telegram'
 import { type DataProvider, isProviderError } from './provider/yahoo'
 import type { StateStore } from './stateStore'
@@ -23,6 +24,7 @@ type ApiDeps = {
   earnings: EarningsSource
   telegram: Telegram
   metrics: WatchMetrics
+  profiles: ProfileSource
   testPrices?: (prices: Record<string, number>) => Promise<unknown>
 }
 
@@ -124,6 +126,12 @@ export const createApi = (deps: ApiDeps): Route => {
       if (!SYMBOL_PATTERN.test(symbol)) return fail(400, 'invalid_symbol')
       const image = await deps.logos.get(symbol)
       return image ? { status: 200, image } : fail(404, 'not_found')
+    },
+    'GET /api/profile': async ({ query }) => {
+      const symbol = query.get('symbol') ?? ''
+      if (!SYMBOL_PATTERN.test(symbol)) return fail(400, 'invalid_symbol')
+      const profile = await deps.profiles.get(symbol)
+      return profile ? ok(profile) : fail(404, 'not_found')
     },
     'GET /api/earnings': async ({ query }) => {
       const symbol = query.get('symbol') ?? ''

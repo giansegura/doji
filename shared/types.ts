@@ -51,6 +51,27 @@ export type History = {
   tradedAt?: number
 }
 
+export type CompanyProfile = {
+  kind: string | null
+  name: string | null
+  currency: string | null
+  marketCap: number | null
+  totalAssets: number | null
+  trailingPE: number | null
+  forwardPE: number | null
+  dividendYield: number | null
+  beta: number | null
+  high52: number | null
+  low52: number | null
+  sector: string | null
+  industry: string | null
+  category: string | null
+  country: string | null
+  employees: number | null
+  website: string | null
+  summary: string | null
+}
+
 export type ExtendedSession = 'pre' | 'post'
 
 export type ExtendedQuote = { session: ExtendedSession; price: number; changePercent: number }
