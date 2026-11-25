@@ -4,9 +4,9 @@ import { expect, test, vi } from 'vitest'
 import { renderWithTheme } from '../../test/render'
 import { ListResizer } from '.'
 
-const setup = (width = 320) => {
+const setup = (width = 320, extraColumns = 0) => {
   const onResize = vi.fn()
-  renderWithTheme(<ListResizer width={width} onResize={onResize} />)
+  renderWithTheme(<ListResizer width={width} extraColumns={extraColumns} onResize={onResize} />)
   const separator = screen.getByRole('separator', { name: 'Watchlist width' })
   const widths = () => onResize.mock.calls.map(([value]) => value as number)
   return { onResize, separator, widths }
@@ -76,4 +76,12 @@ test('Should resize with the arrow keys', async () => {
   await user.keyboard('{ArrowLeft}')
   await user.keyboard('{ArrowRight}')
   expect(widths()).toEqual([336, 304])
+})
+
+test('Should let the list grow wider when it shows extra columns', () => {
+  const { separator, widths } = setup(400, 2)
+  expect(separator.getAttribute('aria-valuemax')).toBe('768')
+  fireEvent.pointerDown(separator, { button: 0, clientX: 1000 })
+  fireEvent.pointerMove(window, { clientX: 10 })
+  expect(widths()).toEqual([768])
 })

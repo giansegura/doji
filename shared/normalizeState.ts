@@ -18,6 +18,7 @@ import {
   SMA_MIN_WIDTH,
 } from './limits'
 import { toListWidth } from './listWidth'
+import { WATCH_COLUMNS, toWatchColumns } from './watchColumns'
 import {
   type AppState,
   type ChartSettings,
@@ -356,7 +357,7 @@ const toChart = (raw: unknown): ChartSettings => {
   }
 }
 
-const SORT_COLUMNS: SortColumn[] = ['symbol', 'last', 'change', 'ext']
+const SORT_COLUMNS: SortColumn[] = ['symbol', 'last', 'change', 'ext', ...WATCH_COLUMNS]
 
 const toSort = (raw: unknown): WatchlistSort | null => {
   const sort = asRecord(raw)
@@ -379,6 +380,7 @@ export const normalizeState = (raw: unknown): AppState => {
   const watchlists = toLists(source)
   const activeId = asText(source.activeWatchlistId)
   const rev = asFinite(source.rev)
+  const columns = toWatchColumns(source.watchlistColumns)
   return {
     version: 1,
     rev: rev !== null && Number.isInteger(rev) && rev >= 1 ? rev : 1,
@@ -389,11 +391,12 @@ export const normalizeState = (raw: unknown): AppState => {
     activeWatchlistId: watchlists.some((list) => list.id === activeId) ? (activeId as string) : watchlists[0].id,
     indicators: toIndicators(source.indicators),
     chart: toChart(source.chart),
-    listWidth: toListWidth(source.listWidth),
+    listWidth: toListWidth(source.listWidth, columns.length),
     lines: toLines(source.lines),
     notes: toNotes(source.notes),
     secondChart: asTimeframe(source.secondChart),
     watchlistSort: toSort(source.watchlistSort),
+    watchlistColumns: columns,
     lineLooks: toLineLooks(source.lineLooks),
     earningsBadge: source.earningsBadge === true,
   }

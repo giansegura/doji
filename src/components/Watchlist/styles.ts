@@ -1,31 +1,39 @@
 import styled, { css, keyframes } from 'styled-components'
+import { WATCH_COLUMN_WIDTH } from '../../../shared/limits'
 
 const COLUMNS = 'minmax(0, 1fr) 76px 72px 72px'
 const NO_EXTENDED_COLUMNS = 'minmax(0, 1fr) 76px 72px'
 const COMPACT_COLUMNS = 'minmax(0, 1fr) 72px'
-const NO_EXTENDED = '@container (max-width: 380px)'
-const COMPACT = '@container (max-width: 300px)'
+const NO_EXTENDED_WIDTH = 380
+const COMPACT_WIDTH = 300
+const GAP = 4
 
-const columns = css`
-  grid-template-columns: ${COLUMNS};
+type Extra = { $extra?: number }
 
-  ${NO_EXTENDED} {
-    grid-template-columns: ${NO_EXTENDED_COLUMNS};
+const below = (width: number, extra = 0): string => `@container (max-width: ${width + extra * WATCH_COLUMN_WIDTH}px)`
+
+const extraTracks = (extra = 0): string => ` ${WATCH_COLUMN_WIDTH - GAP}px`.repeat(extra)
+
+const columns = css<Extra>`
+  grid-template-columns: ${(props) => COLUMNS + extraTracks(props.$extra)};
+
+  ${(props) => below(NO_EXTENDED_WIDTH, props.$extra)} {
+    grid-template-columns: ${(props) => NO_EXTENDED_COLUMNS + extraTracks(props.$extra)};
   }
 
-  ${COMPACT} {
-    grid-template-columns: ${COMPACT_COLUMNS};
+  ${(props) => below(COMPACT_WIDTH, props.$extra)} {
+    grid-template-columns: ${(props) => COMPACT_COLUMNS + extraTracks(props.$extra)};
   }
 `
 
-const wideOnly = css`
-  ${COMPACT} {
+const wideOnly = css<Extra>`
+  ${(props) => below(COMPACT_WIDTH, props.$extra)} {
     display: none;
   }
 `
 
-const widestOnly = css`
-  ${NO_EXTENDED} {
+const widestOnly = css<Extra>`
+  ${(props) => below(NO_EXTENDED_WIDTH, props.$extra)} {
     display: none;
   }
 `
@@ -66,17 +74,17 @@ export const IconButton = styled.button`
   }
 `
 
-export const Columns = styled.div`
+export const Columns = styled.div<Extra>`
   display: grid;
   ${columns}
-  gap: 4px;
+  gap: ${GAP}px;
   padding: 6px 30px 6px 14px;
   border-bottom: 1px solid ${(props) => props.theme.ui.separator};
   color: ${(props) => props.theme.ui.textMuted};
   font-size: 11px;
 `
 
-export const ColumnLabel = styled.button<{ $right?: boolean; $wideOnly?: boolean; $widestOnly?: boolean; $sorted: boolean }>`
+export const ColumnLabel = styled.button<Extra & { $right?: boolean; $wideOnly?: boolean; $widestOnly?: boolean; $sorted: boolean }>`
   color: ${(props) => (props.$sorted ? props.theme.ui.text : 'inherit')};
   font: inherit;
   text-align: ${(props) => (props.$right ? 'right' : 'left')};
@@ -134,10 +142,10 @@ export const Row = styled.li<{ $dragging: boolean }>`
   }
 `
 
-export const RowButton = styled.button`
+export const RowButton = styled.button<Extra>`
   display: grid;
   ${columns}
-  gap: 4px;
+  gap: ${GAP}px;
   align-items: center;
   width: 100%;
   height: 29px;
@@ -167,7 +175,7 @@ export const Ticker = styled.div`
   white-space: nowrap;
 `
 
-export const Number = styled.div<{ $color?: string; $wideOnly?: boolean; $widestOnly?: boolean }>`
+export const Number = styled.div<Extra & { $color?: string; $wideOnly?: boolean; $widestOnly?: boolean }>`
   color: ${(props) => props.$color ?? 'inherit'};
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -288,4 +296,44 @@ export const SectionInput = styled.input`
   background: ${(props) => props.theme.ui.bg};
   color: ${(props) => props.theme.ui.text};
   font-size: 12px;
+`
+
+export const Picker = styled.div`
+  position: relative;
+`
+
+export const ColumnsMenu = styled.div`
+  position: absolute;
+  top: 32px;
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 200px;
+  padding: 6px;
+  background: ${(props) => props.theme.ui.popup};
+  border: 1px solid ${(props) => props.theme.ui.border};
+  border-radius: 6px;
+  box-shadow: 0 2px 8px ${(props) => props.theme.ui.shadow};
+`
+
+export const ColumnsTitle = styled.div`
+  padding: 4px 8px 6px;
+  color: ${(props) => props.theme.ui.textMuted};
+  font-size: 11px;
+`
+
+export const ColumnOption = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 4px;
+  cursor: pointer;
+
+  &:hover {
+    background: ${(props) => props.theme.ui.hover};
+  }
 `

@@ -1,11 +1,12 @@
 import { addDays } from '../shared/dates'
 import { type Level, supportsAndResistances } from '../shared/levels'
+import { fromYearHigh } from '../shared/symbolMetrics'
 import { priceDigits } from '../shared/symbols'
 import type { Bar, Dividend, Drawing, History, LinePoint, Quote, SmaConfig, Timeframe } from '../shared/types'
 import { alertLevel } from '../shared/alerts'
 import { toMonthly } from '../src/domain/monthly'
 import { positionReading } from '../src/domain/position'
-import { rsi, sma } from '../src/domain/rsi'
+import { rsi, sma } from '../shared/rsi'
 import { adjustLinesForSplits } from '../src/domain/splits'
 import { bollinger, ema, macd } from '../src/domain/studies'
 import { toWeekly } from '../src/domain/weekly'
@@ -93,6 +94,7 @@ const yearRange = (daily: Bar[], close: number, digits: number) => {
     high: roundTo(high, digits),
     low: roundTo(low, digits),
     positionPercent: high === low ? null : roundTo(((close - low) / (high - low)) * 100, PERCENT_DIGITS),
+    fromHighPercent: fromYearHigh(daily),
   }
 }
 
@@ -245,6 +247,7 @@ export const scanRow = (summary: ChartSummary) => ({
   vsSma50Percent: distanceTo(summary, 'SMA 50'),
   vsSma200Percent: distanceTo(summary, 'SMA 200'),
   range52WeeksPercent: summary.range52Weeks.positionPercent,
+  fromHigh52Percent: summary.range52Weeks.fromHighPercent,
   macdHistogram: summary.macd.histogram,
   volumeRatio: summary.volume.ratio,
   alerts: summary.drawings.filter((drawing) => 'alert' in drawing && drawing.alert).length,

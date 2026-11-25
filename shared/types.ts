@@ -25,7 +25,9 @@ export type ListItem = SymbolInfo | ListSection
 
 export type SymbolList = { id: string; name: string; items: ListItem[]; icon?: string }
 
-export type SortColumn = 'symbol' | 'last' | 'change' | 'ext'
+export type WatchColumn = 'rsi' | 'fromHigh' | 'relVolume' | 'earnings' | 'level'
+
+export type SortColumn = 'symbol' | 'last' | 'change' | 'ext' | WatchColumn
 
 export type WatchlistSort = { column: SortColumn; direction: 'asc' | 'desc' }
 
@@ -169,6 +171,7 @@ export type AppState = {
   notes: Record<string, string>
   secondChart: Timeframe | null
   watchlistSort: WatchlistSort | null
+  watchlistColumns: WatchColumn[]
   lineLooks: Partial<Record<DrawingKind, LineLook>>
   earningsBadge: boolean
 }
@@ -213,6 +216,7 @@ export const DEFAULT_STATE: AppState = {
   notes: {},
   secondChart: null,
   watchlistSort: null,
+  watchlistColumns: [],
   lineLooks: {},
   earningsBadge: false,
 }

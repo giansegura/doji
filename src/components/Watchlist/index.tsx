@@ -1,6 +1,9 @@
 import { type DragEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { isSection } from '../../../shared/listItems'
-import type { ListItem, Quote, SortColumn, WatchlistSort } from '../../../shared/types'
+import type { SymbolMetrics } from '../../../shared/symbolMetrics'
+import type { Earnings, ListItem, Quote, SortColumn, WatchColumn, WatchlistSort } from '../../../shared/types'
+import { WATCH_COLUMN_NAMES } from '../../domain/watchColumns'
+import { ColumnsPicker } from './ColumnsPicker'
 import { SectionField } from './SectionField'
 import { SectionRow } from './SectionRow'
 import { SymbolRow } from './SymbolRow'
@@ -22,6 +25,10 @@ type WatchlistProps = {
   onSort: (column: SortColumn) => void
   header?: ReactNode
   earningsSoon?: Record<string, number>
+  columns?: WatchColumn[]
+  onColumns?: (columns: WatchColumn[]) => void
+  metrics?: Record<string, SymbolMetrics>
+  earnings?: Record<string, Earnings>
 }
 
 type Editing = { kind: 'new' } | { kind: 'rename'; id: string } | null
@@ -29,7 +36,7 @@ type Editing = { kind: 'new' } | { kind: 'rename'; id: string } | null
 const DRAG_FORMAT = 'application/x-doji-symbol'
 const NEW_SECTION: Editing = { kind: 'new' }
 
-type ColumnSpec = { column: SortColumn; label: string; right?: boolean; wideOnly?: boolean; widestOnly?: boolean }
+type ColumnSpec = { column: SortColumn; label: string; header?: string; right?: boolean; wideOnly?: boolean; widestOnly?: boolean }
 
 const COLUMNS: ColumnSpec[] = [
   { column: 'symbol', label: 'Symbol' },
@@ -39,6 +46,10 @@ const COLUMNS: ColumnSpec[] = [
 ]
 
 const ARROWS = { asc: ' ▲', desc: ' ▼' }
+
+const NO_COLUMNS: WatchColumn[] = []
+const NO_METRICS: Record<string, SymbolMetrics> = {}
+const NO_EARNINGS: Record<string, Earnings> = {}
 
 const LIVE = 'Live prices'
 
@@ -78,6 +89,10 @@ export const Watchlist = ({
   onSort,
   header,
   earningsSoon,
+  columns = NO_COLUMNS,
+  onColumns,
+  metrics = NO_METRICS,
+  earnings = NO_EARNINGS,
 }: WatchlistProps) => {
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [editing, setEditing] = useState<Editing>(null)
@@ -109,12 +124,18 @@ export const Watchlist = ({
     setEditing(null)
   }
 
+  const specs: ColumnSpec[] = [
+    ...COLUMNS,
+    ...columns.map((column) => ({ column, label: WATCH_COLUMN_NAMES[column].name, header: WATCH_COLUMN_NAMES[column].header, right: true })),
+  ]
+
   return (
     <Styles.Panel>
       <Styles.Header>
         {header ?? <Styles.Title>Watchlist</Styles.Title>}
         <Styles.HeaderActions>
           <Styles.LiveMark role="img" aria-label={live ? LIVE : NOT_LIVE} title={live ? LIVE : NOT_LIVE} $live={live} />
+          {onColumns && <ColumnsPicker columns={columns} onColumns={onColumns} />}
           <Styles.IconButton type="button" aria-label="Add section" title="Add section" onClick={() => setEditing(NEW_SECTION)}>
             <SectionIcon />
           </Styles.IconButton>
@@ -123,8 +144,8 @@ export const Watchlist = ({
           </Styles.IconButton>
         </Styles.HeaderActions>
       </Styles.Header>
-      <Styles.Columns>
-        {COLUMNS.map(({ column, label, right, wideOnly, widestOnly }) => (
+      <Styles.Columns $extra={columns.length}>
+        {specs.map(({ column, label, header: shortLabel, right, wideOnly, widestOnly }) => (
           <Styles.ColumnLabel
             key={column}
             type="button"
@@ -133,10 +154,11 @@ export const Watchlist = ({
             $right={right}
             $wideOnly={wideOnly}
             $widestOnly={widestOnly}
+            $extra={columns.length}
             $sorted={sort?.column === column}
             onClick={() => onSort(column)}
           >
-            {label}
+            {shortLabel ?? label}
             {sort?.column === column && ARROWS[sort.direction]}
           </Styles.ColumnLabel>
         ))}
@@ -169,6 +191,9 @@ export const Watchlist = ({
                 quote={quotes[item.symbol]}
                 active={item.symbol === activeSymbol}
                 earningsIn={earningsSoon?.[item.symbol.toUpperCase()]}
+                columns={columns}
+                metrics={metrics[item.symbol.toUpperCase()]}
+                earnings={earnings[item.symbol.toUpperCase()]}
                 onSelect={() => onSelect(item.symbol)}
                 onRemove={() => onRemove(item.symbol)}
               />

@@ -7,6 +7,7 @@ import type { DataProvider } from './provider/yahoo'
 export type HistoryCache = {
   get: (symbol: string) => Promise<History>
   peek: (symbol: string) => Promise<History>
+  kept: (symbol: string) => Promise<History | null>
 }
 
 export const FRESH_MS = 15_000
@@ -159,5 +160,7 @@ export const createHistoryCache = (deps: { provider: DataProvider; dir: string; 
     return kept ? kept.history : get(symbol)
   }
 
-  return { get, peek }
+  const kept = async (symbol: string): Promise<History | null> => (await readCached(symbol.toUpperCase()))?.history ?? null
+
+  return { get, peek, kept }
 }

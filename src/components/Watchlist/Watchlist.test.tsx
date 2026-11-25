@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
-import type { ListItem, Quote, SymbolInfo, WatchlistSort } from '../../../shared/types'
+import type { SymbolMetrics } from '../../../shared/symbolMetrics'
+import type { Earnings, ListItem, Quote, SymbolInfo, WatchColumn, WatchlistSort } from '../../../shared/types'
 import { ThemeProvider } from 'styled-components'
 import { renderWithTheme } from '../../test/render'
 import { themes } from '../../theme/tokens'
@@ -18,9 +19,17 @@ const quotes: Record<string, Quote> = {
   MSFT: { symbol: 'MSFT', price: 431.2, change: -1.72, changePercent: -0.4 },
 }
 
-const setup = (
-  over: { items?: ListItem[]; quotes?: Record<string, Quote>; sort?: WatchlistSort | null; earningsSoon?: Record<string, number> } = {},
-) => {
+type Over = {
+  items?: ListItem[]
+  quotes?: Record<string, Quote>
+  sort?: WatchlistSort | null
+  earningsSoon?: Record<string, number>
+  columns?: WatchColumn[]
+  metrics?: Record<string, SymbolMetrics>
+  earnings?: Record<string, Earnings>
+}
+
+const setup = (over: Over = {}) => {
   const handlers = {
     onSelect: vi.fn(),
     onRemove: vi.fn(),
@@ -30,6 +39,7 @@ const setup = (
     onRenameSection: vi.fn(),
     onRemoveSection: vi.fn(),
     onSort: vi.fn(),
+    onColumns: vi.fn(),
   }
   renderWithTheme(
     <Watchlist
@@ -38,6 +48,9 @@ const setup = (
       activeSymbol="AAPL"
       sort={over.sort ?? null}
       earningsSoon={over.earningsSoon}
+      columns={over.columns ?? []}
+      metrics={over.metrics ?? {}}
+      earnings={over.earnings ?? {}}
       {...handlers}
     />,
   )
@@ -471,4 +484,34 @@ test('Should warn on the row of a symbol that reports earnings within a week', (
   expect(screen.getByRole('img', { name: 'Earnings in 3 days' }).textContent).toBe('E 3d')
   expect(screen.getByRole('img', { name: 'Earnings today' }).textContent).toBe('E')
   expect(screen.getAllByRole('img', { name: /^Earnings/ })).toHaveLength(2)
+})
+
+test('Should show the columns picked, each sortable, with the values of each symbol', async () => {
+  const { handlers, user } = setup({
+    columns: ['rsi', 'earnings'],
+    metrics: { AAPL: { rsi: 61.25, fromHighPercent: -2, volumeRatio: 1, level: null } },
+    earnings: { AAPL: { past: [], next: '2027-01-28', nextIsEstimate: false } },
+  })
+  const apple = row('AAPL')
+  expect(within(apple).getByText('61.3')).toBeTruthy()
+  expect(within(apple).getByText('Jan 28')).toBeTruthy()
+  expect(within(row('KO')).getAllByText('—').length).toBeGreaterThanOrEqual(2)
+  await user.click(screen.getByRole('button', { name: 'Sort by RSI 14' }))
+  expect(handlers.onSort).toHaveBeenCalledWith('rsi')
+  await user.click(screen.getByRole('button', { name: 'Sort by Next earnings' }))
+  expect(handlers.onSort).toHaveBeenCalledWith('earnings')
+  expect(screen.queryByRole('button', { name: 'Sort by Nearest level' })).toBeNull()
+})
+
+test('Should pick the columns from the menu of the header', async () => {
+  const { handlers, user } = setup({ columns: ['rsi'] })
+  await user.click(screen.getByRole('button', { name: 'Columns' }))
+  const menu = screen.getByRole('group', { name: 'Columns' })
+  expect((within(menu).getByRole('checkbox', { name: 'RSI 14' }) as HTMLInputElement).checked).toBe(true)
+  await user.click(within(menu).getByRole('checkbox', { name: 'Nearest level' }))
+  expect(handlers.onColumns).toHaveBeenLastCalledWith(['rsi', 'level'])
+  await user.click(within(menu).getByRole('checkbox', { name: 'RSI 14' }))
+  expect(handlers.onColumns).toHaveBeenLastCalledWith([])
+  await user.keyboard('{Escape}')
+  expect(screen.queryByRole('group', { name: 'Columns' })).toBeNull()
 })

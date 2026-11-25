@@ -370,6 +370,15 @@ test('Should hand over the copy on disk in a new process without asking the sour
   expect(second.calls).toEqual([])
 })
 
+test('Should say what it keeps without downloading anything', async () => {
+  const { cache, calls } = await makeCache([full])
+  expect(await cache.kept('AAPL')).toBeNull()
+  expect(calls).toEqual([])
+  await cache.get('AAPL')
+  expect((await cache.kept('aapl'))?.bars).toEqual(full.bars)
+  expect(calls).toHaveLength(1)
+})
+
 test('Should download a history it is asked to hand over but does not keep', async () => {
   const { cache, calls } = await makeCache([full])
   const kept = await cache.peek('AAPL')

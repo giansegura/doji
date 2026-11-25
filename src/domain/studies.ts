@@ -1,4 +1,4 @@
-import { sma } from './rsi'
+import { sma } from '../../shared/rsi'
 
 type Series = (number | null)[]
 

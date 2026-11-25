@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import { addWeekdays } from '../shared/dates'
 import type { Bar, Drawing, History, Quote } from '../shared/types'
+import { symbolMetrics } from '../shared/symbolMetrics'
 import { bollinger, macd } from '../src/domain/studies'
 import { toWeekly } from '../src/domain/weekly'
 import { type SummaryInput, scanRow, summarizeChart } from './chartSummary'
@@ -98,7 +99,12 @@ test('Should place the close within its range of the last 52 weeks, from the dai
   const closes = Array.from({ length: 300 }, (_, index) => (index < 20 ? 50 : 100 + ((index * 7) % 31)))
   const weekly = summarizeChart(input({ history: historyOf(closes), timeframe: 'W' }))
   const close = closes[299]
-  expect(weekly.range52Weeks).toEqual({ high: 132, low: 98, positionPercent: Number((((close - 98) / 34) * 100).toFixed(2)) })
+  expect(weekly.range52Weeks).toEqual({
+    high: 132,
+    low: 98,
+    positionPercent: Number((((close - 98) / 34) * 100).toFixed(2)),
+    fromHighPercent: Number((((close - 132) / 132) * 100).toFixed(2)),
+  })
 })
 
 test('Should list the latest swing highs and lows', () => {
@@ -223,6 +229,8 @@ test('Should give the distance to the nearest support and resistance in a scan r
   expect(scanRow(summarizeChart(input({ history: historyOf([100, 101]) }))).nearestSupportPercent).toBeNull()
 })
 
+const risingBars = () => historyOf(rising).bars
+
 test('Should reduce a chart to one row of its main readings', () => {
   const quote: Quote = { symbol: 'KO', price: 249.5, change: 0.5, changePercent: 0.2, extended: { session: 'pre', price: 250, changePercent: 0.2 } }
   const summary = summarizeChart(input({ quote, note: 'Tesis', drawings: [{ id: 'h', kind: 'hline', pane: 'price', timeframe: 'D', value: 230, color: '#2962FF', width: 2, pricedAt: '2020-01-01', alert: true }] }))
@@ -235,6 +243,7 @@ test('Should reduce a chart to one row of its main readings', () => {
     vsSma50Percent: summary.averages[1].distancePercent,
     vsSma200Percent: summary.averages[2].distancePercent,
     range52WeeksPercent: summary.range52Weeks.positionPercent,
+    fromHigh52Percent: symbolMetrics('KO', risingBars(), false).fromHighPercent,
     macdHistogram: summary.macd.histogram,
     volumeRatio: 1.01,
     alerts: 1,

@@ -1,7 +1,8 @@
-import { LIST_NAME_MAX_LENGTH, MAX_LISTS, NOTE_MAX_LENGTH } from '../../shared/limits'
+import { LIST_NAME_MAX_LENGTH, MAX_LISTS, NOTE_MAX_LENGTH, WATCH_COLUMN_WIDTH } from '../../shared/limits'
 import { toListIcon } from '../../shared/listIcon'
 import { isSection } from '../../shared/listItems'
 import { clampListWidth } from '../../shared/listWidth'
+import { isWatchColumn, toWatchColumns } from '../../shared/watchColumns'
 import { sameLook } from '../domain/lineLooks'
 import type {
   AppState,
@@ -16,6 +17,7 @@ import type {
   DrawingKind,
   LineLook,
   WatchlistSort,
+  WatchColumn,
 } from '../../shared/types'
 
 export type Tool = 'cursor' | 'trendline' | 'hline' | 'channel' | 'rect' | 'measure' | 'long' | 'short'
@@ -45,6 +47,7 @@ export type Action =
   | { type: 'toggleSecondChart' }
   | { type: 'setSecondChart'; timeframe: Timeframe }
   | { type: 'setWatchlistSort'; sort: WatchlistSort | null }
+  | { type: 'setWatchlistColumns'; columns: WatchColumn[] }
   | { type: 'rememberLook'; kind: DrawingKind; look: LineLook }
   | { type: 'setEarningsBadge'; on: boolean }
 
@@ -157,8 +160,21 @@ const selectWatchlist = (state: AppState, id: string): AppState => {
 }
 
 const setListWidth = (state: AppState, raw: number): AppState => {
-  const listWidth = clampListWidth(raw)
+  const listWidth = clampListWidth(raw, state.watchlistColumns.length)
   return listWidth === state.listWidth ? state : { ...state, listWidth }
+}
+
+const setWatchlistColumns = (state: AppState, raw: WatchColumn[]): AppState => {
+  const watchlistColumns = toWatchColumns(raw)
+  const added = watchlistColumns.length - state.watchlistColumns.length
+  const sorted = state.watchlistSort?.column
+  const keepsSort = !isWatchColumn(sorted) || watchlistColumns.includes(sorted)
+  return {
+    ...state,
+    watchlistColumns,
+    listWidth: clampListWidth(state.listWidth + added * WATCH_COLUMN_WIDTH, watchlistColumns.length),
+    watchlistSort: keepsSort ? state.watchlistSort : null,
+  }
 }
 
 const addSection = (state: AppState, id: string, rawTitle: string): AppState => {
@@ -234,6 +250,7 @@ export const appReducer = (state: AppState, action: Action): AppState => {
   if (action.type === 'toggleSecondChart') return toggleSecondChart(state)
   if (action.type === 'setSecondChart') return setSecondChart(state, action.timeframe)
   if (action.type === 'setWatchlistSort') return { ...state, watchlistSort: action.sort }
+  if (action.type === 'setWatchlistColumns') return setWatchlistColumns(state, action.columns)
   if (action.type === 'rememberLook') return rememberLook(state, action.kind, action.look)
   if (action.type === 'setEarningsBadge') return state.earningsBadge === action.on ? state : { ...state, earningsBadge: action.on }
   return setLines(state, action.symbol, action.lines)

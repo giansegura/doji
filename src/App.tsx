@@ -26,6 +26,7 @@ import { nextSort, sortItems } from './domain/watchlistSort'
 import { adjustLinesForSplits } from './domain/splits'
 import { useAlerts } from './hooks/useAlerts'
 import { useEarningsCalendar } from './hooks/useEarningsCalendar'
+import { useWatchMetrics } from './hooks/useWatchMetrics'
 import { useHistory } from './hooks/useHistory'
 import { useLivePrice } from './hooks/useLivePrice'
 import { usePrefetchHistories } from './hooks/usePrefetchHistories'
@@ -58,13 +59,15 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   const quotes = useMemo(() => freshQuotes(tracked, history), [tracked, history])
   const livePrice = useLivePrice(history, quotes[state.symbol])
   const { fired, dismiss } = useAlerts()
-  const shownItems = sortItems(list.items, quotes, state.watchlistSort)
-  const shownSymbols = symbolsOf(shownItems).map((item) => item.symbol)
+  const columns = state.watchlistColumns
+  const metrics = useWatchMetrics(listSymbols, columns.some((column) => column !== 'earnings'), columns.includes('level'))
   usePrefetchHistories(listSymbols)
   const today = todayIso()
   const allSymbols = useMemo(() => calendarItems(state.watchlists).map((item) => item.symbol), [state.watchlists])
   const calendar = useEarningsCalendar(allSymbols, calendarOpen)
-  const listEarnings = useEarningsCalendar(listSymbols, state.earningsBadge)
+  const listEarnings = useEarningsCalendar(listSymbols, state.earningsBadge || columns.includes('earnings'))
+  const shownItems = sortItems(list.items, quotes, state.watchlistSort, { metrics, earnings: listEarnings.earnings })
+  const shownSymbols = symbolsOf(shownItems).map((item) => item.symbol)
   const soon = useMemo(() => earningsSoon(listEarnings.earnings, today), [listEarnings.earnings, today])
   const drawings = state.lines[state.symbol] ?? NO_DRAWINGS
   const { changeDrawings, forgetDrawings } = useShortcuts({ symbol: state.symbol, drawings, symbols: shownSymbols, dispatch, onTool: setTool })
@@ -179,7 +182,11 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
         )}
       </Styles.Chart>
       <Styles.List>
-        <ListResizer width={state.listWidth} onResize={(width) => dispatch({ type: 'setListWidth', width })} />
+        <ListResizer
+          width={state.listWidth}
+          extraColumns={columns.length}
+          onResize={(width) => dispatch({ type: 'setListWidth', width })}
+        />
         <Watchlist
           items={shownItems}
           sort={state.watchlistSort}
@@ -207,6 +214,10 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
           onRenameSection={(id, title) => dispatch({ type: 'renameSection', id, title })}
           onRemoveSection={(id) => dispatch({ type: 'removeSection', id })}
           earningsSoon={state.earningsBadge ? soon : undefined}
+          columns={columns}
+          onColumns={(picked) => dispatch({ type: 'setWatchlistColumns', columns: picked })}
+          metrics={metrics}
+          earnings={listEarnings.earnings}
         />
         <NotesPanel
           symbol={state.symbol}

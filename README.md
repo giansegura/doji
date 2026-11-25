@@ -79,7 +79,11 @@ Para otro puerto: `PORT=4790 npm start`.
 - **Ordenar la lista:** pulsa la cabecera de una columna (Symbol, Last, Chg% o Ext) para ordenar de mayor a menor (de la A a la Z en Symbol); un segundo clic invierte el orden y el tercero vuelve a tu orden. Las secciones se respetan: se ordena dentro de cada una. Mientras hay un orden activo no se pueden arrastrar filas.
 - **Secciones:** el botón que hay junto a `+` añade un separador con título dentro de la lista. Se arrastra como cualquier fila y, al pasar el ratón, se puede renombrar o quitar.
 - **Notas:** el panel "Notes", debajo de la lista, guarda un texto por acción (tesis, precio de entrada, plan). Un punto azul avisa de que la acción tiene nota aunque el panel esté plegado.
-- **Ancho de la lista:** arrastra el borde izquierdo de la lista para ensancharla o estrecharla; el gráfico ocupa el resto. Va de 220 a 640 px (400 por defecto) y se guarda con el resto de la configuración. Las columnas se adaptan para que los tickers se lean enteros: por debajo de 381 px se oculta "Ext" y por debajo de 300 px también "Last".
+- **Columnas a elegir:** el botón de las columnas, en la cabecera de la lista, añade hasta cinco columnas más, todas apagadas por defecto: "RSI 14" (RSI) diario, "From 52-week high" (52W Hi, cuánto está el precio por debajo del máximo de las últimas 52 semanas), "Volume vs average" (Rel Vol, el volumen de hoy frente a su media de 20 días), "Next earnings" (Earn, la próxima fecha de resultados, con `~` si es estimada) y "Nearest level" (Level, la distancia al soporte o la resistencia más cercanos; al pasar el ratón dice cuál y a qué precio).
+  - Se ordenan con un clic en su cabecera, como las demás. Los resultados y el nivel más cercano empiezan por el más próximo; el resto, por el más alto.
+  - Cada columna ensancha la lista 64 px al encenderla (y la estrecha al apagarla); con columnas extra la lista puede pasar de 640 px, 64 px más por columna.
+  - Salen del histórico diario de cada acción, que el servidor guarda en `data/cache/`. La primera vez, las acciones que aún no tiene se descargan de dos en dos y sus celdas muestran un guion hasta que llegan; luego se refrescan cada cinco minutos. Las fechas de resultados son las del calendario.
+- **Ancho de la lista:** arrastra el borde izquierdo de la lista para ensancharla o estrecharla; el gráfico ocupa el resto. Va de 220 a 640 px (400 por defecto, y 64 px más por cada columna extra) y se guarda con el resto de la configuración. Las columnas se adaptan para que los tickers se lean enteros: por debajo de 381 px se oculta "Ext" y por debajo de 300 px también "Last".
 - **Horas extendidas:** la columna "Ext" muestra, en porcentaje, cuánto se separa del cierre el último precio fuera del horario normal, en verde o rojo; al pasar el ratón se ve el precio. Un punto junto al ticker indica la sesión: naranja en el pre-mercado y azul en el post-mercado. Durante la sesión normal, y en lo que no cotiza fuera de horario (índices, cripto, bolsas europeas), muestra un guion. Con el mercado cerrado se queda el último dato del post-mercado hasta que abre el siguiente pre-mercado.
 
 ## Conectar tu IA (MCP)
@@ -91,7 +95,7 @@ Herramientas que ofrece:
 | Herramienta | Qué hace |
 |---|---|
 | `get_watchlists` | Tus listas, con sus secciones, cuál está activa y qué hay en pantalla. |
-| `scan_watchlist` | Revisa una lista entera: precio, cambio, RSI, distancia a las SMA 50 y 200, rango de 52 semanas, MACD, volumen, alertas y notas. |
+| `scan_watchlist` | Revisa una lista entera: precio, cambio, RSI, distancia a las SMA 50 y 200, rango de 52 semanas y distancia a su máximo, MACD, volumen, alertas, notas y distancia a los niveles más cercanos. |
 | `get_chart` | Resumen de un gráfico con indicadores calculados por doji, máximos y mínimos recientes, últimas velas, tus dibujos y tu nota. |
 | `get_earnings_calendar` | Quién presenta resultados entre dos fechas, en todas tus listas o en una, con la hora (antes de abrir o tras el cierre) si se sabe. |
 | `add_horizontal_line` | Dibuja una línea horizontal, con alerta si se pide. |

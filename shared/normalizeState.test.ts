@@ -380,6 +380,7 @@ test('Should keep how the watchlist is sorted and drop a sort it does not know',
   expect(normalizeState({}).watchlistSort).toBeNull()
   expect(normalizeState({ watchlistSort: { column: 'change', direction: 'desc' } }).watchlistSort).toEqual({ column: 'change', direction: 'desc' })
   expect(normalizeState({ watchlistSort: { column: 'volume', direction: 'desc' } }).watchlistSort).toBeNull()
+  expect(normalizeState({ watchlistSort: { column: 'rsi', direction: 'asc' } }).watchlistSort).toEqual({ column: 'rsi', direction: 'asc' })
   expect(normalizeState({ watchlistSort: { column: 'last', direction: 'up' } }).watchlistSort).toBeNull()
 })
 
@@ -516,4 +517,15 @@ test('Should drop a position that lacks its side or its levels, and the sizing i
   ]
   const oddSizing = { ...position, id: 'o', account: -5, riskPercent: 400 }
   expect(normalizeState({ lines: { KO: [...broken, oddSizing] } }).lines.KO).toEqual([{ ...position, id: 'o' }])
+})
+
+test('Should show no extra columns in the watchlist unless the configuration picks them, in their usual order', () => {
+  expect(normalizeState({}).watchlistColumns).toEqual([])
+  expect(normalizeState({ watchlistColumns: ['level', 'rsi', 'rsi', 'volume', 7] }).watchlistColumns).toEqual(['rsi', 'level'])
+  expect(normalizeState({ watchlistColumns: 'rsi' }).watchlistColumns).toEqual([])
+})
+
+test('Should let the watchlist grow wider for each extra column it shows', () => {
+  expect(normalizeState({ listWidth: 900 }).listWidth).toBe(640)
+  expect(normalizeState({ listWidth: 900, watchlistColumns: ['rsi', 'earnings'] }).listWidth).toBe(768)
 })

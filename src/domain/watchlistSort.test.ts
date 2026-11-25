@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
-import type { ListItem, Quote, WatchlistSort } from '../../shared/types'
+import type { SymbolMetrics } from '../../shared/symbolMetrics'
+import type { Earnings, ListItem, Quote, WatchlistSort } from '../../shared/types'
 import { nextSort, sortItems } from './watchlistSort'
 
 const item = (symbol: string): ListItem => ({ symbol, name: symbol, exchange: 'NYSE' })
@@ -85,4 +86,43 @@ test('Should start the symbol column from A to Z', () => {
 
 test('Should start over on another column', () => {
   expect(nextSort({ column: 'change', direction: 'asc' }, 'last')).toEqual({ column: 'last', direction: 'desc' })
+})
+
+const metricsOf = (rsi: number, fromHighPercent: number, volumeRatio: number, percent: number): SymbolMetrics => ({
+  rsi,
+  fromHighPercent,
+  volumeRatio,
+  level: { price: 1, kind: percent > 0 ? 'resistance' : 'support', percent },
+})
+
+const extras = {
+  metrics: {
+    KO: metricsOf(48, -2, 0.9, 1.5),
+    PEP: metricsOf(71, -12, 2.4, -0.4),
+    AAPL: metricsOf(55, -0.5, 1.1, -3),
+  },
+  earnings: {
+    KO: { past: [], next: '2027-02-10', nextIsEstimate: false },
+    PEP: { past: [], next: '2027-02-03', nextIsEstimate: true },
+    MSFT: { past: [], next: null, nextIsEstimate: false },
+  } as Record<string, Earnings>,
+}
+
+const sortedBy = (sort: WatchlistSort) => symbols(sortItems(plain, quotes, sort, extras))
+
+test('Should sort by the RSI, the distance to the yearly high and the volume against its average', () => {
+  expect(sortedBy({ column: 'rsi', direction: 'desc' })).toEqual(['PEP', 'AAPL', 'KO', 'MSFT'])
+  expect(sortedBy({ column: 'fromHigh', direction: 'desc' })).toEqual(['AAPL', 'KO', 'PEP', 'MSFT'])
+  expect(sortedBy({ column: 'relVolume', direction: 'desc' })).toEqual(['PEP', 'AAPL', 'KO', 'MSFT'])
+})
+
+test('Should sort by the soonest earnings and by the nearest level, whichever its side', () => {
+  expect(sortedBy({ column: 'earnings', direction: 'asc' })).toEqual(['PEP', 'KO', 'MSFT', 'AAPL'])
+  expect(sortedBy({ column: 'level', direction: 'asc' })).toEqual(['PEP', 'KO', 'AAPL', 'MSFT'])
+})
+
+test('Should start with the soonest earnings and the nearest level, and with the highest of the rest', () => {
+  expect(nextSort(null, 'earnings')).toEqual({ column: 'earnings', direction: 'asc' })
+  expect(nextSort(null, 'level')).toEqual({ column: 'level', direction: 'asc' })
+  expect(nextSort(null, 'rsi')).toEqual({ column: 'rsi', direction: 'desc' })
 })

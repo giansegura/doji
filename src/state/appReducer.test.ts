@@ -356,3 +356,23 @@ test('Should switch the earnings warning of the watchlist on and off', () => {
   expect(appReducer(on, { type: 'setEarningsBadge', on: true })).toBe(on)
   expect(appReducer(on, { type: 'setEarningsBadge', on: false }).earningsBadge).toBe(false)
 })
+
+test('Should add a column to the watchlist and widen the list to make room for it', () => {
+  const one = appReducer({ ...base, listWidth: 400 }, { type: 'setWatchlistColumns', columns: ['rsi'] })
+  expect(one.watchlistColumns).toEqual(['rsi'])
+  expect(one.listWidth).toBe(464)
+  const two = appReducer(one, { type: 'setWatchlistColumns', columns: ['earnings', 'rsi'] })
+  expect(two.watchlistColumns).toEqual(['rsi', 'earnings'])
+  expect(two.listWidth).toBe(528)
+  expect(appReducer(two, { type: 'setWatchlistColumns', columns: ['rsi'] }).listWidth).toBe(464)
+})
+
+test('Should not widen the list past its limit nor keep sorting by a column it hides', () => {
+  const wide = appReducer({ ...base, listWidth: 640 }, { type: 'setWatchlistColumns', columns: ['rsi', 'level'] })
+  expect(wide.listWidth).toBe(768)
+  const sorted = appReducer(wide, { type: 'setWatchlistSort', sort: { column: 'level', direction: 'asc' } })
+  const hidden = appReducer(sorted, { type: 'setWatchlistColumns', columns: ['rsi'] })
+  expect(hidden.watchlistSort).toBeNull()
+  expect(hidden.listWidth).toBe(704)
+  expect(appReducer(hidden, { type: 'setListWidth', width: 2000 }).listWidth).toBe(704)
+})

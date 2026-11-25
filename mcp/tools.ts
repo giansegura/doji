@@ -153,7 +153,7 @@ export const createDojiServer = ({ api, newId, version, today = todayIso }: Serv
     {
       title: 'Scan a watchlist',
       description:
-        'Reads every symbol of a watchlist in one go: close, change, extended-hours change, RSI 14, distance to SMA 50 and SMA 200, position in the 52-week range, MACD histogram, volume against its average, armed alerts, whether it has a note, and the distance to the nearest support and resistance. Use it to compare symbols or find the ones that meet a condition.',
+        'Reads every symbol of a watchlist in one go: close, change, extended-hours change, RSI 14, distance to SMA 50 and SMA 200, position in the 52-week range and distance below its high, MACD histogram, volume against its average, armed alerts, whether it has a note, and the distance to the nearest support and resistance. Use it to compare symbols or find the ones that meet a condition.',
       inputSchema: {
         watchlist: z.string().optional().describe('Name or id of the watchlist. Defaults to the active one.'),
         timeframe: timeframeField.optional(),

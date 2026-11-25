@@ -10,6 +10,7 @@ export const BAND_MAX_MULTIPLIER = 5
 export const LIST_MIN_WIDTH = 220
 export const LIST_MAX_WIDTH = 640
 export const LIST_DEFAULT_WIDTH = 400
+export const WATCH_COLUMN_WIDTH = 64
 export const NOTE_MAX_LENGTH = 5000
 export const MIN_LINE_OPACITY = 0.1
 export const LINE_TEXT_MAX_LENGTH = 60

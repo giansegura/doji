@@ -1323,6 +1323,38 @@ await step('ordena la lista por cambio, lo invierte, lo recuerda y vuelve al ord
   check((await shownSymbols()).join() === manual.join(), `no volvió al orden propio: ${await shownSymbols()}`)
 })
 
+await step('añade columnas a la lista, las rellena, ordena por una y las quita', async () => {
+  const before = await savedState()
+  const cells = (child: number) => page.locator(`aside li button > div:nth-child(${child})`)
+  await button('Columns').click()
+  const menu = page.getByRole('group', { name: 'Columns' })
+  await menu.getByRole('checkbox', { name: 'RSI 14' }).click()
+  await menu.getByRole('checkbox', { name: 'Next earnings' }).click()
+  await page.keyboard.press('Escape')
+  check((await menu.count()) === 0, 'Esc no cerró el menú de columnas')
+  const picked = await savedState()
+  check(JSON.stringify(picked.watchlistColumns) === JSON.stringify(['rsi', 'earnings']), `no se guardaron las columnas: ${picked.watchlistColumns}`)
+  check(picked.listWidth === before.listWidth + 128, `la lista no se ensanchó para las columnas: ${picked.listWidth}`)
+  await page.waitForFunction(
+    () => [...document.querySelectorAll('aside li button > div:nth-child(5)')].every((cell) => cell.textContent !== '—'),
+    undefined,
+    { timeout: 90_000 },
+  )
+  const strengths = (await cells(5).allTextContents()).map(Number)
+  check(strengths.length > 0 && strengths.every((value) => value >= 0 && value <= 100), `RSI fuera de rango: ${strengths}`)
+  check((await cells(6).allTextContents()).some((text) => /^~?[A-Z][a-z]{2} \d{1,2}$/.test(text)), 'ninguna fecha de resultados en la lista')
+  await button('Sort by RSI 14').click()
+  const sorted = (await cells(5).allTextContents()).map(Number)
+  check(sorted.every((value, index) => index === 0 || value <= sorted[index - 1]), `la lista no quedó por RSI de mayor a menor: ${sorted}`)
+  await button('Columns').click()
+  await menu.getByRole('checkbox', { name: 'RSI 14' }).click()
+  await menu.getByRole('checkbox', { name: 'Next earnings' }).click()
+  await page.keyboard.press('Escape')
+  const after = await savedState()
+  check(after.watchlistColumns.length === 0 && after.listWidth === before.listWidth, 'quitar las columnas no devolvió la lista a como estaba')
+  check(after.watchlistSort === null, 'quitar la columna no quitó su orden')
+})
+
 await step('oculta y muestra el RSI', async () => {
   await button('Indicators').click()
   await page.getByRole('checkbox', { name: 'RSI', exact: true }).click()

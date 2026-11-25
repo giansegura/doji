@@ -1,5 +1,6 @@
 import { type CalendarAnswer, askInBatches } from '../../shared/earningsCalendarBatches'
 import { changesSince } from '../../shared/stateChanges'
+import type { SymbolMetrics } from '../../shared/symbolMetrics'
 import type { AppState, Earnings, History, Quote, SymbolInfo } from '../../shared/types'
 import type { SaveResult } from '../state/stateSync'
 
@@ -64,6 +65,11 @@ export type EarningsCalendarAnswer = CalendarAnswer
 
 export const getEarningsCalendar = (symbols: string[]): Promise<EarningsCalendarAnswer> =>
   askInBatches(symbols, (batch) => request(`/api/earnings/calendar?symbols=${batch.map(encodeURIComponent).join(',')}`))
+
+export type WatchMetricsAnswer = { metrics: Record<string, SymbolMetrics>; pending: number }
+
+export const getWatchMetrics = (symbols: string[], withLevel: boolean): Promise<WatchMetricsAnswer> =>
+  request(`/api/watchlist/metrics?symbols=${symbols.map(encodeURIComponent).join(',')}${withLevel ? '&level=1' : ''}`)
 
 export const getQuotes = (symbols: string[]): Promise<Quote[]> =>
   request(`/api/quotes?symbols=${symbols.map(encodeURIComponent).join(',')}`)

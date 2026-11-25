@@ -22,7 +22,18 @@ type Overrides = {
 
 const makeApi = (over: Overrides = {}) => {
   const saved: AppState[] = []
-  const requested: { history: string[]; kept: string[]; search: string[]; quotes: string[][]; logos: string[]; earnings: string[]; warmed: string[][]; telegram: string[] } = {
+  const requested: {
+    history: string[]
+    kept: string[]
+    search: string[]
+    quotes: string[][]
+    logos: string[]
+    earnings: string[]
+    warmed: string[][]
+    telegram: string[]
+    metrics: string[]
+  } = {
+    metrics: [],
     earnings: [],
     warmed: [],
     telegram: [],
@@ -42,6 +53,14 @@ const makeApi = (over: Overrides = {}) => {
         requested.kept.push(symbol)
         return historyOf(symbol)
       },
+      kept: async () => null,
+    },
+    metrics: {
+      read: async (symbols, withLevel) => {
+        requested.metrics.push(`${symbols.join(',')}${withLevel ? ' with level' : ''}`)
+        return { metrics: { KO: { rsi: 55.5, fromHighPercent: -3.2, volumeRatio: 1.1, level: null } }, pending: 1 }
+      },
+      settled: async () => undefined,
     },
     provider: {
       history: async (symbol) => historyOf(symbol),
@@ -385,6 +404,17 @@ test('Should give the earnings it already has for many symbols, fetch the rest b
   expect(await call('GET', '/api/earnings/calendar?symbols=')).toEqual({ status: 200, body: { earnings: {}, pending: 2 } })
 })
 
+
+test('Should give the watchlist columns of many symbols and say how many are still loading', async () => {
+  const { call, requested } = makeApi()
+  expect(await call('GET', '/api/watchlist/metrics?symbols=KO,pep,../x&level=1')).toEqual({
+    status: 200,
+    body: { metrics: { KO: { rsi: 55.5, fromHighPercent: -3.2, volumeRatio: 1.1, level: null } }, pending: 1 },
+  })
+  await call('GET', '/api/watchlist/metrics?symbols=KO')
+  expect(requested.metrics).toEqual(['KO,PEP with level', 'KO'])
+  expect(await call('GET', '/api/watchlist/metrics?symbols=')).toEqual({ status: 200, body: { metrics: {}, pending: 0 } })
+})
 
 test('Should connect the Telegram bot, link its chat, send a test and disconnect it', async () => {
   const { call, requested } = makeApi()
