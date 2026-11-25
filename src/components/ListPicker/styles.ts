@@ -217,3 +217,30 @@ export const PaletteFooter = styled.div`
   align-items: center;
   gap: 6px;
 `
+
+export const FileActions = styled.div`
+  display: flex;
+  flex-direction: column;
+  padding-top: 2px;
+`
+
+export const FileButton = styled.button`
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 4px;
+  color: ${(props) => props.theme.ui.text};
+  text-align: left;
+
+  &:hover {
+    background: ${(props) => props.theme.ui.hover};
+  }
+
+  &:disabled {
+    color: ${(props) => props.theme.ui.textMuted};
+    cursor: default;
+  }
+`
+
+export const HiddenInput = styled.input`
+  display: none;
+`

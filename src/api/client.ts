@@ -68,6 +68,9 @@ export const backupApi: BackupApi = {
 export const getHistory = (symbol: string): Promise<History> =>
   request(`/api/history?symbol=${encodeURIComponent(symbol)}`)
 
+export const resolveSymbols = async (groups: string[][]): Promise<(SymbolInfo | null)[]> =>
+  (await request<{ found: (SymbolInfo | null)[] }>(`/api/resolve?symbols=${encodeURIComponent(groups.map((group) => group.join('|')).join(','))}`)).found
+
 export const getKeptHistory = (symbol: string): Promise<History> =>
   request(`/api/history?symbol=${encodeURIComponent(symbol)}&cached=1`)
 

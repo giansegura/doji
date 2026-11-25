@@ -7,5 +7,5 @@ export const downloadBlob = (blob: Blob, name: string): void => {
   URL.revokeObjectURL(url)
 }
 
-export const downloadText = (text: string, name: string): void =>
-  downloadBlob(new Blob([text], { type: 'application/json' }), name)
+export const downloadText = (text: string, name: string, type = 'application/json'): void =>
+  downloadBlob(new Blob([text], { type }), name)

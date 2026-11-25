@@ -12,6 +12,7 @@ import { FilterEditor } from './components/FilterEditor'
 import { LeftToolbar } from './components/LeftToolbar'
 import { MarketTicker } from './components/MarketTicker'
 import { ListPicker } from './components/ListPicker'
+import { ListImportDialog } from './components/ListImportDialog'
 import { AlertToasts } from './components/AlertToasts'
 import { ListResizer } from './components/ListResizer'
 import { ReplayBar } from './components/ReplayBar'
@@ -26,6 +27,7 @@ import { Watchlist } from './components/Watchlist'
 import { earningsDay } from './domain/companyProfile'
 import { configFileName, serializeConfig } from './domain/configFile'
 import { downloadText } from './domain/download'
+import { listFile } from './domain/listFiles'
 import { calendarItems, earningsSoon } from './domain/earningsCalendar'
 import { freshQuotes } from './domain/liveBar'
 import { newId } from './domain/newId'
@@ -49,6 +51,7 @@ import { useHistory } from './hooks/useHistory'
 import { useLivePrice } from './hooks/useLivePrice'
 import { usePrefetchHistories } from './hooks/usePrefetchHistories'
 import { useQuotes } from './hooks/useQuotes'
+import { useListImport } from './hooks/useListImport'
 import { useReplay } from './hooks/useReplay'
 import { useShortcuts } from './hooks/useShortcuts'
 import { type Action, type Tool, activeWatchlist } from './state/appReducer'
@@ -112,6 +115,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
   const quotes = useMemo(() => freshQuotes(tracked, history), [tracked, history])
   const livePrice = useLivePrice(history, quotes[state.symbol])
   const { fired, dismiss } = useAlerts()
+  const listImport = useListImport((id, name, items) => dispatch({ type: 'createWatchlistWith', id, name, items }))
   const profile = useCompanyProfile(state.symbol, companyOpen)
   const news = useNews(state.symbol, newsOpen)
   const symbolEarnings = useEarnings(state.symbol)
@@ -317,6 +321,11 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
               onDelete={(id) => dispatch({ type: 'deleteWatchlist', id })}
               onDuplicate={(id) => dispatch({ type: 'duplicateWatchlist', id, newId: newId() })}
               onIcon={(id, icon) => dispatch({ type: 'setWatchlistIcon', id, icon })}
+              onImport={(file) => void listImport.start(file)}
+              onExport={(format) => {
+                const exported = listFile(list, format)
+                downloadText(exported.text, exported.name, exported.type)
+              }}
             />
           }
           quotes={quotes}
@@ -381,6 +390,7 @@ const Workspace = ({ state, dispatch, notice, replaced }: WorkspaceProps) => {
       {searchMode && (
         <SymbolSearch onPick={handlePick} onClose={() => setSearchMode(null)} stayOpen={searchMode === 'watchlist'} />
       )}
+      {listImport.progress && <ListImportDialog progress={listImport.progress} onClose={listImport.close} />}
       {filterDraft && (
         <FilterEditor
           filter={filterDraft.filter}

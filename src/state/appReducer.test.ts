@@ -444,6 +444,12 @@ test('Should save the symbols a filter shows as a new list and open it', () => {
   expect(out.activeWatchlistId).toBe('new')
 })
 
+test('Should keep the sections of an imported list', () => {
+  const items = [{ kind: 'section' as const, id: 's1', title: 'Tech' }, { symbol: 'AAPL', name: 'Apple Inc.', exchange: 'NASDAQ' }]
+  const out = appReducer(base, { type: 'createWatchlistWith', id: 'imported', name: 'Tech', items })
+  expect(out.watchlists.at(-1)?.items).toEqual(items)
+})
+
 test('Should set, change and remove the position of a symbol', () => {
   const held = appReducer(base, { type: 'setHolding', symbol: 'KO', holding: { quantity: 100, price: 58.2 } })
   expect(held.holdings).toEqual({ KO: { quantity: 100, price: 58.2 } })

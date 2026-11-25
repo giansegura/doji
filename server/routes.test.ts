@@ -272,6 +272,27 @@ test('Should answer 502 when quotes fail', async () => {
   expect(await call('GET', '/api/quotes?symbols=AAPL')).toEqual({ status: 502, body: { error: 'unavailable' } })
 })
 
+test('Should check imported symbols against Yahoo, trying each candidate in turn', async () => {
+  const getHistory = async (symbol: string) => {
+    if (symbol === 'MC.PA' || symbol === 'AAPL') return historyOf(symbol)
+    throw providerError('not_found', 'unknown')
+  }
+  const { call, requested } = makeApi({ getHistory })
+  const result = await call('GET', '/api/resolve?symbols=aapl,MC.AS|MC.PA,ZZZZ,../x')
+  expect(result.status).toBe(200)
+  expect(bodyOf(result)).toEqual({
+    found: [historyOf('AAPL').info, historyOf('MC.PA').info, null, null],
+  })
+  expect(requested.history).toEqual(expect.arrayContaining(['AAPL', 'MC.AS', 'MC.PA', 'ZZZZ']))
+})
+
+test('Should refuse to check too many symbols at once and answer 502 when Yahoo fails', async () => {
+  const { call } = makeApi({ getHistory: failing('unavailable') })
+  const many = Array.from({ length: 51 }, (_, index) => `S${index}`).join(',')
+  expect(await call('GET', `/api/resolve?symbols=${many}`)).toEqual({ status: 400, body: { error: 'too_many_symbols' } })
+  expect(await call('GET', '/api/resolve?symbols=AAPL')).toEqual({ status: 502, body: { error: 'unavailable' } })
+})
+
 test('Should return the logo of a symbol as an image', async () => {
   const { call, requested } = makeApi()
   const result = await call('GET', '/api/logo?symbol=BRK-B')

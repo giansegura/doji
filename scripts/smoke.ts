@@ -1,6 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { mkdir, readFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { join, resolve } from 'node:path'
 import { chromium } from 'playwright-core'
@@ -1375,6 +1375,55 @@ await step('la cinta de mercados da precio y cambio del día, abre su gráfico, 
   })
   await page.reload()
   await waitForChart()
+})
+
+await step('importa una lista de TradingView con sus secciones, avisa de lo que no existe y la exporta en CSV y para TradingView', async () => {
+  const before = await savedState()
+  const file = join(outDir, 'Importada.txt')
+  await writeFile(file, '###Grandes,NASDAQ:AAPL,NYSE:BRK.B,###España,BME:SAN,FX:EURUSD,BINANCE:BTCUSDT,TVC:VIX,NASDAQ:ZZZZQX')
+  await button('Watchlists').click()
+  await page.getByLabel('Watchlist file').setInputFiles(file)
+  const dialog = page.getByRole('dialog', { name: 'Import list' })
+  await dialog.getByText('Imported 6 symbols into the new list “Importada”.').waitFor({ timeout: 90_000 })
+  check((await dialog.textContent())?.includes('Not found (1):NASDAQ:ZZZZQX') === true, `no avisa del símbolo que no existe: ${await dialog.textContent()}`)
+  await dialog.getByRole('button', { name: 'Close' }).click()
+  const imported = (await savedState()).watchlists.at(-1)
+  check(imported?.name === 'Importada' && (await savedState()).activeWatchlistId === imported.id, 'la lista importada no es la activa')
+  const shape = imported?.items.map((item) => ('kind' in item ? `#${item.title}` : item.symbol))
+  check(
+    JSON.stringify(shape) === JSON.stringify(['#Grandes', 'AAPL', 'BRK-B', '#España', 'SAN.MC', 'EURUSD=X', 'BTC-USD', '^VIX']),
+    `la lista importada no tiene lo esperado: ${JSON.stringify(shape)}`,
+  )
+  await row('SAN.MC').waitFor({ timeout: 10_000 })
+  const exported = async (label: string): Promise<{ name: string; text: string }> => {
+    await button('Watchlists').click()
+    const [download] = await Promise.all([page.waitForEvent('download', { timeout: 5000 }), button(label).click()])
+    const target = join(outDir, download.suggestedFilename())
+    await download.saveAs(target)
+    return { name: download.suggestedFilename(), text: await readFile(target, 'utf8') }
+  }
+  const csv = await exported('Export as CSV')
+  check(csv.name === 'Importada.csv', `nombre del CSV inesperado: ${csv.name}`)
+  const lines = csv.text.trim().split('\n')
+  check(lines[0] === 'Symbol,Name,Exchange,Section' && lines.length === 7, `CSV inesperado: ${csv.text}`)
+  check(lines.some((line) => line.startsWith('SAN.MC,') && line.endsWith(',España')), `el CSV no trae la sección: ${csv.text}`)
+  const tradingView = await exported('Export for TradingView')
+  check(tradingView.name === 'Importada.txt', `nombre del archivo de TradingView inesperado: ${tradingView.name}`)
+  check(
+    tradingView.text === '###Grandes,NASDAQ:AAPL,NYSE:BRK.B,###España,BME:SAN,FX:EURUSD,COINBASE:BTCUSD,TVC:VIX',
+    `archivo de TradingView inesperado: ${tradingView.text}`,
+  )
+  await button('Watchlists').click()
+  await button('Delete Importada').click()
+  await button('Confirm deleting Importada').click()
+  await page.keyboard.press('Escape')
+  const after = await savedState()
+  check(after.watchlists.length === before.watchlists.length, 'la lista importada no se borró')
+  if (after.activeWatchlistId !== before.activeWatchlistId) {
+    const name = before.watchlists.find((list) => list.id === before.activeWatchlistId)?.name ?? ''
+    await button('Watchlists').click()
+    await page.getByRole('menuitem', { name }).click()
+  }
 })
 
 await step('dos gráficos a la vez con periodos distintos y los mismos dibujos', async () => {

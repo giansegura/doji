@@ -11,7 +11,16 @@ const lists: SymbolList[] = [
 ]
 
 const setup = (over: { lists?: SymbolList[]; activeId?: string } = {}) => {
-  const handlers = { onSelect: vi.fn(), onCreate: vi.fn(), onRename: vi.fn(), onDelete: vi.fn(), onDuplicate: vi.fn(), onIcon: vi.fn() }
+  const handlers = {
+    onSelect: vi.fn(),
+    onCreate: vi.fn(),
+    onRename: vi.fn(),
+    onDelete: vi.fn(),
+    onDuplicate: vi.fn(),
+    onIcon: vi.fn(),
+    onImport: vi.fn(),
+    onExport: vi.fn(),
+  }
   renderWithTheme(<ListPicker lists={over.lists ?? lists} activeId={over.activeId ?? 'a'} {...handlers} />)
   return { handlers, user: userEvent.setup() }
 }
@@ -238,4 +247,31 @@ test('Should tell how to open every emoji of the computer', async () => {
   expect(screen.getByRole('textbox', { name: 'Any emoji for Bancos' }).getAttribute('title')).toBe(
     'Type any emoji and press Enter. On a Mac, Control + Command + Space opens every emoji.',
   )
+})
+
+test('Should export the active list as CSV or for TradingView and close the menu', async () => {
+  const { handlers, user } = setup()
+  await openMenu(user)
+  await user.click(screen.getByRole('button', { name: 'Export as CSV' }))
+  expect(handlers.onExport).toHaveBeenCalledWith('csv')
+  expect(screen.queryByRole('menu')).toBeNull()
+  await openMenu(user)
+  await user.click(screen.getByRole('button', { name: 'Export for TradingView' }))
+  expect(handlers.onExport).toHaveBeenLastCalledWith('tradingview')
+})
+
+test('Should hand over the chosen file to import and close the menu', async () => {
+  const { handlers, user } = setup()
+  await openMenu(user)
+  const file = new File(['NASDAQ:AAPL'], 'Tech.txt', { type: 'text/plain' })
+  await user.upload(screen.getByLabelText('Watchlist file'), file)
+  expect(handlers.onImport).toHaveBeenCalledWith(file)
+  expect(screen.queryByRole('menu')).toBeNull()
+})
+
+test('Should not import a list when there is no room for another', async () => {
+  const full = Array.from({ length: 20 }, (_, index) => ({ id: `l${index}`, name: `Lista ${index}`, items: [] }))
+  const { user } = setup({ lists: full, activeId: 'l0' })
+  await openMenu(user)
+  expect((screen.getByRole('button', { name: 'Import list…' }) as HTMLButtonElement).disabled).toBe(true)
 })

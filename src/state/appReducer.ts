@@ -66,7 +66,7 @@ export type Action =
   | { type: 'setShareHoldings'; on: boolean }
   | { type: 'deleteFilter'; id: string }
   | { type: 'applyFilter'; id: string | null }
-  | { type: 'createWatchlistWith'; id: string; name: string; items: SymbolInfo[] }
+  | { type: 'createWatchlistWith'; id: string; name: string; items: ListItem[] }
   | { type: 'rememberLook'; kind: DrawingKind; look: LineLook }
   | { type: 'setEarningsBadge'; on: boolean }
   | { type: 'setTickerVisible'; on: boolean }
@@ -204,7 +204,7 @@ const applyFilter = (state: AppState, id: string | null): AppState => {
   return state.activeFilterId === id ? state : { ...state, activeFilterId: id }
 }
 
-const createWatchlistWith = (state: AppState, id: string, name: string, items: SymbolInfo[]): AppState => {
+const createWatchlistWith = (state: AppState, id: string, name: string, items: ListItem[]): AppState => {
   const created = createWatchlist(state, id, name)
   return created === state ? state : withActiveItems(created, items)
 }
