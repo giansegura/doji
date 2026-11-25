@@ -1299,6 +1299,11 @@ await step('una alerta que se repite salta como mucho una vez al día, caduca tr
   await page.mouse.click(...at(price, 0.4, 0.3))
   const [placed] = await levels()
   const target = placed?.kind === 'hline' ? placed.value : 0
+  const feed = async (value: number) =>
+    ((await (
+      await fetch(`${url}/api/test/prices`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ AAPL: value }) })
+    ).json()) as { fired: unknown[] }).fired.length
+  await feed(target - 1)
   await button('Alert').click()
   await page.getByRole('combobox', { name: 'Alert repeat' }).selectOption('repeat')
   await page.getByLabel('Alert until').fill(localDay(1))
@@ -1307,11 +1312,6 @@ await step('una alerta que se repite salta como mucho una vez al día, caduca tr
     armed?.kind === 'hline' && armed.alert === true && armed.alertRepeat === true && armed.alertUntil === localDay(1),
     `la alerta que se repite no se guardó: ${JSON.stringify(armed)}`,
   )
-  const feed = async (value: number) =>
-    ((await (
-      await fetch(`${url}/api/test/prices`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ AAPL: value }) })
-    ).json()) as { fired: unknown[] }).fired.length
-  await feed(target - 1)
   check((await feed(target + 1)) === 1, 'la alerta que se repite no saltó')
   const [after] = await levels()
   check(after?.kind === 'hline' && after.alert === true && after.alertFiredOn === localDay(0), `la alerta que se repite se desarmó: ${JSON.stringify(after)}`)
