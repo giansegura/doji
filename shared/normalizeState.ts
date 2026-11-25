@@ -293,6 +293,7 @@ const toIndicators = (raw: unknown): Indicators => {
   const rows = asFinite(profile.rows)
   const levels = asRecord(indicators.levels)
   const perSide = asFinite(levels.perSide)
+  const marks = asRecord(indicators.marks)
   const defaults = DEFAULT_STATE.indicators
   return {
     volume: { visible: asBoolean(volume.visible, defaults.volume.visible) },
@@ -330,6 +331,10 @@ const toIndicators = (raw: unknown): Indicators => {
         perSide !== null && Number.isInteger(perSide) && perSide >= 1 && perSide <= LEVELS_MAX_PER_SIDE
           ? perSide
           : defaults.levels.perSide,
+    },
+    marks: {
+      earnings: asBoolean(marks.earnings, defaults.marks.earnings),
+      dividends: asBoolean(marks.dividends, defaults.marks.dividends),
     },
   }
 }

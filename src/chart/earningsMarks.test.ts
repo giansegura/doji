@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { earningsMarks, nextEarningsLabel } from './earningsMarks'
+import { dividendMarks, earningsMarks, nextEarningsLabel } from './earningsMarks'
 import { createEarningsPrimitive } from './earningsPrimitive'
 import { createTimeIndex } from './timeIndex'
 
@@ -26,13 +26,26 @@ test('Should place a report on the bar of its week on a weekly chart', () => {
   expect(earningsMarks({ past: ['2026-11-05'], next: null, nextIsEstimate: false }, weekly, toX, 400)).toEqual([{ x: 110, kind: 'past' }])
 })
 
+test('Should place each dividend on the bar of its day, above an earnings mark on the same bar', () => {
+  const earnings = earningsMarks({ past: ['2026-11-04'], next: null, nextIsEstimate: false }, daily, toX, 400)
+  const dividends = [
+    { date: '2026-11-04', amount: 0.26 },
+    { date: '2026-11-09', amount: 0.26 },
+    { date: '2027-03-01', amount: 0.27 },
+  ]
+  expect(dividendMarks(dividends, daily, toX, 400, earnings)).toEqual([
+    { x: 120, kind: 'dividend', row: 1 },
+    { x: 150, kind: 'dividend', row: 0 },
+  ])
+})
+
 test('Should tell when the next report comes and whether its date is only an estimate', () => {
   expect(nextEarningsLabel({ past: [], next: '2027-01-28', nextIsEstimate: false })).toBe('Earnings Jan 28, 2027')
   expect(nextEarningsLabel({ past: [], next: '2027-01-28', nextIsEstimate: true })).toBe('Earnings ~Jan 28, 2027')
   expect(nextEarningsLabel({ past: ['2026-11-02'], next: null, nextIsEstimate: false })).toBeNull()
 })
 
-test('Should paint a filled mark for a past report and a hollow one for the next, near the bottom of the pane', () => {
+test('Should paint a filled mark for a past report and a dividend and a hollow one for the next, near the bottom of the pane', () => {
   const calls: string[] = []
   const context = {
     fillStyle: '',
@@ -53,6 +66,7 @@ test('Should paint a filled mark for a past report and a hollow one for the next
     marks: () => [
       { x: 120, kind: 'past' },
       { x: 180, kind: 'next' },
+      { x: 120, kind: 'dividend', row: 1 },
     ],
     colors: () => ({ past: '#8F897E', next: '#7C5CFF', background: '#151412', text: '#151412' }),
   })
@@ -67,5 +81,8 @@ test('Should paint a filled mark for a past report and a hollow one for the next
     'fill #151412',
     'stroke #7C5CFF',
     'text E 180,290 #7C5CFF',
+    'arc 120,273 r7',
+    'fill #8F897E',
+    'text D 120,273 #151412',
   ])
 })

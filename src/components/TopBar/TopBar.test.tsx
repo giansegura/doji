@@ -495,6 +495,15 @@ test('Should set the rows of the volume profile', async () => {
   expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ volumeProfile: { visible: true, rows: 40 } }))
 })
 
+test('Should hide the earnings marks and the dividend marks each on its own', async () => {
+  const { handlers, user } = setup()
+  await openIndicators(user)
+  await user.click(screen.getByRole('checkbox', { name: 'Earnings marks' }))
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ marks: { earnings: false, dividends: true } }))
+  await user.click(screen.getByRole('checkbox', { name: 'Dividend marks' }))
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ marks: { earnings: true, dividends: false } }))
+})
+
 test('Should switch the MACD on and set its three lengths', async () => {
   const { handlers, user } = setup()
   await openIndicators(user)

@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import { addWeekdays } from '../../shared/dates'
 import type { Bar, Earnings } from '../../shared/types'
-import { earningsAsOf, replayBars, startOfReplay, stepReplay } from './replay'
+import { dividendsAsOf, earningsAsOf, replayBars, startOfReplay, stepReplay } from './replay'
 
 const days = Array.from({ length: 60 }, (_, index) => addWeekdays('2026-06-01', index))
 const bars: Bar[] = days.map((time, index) => ({ time, open: 100 + index, high: 101 + index, low: 99 + index, close: 100 + index, volume: 1000 }))
@@ -33,4 +33,13 @@ test('Should hide the earnings that had not happened yet on the replay date', ()
   const earnings: Earnings = { past: ['2026-05-01', '2026-07-30'], next: '2026-10-29', nextIsEstimate: false }
   expect(earningsAsOf(earnings, '2026-06-15')).toEqual({ past: ['2026-05-01'], next: null, nextIsEstimate: false })
   expect(earningsAsOf(earnings, null)).toBe(earnings)
+})
+
+test('Should hide the dividends paid after the replay date', () => {
+  const dividends = [
+    { date: '2026-05-08', amount: 0.26 },
+    { date: '2026-08-11', amount: 0.26 },
+  ]
+  expect(dividendsAsOf(dividends, '2026-06-15')).toEqual([{ date: '2026-05-08', amount: 0.26 }])
+  expect(dividendsAsOf(dividends, null)).toBe(dividends)
 })

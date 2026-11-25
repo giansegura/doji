@@ -1,9 +1,9 @@
 import { type RefObject, useEffect, useMemo } from 'react'
 import { useTheme } from 'styled-components'
-import type { ChartSettings, Drawing, DrawingKind, History, Indicators, LineLook, Timeframe } from '../../shared/types'
+import type { ChartSettings, Dividend, Drawing, DrawingKind, History, Indicators, LineLook, Timeframe } from '../../shared/types'
 import { changedLook, kindOf } from '../domain/lineLooks'
 import type { LivePrice } from '../domain/liveBar'
-import { earningsAsOf } from '../domain/replay'
+import { dividendsAsOf, earningsAsOf } from '../domain/replay'
 import { splitBasis } from '../domain/splits'
 import { askToNotify } from '../hooks/useAlerts'
 import { useEarnings } from '../hooks/useEarnings'
@@ -43,6 +43,8 @@ type ChartViewProps = {
 }
 
 const NO_LOOKS: Partial<Record<DrawingKind, LineLook>> = {}
+
+const NO_DIVIDENDS: Dividend[] = []
 
 const READ_ONLY_VIEWS: ViewStore = { get: (key) => sharedViewStore.get(key), set: () => undefined }
 
@@ -105,12 +107,20 @@ export const ChartView = ({
     colors: { up: theme.chart.up, down: theme.chart.down, poc: theme.ui.accent },
   })
   const loadedEarnings = useEarnings(history.info.symbol)
-  const earnings = useMemo(() => (loadedEarnings ? earningsAsOf(loadedEarnings, asOf) : null), [loadedEarnings, asOf])
+  const earnings = useMemo(
+    () => (loadedEarnings && indicators.marks.earnings ? earningsAsOf(loadedEarnings, asOf) : null),
+    [loadedEarnings, asOf, indicators.marks.earnings],
+  )
+  const dividends = useMemo(
+    () => (indicators.marks.dividends ? dividendsAsOf(history.dividends ?? NO_DIVIDENDS, asOf) : NO_DIVIDENDS),
+    [history.dividends, asOf, indicators.marks.dividends],
+  )
   usePickBar(handles, data.bars, onPickBar ? (time) => onPickBar(time, timeframe) : undefined)
   useBackToPresent(handles, asOf)
   useEarningsMarks({
     handles,
     earnings,
+    dividends,
     colors: { past: theme.ui.textMuted, next: theme.ui.textMuted, background: theme.chart.bg, text: theme.chart.bg },
   })
   const symbol = history.info.symbol
@@ -141,6 +151,7 @@ export const ChartView = ({
         rsiPaneTop={rsiPaneTop}
         macdPaneTop={macdPaneTop}
         earnings={earnings ? nextEarningsLabel(earnings) : null}
+        dividends={dividends}
       />
       {selectedLine && <LineToolbar line={selectedLine} onChange={changeLine} onDelete={deleteSelected} onArm={askToNotify} />}
       {manual && (

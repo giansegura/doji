@@ -1,7 +1,7 @@
 import { addDays } from '../shared/dates'
 import { type Level, supportsAndResistances } from '../shared/levels'
 import { priceDigits } from '../shared/symbols'
-import type { Bar, Drawing, History, LinePoint, Quote, SmaConfig, Timeframe } from '../shared/types'
+import type { Bar, Dividend, Drawing, History, LinePoint, Quote, SmaConfig, Timeframe } from '../shared/types'
 import { alertLevel } from '../shared/alerts'
 import { toMonthly } from '../src/domain/monthly'
 import { positionReading } from '../src/domain/position'
@@ -70,6 +70,18 @@ const swingsOf = (bars: Bar[], above: boolean, digits: number) => {
         : [],
     )
     .slice(-SWINGS_SHOWN)
+}
+
+const RECENT_DIVIDENDS = 4
+
+const dividendsOf = (dividends: Dividend[], today: string, close: number) => {
+  const paid = dividends.filter((dividend) => dividend.date <= today)
+  const since = addDays(today, -YEAR_DAYS)
+  const year = paid.filter((dividend) => dividend.date > since).reduce((sum, dividend) => sum + dividend.amount, 0)
+  return {
+    recent: paid.slice(-RECENT_DIVIDENDS),
+    yieldPercent: year > 0 && close > 0 ? roundTo((year / close) * 100, PERCENT_DIGITS) : null,
+  }
 }
 
 const yearRange = (daily: Bar[], close: number, digits: number) => {
@@ -164,6 +176,7 @@ export const summarizeChart = ({ history, timeframe, bars: count, averages, draw
       },
     },
     range52Weeks: yearRange(daily, close, digits),
+    dividends: dividendsOf(history.dividends ?? [], last.time, close),
     averages: averagesFor(averages).map((average) => {
       const value = lastOf(average.kind === 'ema' ? ema(closes, average.length) : sma(closes, average.length))
       return {

@@ -1,5 +1,5 @@
 import { mondayOf, monthStartOf } from '../../shared/dates'
-import type { Bar, Earnings, Timeframe } from '../../shared/types'
+import type { Bar, Dividend, Earnings, Timeframe } from '../../shared/types'
 
 const PERIOD: Record<Timeframe, (date: string) => string> = { D: (date) => date, W: mondayOf, M: monthStartOf }
 
@@ -24,6 +24,9 @@ export const stepReplay = (bars: Bar[], timeframe: Timeframe, cutoff: string): s
 
 export const earningsAsOf = (earnings: Earnings, cutoff: string | null): Earnings =>
   cutoff === null ? earnings : { ...earnings, past: earnings.past.filter((date) => date <= cutoff), next: null }
+
+export const dividendsAsOf = (dividends: Dividend[], cutoff: string | null): Dividend[] =>
+  cutoff === null ? dividends : dividends.filter((dividend) => dividend.date <= cutoff)
 
 export type ReplayState =
   | { status: 'off' }

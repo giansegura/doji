@@ -1,4 +1,4 @@
-import type { Bar, ExtendedQuote, ExtendedSession, History, Quote, Split, SymbolInfo } from '../../shared/types'
+import type { Bar, Dividend, ExtendedQuote, ExtendedSession, History, Quote, Split, SymbolInfo } from '../../shared/types'
 
 export type ProviderErrorKind = 'not_found' | 'rate_limited' | 'unavailable'
 
@@ -113,6 +113,18 @@ const parseSplits = (result: Json, toDate: (seconds: number) => string): Split[]
     .filter((split): split is Split => split !== null)
     .sort(byDate((split) => split.date))
 
+const parseDividends = (result: Json, toDate: (seconds: number) => string): Dividend[] =>
+  Object.values(asObject(asObject(result.events).dividends))
+    .map((raw): Dividend | null => {
+      const dividend = asObject(raw)
+      const seconds = asNumber(dividend.date)
+      const amount = asNumber(dividend.amount)
+      if (seconds === null || !amount || amount < 0) return null
+      return { date: toDate(seconds), amount }
+    })
+    .filter((dividend): dividend is Dividend => dividend !== null)
+    .sort(byDate((dividend) => dividend.date))
+
 export const parseHistory = (json: unknown, fetchedAt: string): History => {
   const result = asObject(asArray(asObject(asObject(json).chart).result)[0])
   const meta = asObject(result.meta)
@@ -130,6 +142,7 @@ export const parseHistory = (json: unknown, fetchedAt: string): History => {
     },
     bars: parseBars(result, toDate),
     splits: parseSplits(result, toDate),
+    dividends: parseDividends(result, toDate),
     fetchedAt,
     stale: false,
     ...(tradedAt === null ? {} : { tradedAt }),
@@ -244,7 +257,7 @@ export const createYahooProvider = (deps: {
     const now = deps.now()
     const period1 = fromDate ? Date.parse(`${fromDate}T00:00:00Z`) / 1000 : FULL_HISTORY_START
     const period2 = Math.floor(now.getTime() / 1000)
-    const url = `${CHART_URL}/${encodeURIComponent(symbol)}?period1=${period1}&period2=${period2}&interval=1d&events=splits`
+    const url = `${CHART_URL}/${encodeURIComponent(symbol)}?period1=${period1}&period2=${period2}&interval=1d&events=div%7Csplit`
     return parseHistory(await request(url), now.toISOString())
   }
 

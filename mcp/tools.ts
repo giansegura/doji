@@ -168,7 +168,7 @@ export const createDojiServer = ({ api, newId, version, today = todayIso }: Serv
     {
       title: 'Chart summary',
       description:
-        'Summarizes the chart of one symbol: last price and change, extended hours, 52-week range, SMA 20/50/200 and EMA 21 plus the averages the user set, RSI 14, MACD 12/26/9, Bollinger Bands 20/2, volume, recent swing highs and lows, the support and resistance levels around the price (found by doji from the weekly turns and how often the price bounced there), recent candles, the drawings of the user with their ids, and the note of the user for that symbol.',
+        'Summarizes the chart of one symbol: last price and change, extended hours, 52-week range, SMA 20/50/200 and EMA 21 plus the averages the user set, RSI 14, MACD 12/26/9, Bollinger Bands 20/2, volume, recent swing highs and lows, the support and resistance levels around the price (found by doji from the weekly turns and how often the price bounced there), the last four dividends with their ex-dates and the dividend yield of the last twelve months, recent candles, the drawings of the user with their ids, and the note of the user for that symbol.',
       inputSchema: {
         symbol: symbolField,
         timeframe: timeframeField.optional(),

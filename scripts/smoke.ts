@@ -838,6 +838,30 @@ await step('la leyenda dice cuándo son los próximos resultados', async () => {
   check(Array.isArray(earnings.past) && earnings.past.length > 0, `no llegaron resultados pasados: ${JSON.stringify(earnings)}`)
 })
 
+await step('los dividendos se marcan con una D, la leyenda dice su importe y se pueden ocultar', async () => {
+  const history = await page.evaluate(async () => (await fetch('/api/history?symbol=AAPL')).json())
+  check(Array.isArray(history.dividends) && history.dividends.length > 0, `no llegaron dividendos: ${JSON.stringify(history.dividends)}`)
+  const { price } = await panes()
+  const strip = { x: price.x, y: price.y + price.height - 40, width: price.width - 80, height: 38 }
+  const marked = await regionShot(strip)
+  let named = false
+  for (let x = price.x + 4; x < price.x + price.width - 90 && !named; x += 3) {
+    await page.mouse.move(x, price.y + price.height * 0.5)
+    named = (await page.getByText(/^Dividend \d+\.\d{2,4}$/).count()) > 0
+  }
+  check(named, 'la leyenda no dijo el importe de ningún dividendo')
+  await button('Indicators').click()
+  await page.getByRole('checkbox', { name: 'Dividend marks' }).click()
+  await page.keyboard.press('Escape')
+  check(!(await savedState()).indicators.marks.dividends, 'ocultar los dividendos no se guardó')
+  check((await regionShot(strip)) !== marked, 'las marcas de dividendos no se quitaron')
+  await button('Indicators').click()
+  await page.getByRole('checkbox', { name: 'Dividend marks' }).click()
+  await page.keyboard.press('Escape')
+  check((await savedState()).indicators.marks.dividends, 'volver a enseñar los dividendos no se guardó')
+  check((await regionShot(strip)) === marked, 'las marcas de dividendos no volvieron igual')
+})
+
 await step('el calendario de resultados enseña la última presentación de una acción y abre su gráfico', async () => {
   const onScreen = (await savedState()).symbol
   const symbols = activeItems(await savedState()).map((item) => item.symbol)

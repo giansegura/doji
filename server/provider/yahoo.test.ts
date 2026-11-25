@@ -35,7 +35,14 @@ const chartJson = (over: object = {}) => ({
             },
           ],
         },
-        events: { splits: { '1598880600': { date: 1598880600, numerator: 4, denominator: 1, splitRatio: '4:1' } } },
+        events: {
+          splits: { '1598880600': { date: 1598880600, numerator: 4, denominator: 1, splitRatio: '4:1' } },
+          dividends: {
+            '1795185000': { amount: 0.26, date: 1795185000 },
+            '1581085800': { amount: 0.1925, date: 1581085800 },
+            bad: { amount: 'x', date: 1 },
+          },
+        },
         ...over,
       },
     ],
@@ -135,6 +142,7 @@ test('Should treat a missing volume as zero and tolerate missing events', () => 
   })
   const history = parseHistory(json, 'x')
   expect(history.splits).toEqual([])
+  expect(history.dividends).toEqual([])
   expect(history.bars).toEqual([{ time: '2026-11-20', open: 10, high: 12, low: 9, close: 11, volume: 0 }])
 })
 
@@ -159,6 +167,13 @@ test('Should still leave out an earlier bar without close, or the last one when 
     indicators: { quote: [{ open: [347, 348.12], high: [350, 354.37], low: [345, 345.88], close: [null, null], volume: [100, 200] }] },
   })
   expect(parseHistory(json, 'x').bars).toEqual([])
+})
+
+test('Should read the dividends in date order and skip the broken ones', () => {
+  expect(parseHistory(chartJson(), 'x').dividends).toEqual([
+    { date: '2020-02-07', amount: 0.1925 },
+    { date: '2026-11-20', amount: 0.26 },
+  ])
 })
 
 test('Should return no bars when Yahoo sends no timestamps', () => {
@@ -262,7 +277,7 @@ test('Should request full daily history with the accepted user agent', async () 
   const history = await provider.history('BRK-B')
   expect(calls).toHaveLength(1)
   expect(calls[0].url).toBe(
-    'https://query1.finance.yahoo.com/v8/finance/chart/BRK-B?period1=-2208988800&period2=1795464000&interval=1d&events=splits',
+    'https://query1.finance.yahoo.com/v8/finance/chart/BRK-B?period1=-2208988800&period2=1795464000&interval=1d&events=div%7Csplit',
   )
   expect(calls[0].headers).toEqual({ 'User-Agent': 'Mozilla/5.0' })
   expect(history.fetchedAt).toBe('2026-11-23T20:00:00.000Z')

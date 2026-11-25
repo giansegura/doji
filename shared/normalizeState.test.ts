@@ -461,6 +461,18 @@ test('Should keep the volume profile hidden with twenty-four rows unless the con
   })
 })
 
+test('Should show the earnings and dividend marks unless the configuration hides them', () => {
+  expect(normalizeState({}).indicators.marks).toEqual({ earnings: true, dividends: true })
+  expect(normalizeState({ indicators: { marks: { earnings: false, dividends: false } } }).indicators.marks).toEqual({
+    earnings: false,
+    dividends: false,
+  })
+  expect(normalizeState({ indicators: { marks: { earnings: 0, dividends: 'no' } } }).indicators.marks).toEqual({
+    earnings: true,
+    dividends: true,
+  })
+})
+
 test('Should keep the support and resistance levels hidden with three per side unless the configuration says otherwise', () => {
   expect(normalizeState({}).indicators.levels).toEqual({ visible: false, perSide: 3 })
   expect(normalizeState({ indicators: { levels: { visible: true, perSide: 5 } } }).indicators.levels).toEqual({ visible: true, perSide: 5 })

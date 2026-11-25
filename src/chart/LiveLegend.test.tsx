@@ -80,3 +80,29 @@ test('Should follow the cursor without rendering what is around it', () => {
   expect(text()).toContain('C102.22')
   expect(counter.renders).toBe(before)
 })
+
+test('Should name the dividend of the hovered bar, and of the last bar while nothing is hovered', () => {
+  const hover = createHoverStore()
+  render(
+    <ThemeProvider theme={themes.midnight}>
+      <LiveLegend
+        hover={hover}
+        data={dataOf([101, 102, 103])}
+        info={info}
+        timeframe="D"
+        indicators={DEFAULT_STATE.indicators}
+        rsiPaneTop={null}
+        macdPaneTop={null}
+        dividends={[
+          { date: '2026-11-16', amount: 0.26 },
+          { date: '2026-11-18', amount: 0.27 },
+        ]}
+      />
+    </ThemeProvider>,
+  )
+  expect(text()).toContain('Dividend 0.27')
+  act(() => hover.set(0))
+  expect(text()).toContain('Dividend 0.26')
+  act(() => hover.set(1))
+  expect(text()).not.toContain('Dividend')
+})

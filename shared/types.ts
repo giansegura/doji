@@ -15,6 +15,8 @@ export type Bar = {
 
 export type Split = { date: string; numerator: number; denominator: number }
 
+export type Dividend = { date: string; amount: number }
+
 export type SymbolInfo = { symbol: string; name: string; exchange: string }
 
 export type ListSection = { kind: 'section'; id: string; title: string }
@@ -31,6 +33,7 @@ export type History = {
   info: SymbolInfo
   bars: Bar[]
   splits: Split[]
+  dividends?: Dividend[]
   fetchedAt: string
   stale: boolean
   tradedAt?: number
@@ -140,6 +143,7 @@ export type Indicators = {
   macd: { visible: boolean; fast: number; slow: number; signal: number }
   volumeProfile: { visible: boolean; rows: number }
   levels: { visible: boolean; perSide: number }
+  marks: { earnings: boolean; dividends: boolean }
 }
 
 export type ChartType = 'candles' | 'bars' | 'line' | 'area' | 'baseline'
@@ -201,6 +205,7 @@ export const DEFAULT_STATE: AppState = {
     macd: { visible: false, fast: 12, slow: 26, signal: 9 },
     volumeProfile: { visible: false, rows: 24 },
     levels: { visible: false, perSide: 3 },
+    marks: { earnings: true, dividends: true },
   },
   chart: { type: 'candles', scale: 'normal', invert: false, cursor: 'normal' },
   listWidth: LIST_DEFAULT_WIDTH,

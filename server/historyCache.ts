@@ -63,11 +63,13 @@ export const mergeHistory = (cached: History, tail: History): History => {
   const from = fresh[0]?.time
   const kept = from === undefined ? cached.bars : cached.bars.filter((bar) => bar.time < from)
   const splits = new Map([...cached.splits, ...tail.splits].map((split) => [split.date, split]))
+  const dividends = new Map([...(cached.dividends ?? []), ...(tail.dividends ?? [])].map((dividend) => [dividend.date, dividend]))
   const tradedAt = fresh.length > 0 ? tail.tradedAt : cached.tradedAt
   return {
     info: tail.info,
     bars: [...kept, ...fresh],
     splits: [...splits.values()].sort(byDate((split) => split.date)),
+    dividends: [...dividends.values()].sort(byDate((dividend) => dividend.date)),
     fetchedAt: tail.fetchedAt,
     stale: false,
     ...(tradedAt === undefined ? {} : { tradedAt }),
@@ -113,7 +115,7 @@ export const createHistoryCache = (deps: { provider: DataProvider; dir: string; 
 
   const download = async (symbol: string, cached: Entry | null): Promise<Download> => {
     const lastBar = cached?.history.bars.at(-1)
-    if (!cached || !lastBar || !(nowMs() - cached.fullAt < FULL_REFRESH_MS)) {
+    if (!cached || !lastBar || !cached.history.dividends || !(nowMs() - cached.fullAt < FULL_REFRESH_MS)) {
       return { history: await deps.provider.history(symbol), whole: true }
     }
     const tail = await deps.provider.history(symbol, addDays(lastBar.time, -TAIL_DAYS))

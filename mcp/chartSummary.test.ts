@@ -190,6 +190,20 @@ const ranging = Array.from({ length: 900 }, (_, index) => {
   return 100 + 20 * (phase < 0.5 ? phase * 2 : (1 - phase) * 2)
 })
 
+test('Should give the last four dividends and the yield of the last twelve months', () => {
+  const dividends = [
+    { date: '2025-01-10', amount: 0.5 },
+    { date: '2025-03-14', amount: 0.5 },
+    { date: '2025-06-13', amount: 0.5 },
+    { date: '2025-09-12', amount: 0.5 },
+    { date: '2025-12-12', amount: 0.55 },
+  ]
+  const summary = summarizeChart(input({ history: historyOf(rising, { dividends }) }))
+  expect(summary.dividends.recent).toEqual(dividends.slice(1))
+  expect(summary.dividends.yieldPercent).toBeCloseTo((2.05 / 249.5) * 100, 2)
+  expect(summarizeChart(input()).dividends).toEqual({ recent: [], yieldPercent: null })
+})
+
 test('Should give the support and resistance levels around the close with their distance', () => {
   const summary = summarizeChart(input({ history: historyOf([...ranging, 109, 110]) }))
   expect(summary.levels.supports.length).toBeGreaterThan(0)
