@@ -865,6 +865,7 @@ await step('los patrones de velas se marcan al encenderlos y se quitan al apagar
   await page.getByRole('checkbox', { name: 'Candle patterns' }).click()
   await page.keyboard.press('Escape')
   check((await regionShot(price)) === clean, 'quedan marcas de patrones al apagarlos')
+  await button('Show 1 year').click()
 })
 
 await step('la leyenda dice cuándo son los próximos resultados', async () => {
