@@ -19,6 +19,7 @@ import * as Styles from './styles'
 import { type ViewStore, sharedViewStore } from './savedViews'
 import { useAutoFit } from './useAutoFit'
 import { useBackToPresent } from './useBackToPresent'
+import { usePatternMarkers } from './usePatternMarkers'
 import { usePositionLine } from './usePositionLine'
 import { usePickBar } from './usePickBar'
 import { useChart } from './useChart'
@@ -133,6 +134,12 @@ export const ChartView = ({
   )
   usePickBar(handles, data.bars, onPickBar ? (time) => onPickBar(time, timeframe) : undefined)
   useBackToPresent(handles, asOf)
+  usePatternMarkers({
+    handles,
+    bars: data.bars,
+    settings: indicators.patterns,
+    colors: { up: theme.chart.up, down: theme.chart.down, neutral: theme.ui.textMuted },
+  })
   usePositionLine({
     handles,
     holding: asOf ? undefined : holding,

@@ -664,3 +664,12 @@ test('Should open the alerts of the symbol from the bell, which counts the armed
   await user.click(bell)
   expect(screen.getByText('Panel de alertas')).toBeTruthy()
 })
+
+test('Should switch the candle patterns on and choose which ones to mark', async () => {
+  const { handlers, user } = setup({ ...DEFAULT_STATE.indicators, patterns: { visible: true, kinds: ['doji', 'hammer'] } })
+  await openIndicators(user)
+  await user.click(screen.getByRole('checkbox', { name: 'Hammer' }))
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ patterns: { visible: true, kinds: ['doji'] } }))
+  await user.click(screen.getByRole('checkbox', { name: 'Bullish engulfing' }))
+  expect(handlers.onIndicators).toHaveBeenLastCalledWith(expect.objectContaining({ patterns: { visible: true, kinds: ['doji', 'hammer', 'bullishEngulfing'] } }))
+})

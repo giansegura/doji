@@ -852,6 +852,21 @@ await step('el perfil de volumen aparece a la derecha del gráfico y se quita', 
   check((await regionShot(side)) === clean, 'queda rastro del perfil de volumen')
 })
 
+await step('los patrones de velas se marcan al encenderlos y se quitan al apagarlos', async () => {
+  const { price } = await panes()
+  await button('Show 5 years').click()
+  const clean = await regionShot(price)
+  await button('Indicators').click()
+  await page.getByRole('checkbox', { name: 'Candle patterns' }).click()
+  await page.keyboard.press('Escape')
+  check((await savedState()).indicators.patterns.visible, 'los patrones no se guardaron')
+  check((await regionShot(price)) !== clean, 'no se marcó ningún patrón en cinco años de velas')
+  await button('Indicators').click()
+  await page.getByRole('checkbox', { name: 'Candle patterns' }).click()
+  await page.keyboard.press('Escape')
+  check((await regionShot(price)) === clean, 'quedan marcas de patrones al apagarlos')
+})
+
 await step('la leyenda dice cuándo son los próximos resultados', async () => {
   await page.getByText(/^Earnings ~?[A-Z][a-z]{2} \d{1,2}, \d{4}( · EPS est\. [−-]?\d+\.\d{2})?$/).waitFor({ timeout: 15_000 })
   const earnings = await page.evaluate(async () => (await fetch('/api/earnings?symbol=AAPL')).json())

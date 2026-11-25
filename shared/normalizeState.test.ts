@@ -672,3 +672,13 @@ test('Should keep which drawings are hidden and whether all of them are hidden o
   const out = normalizeState({ lines: { KO: [{ ...base, id: 'a', hidden: true }, { ...base, id: 'b', hidden: 'yes' }] } })
   expect(out.lines.KO.map((drawing) => drawing.hidden)).toEqual([true, undefined])
 })
+
+test('Should keep the candle patterns hidden with every kind chosen unless the configuration says otherwise', () => {
+  const all = ['doji', 'hammer', 'shootingStar', 'bullishEngulfing', 'bearishEngulfing']
+  expect(normalizeState({}).indicators.patterns).toEqual({ visible: false, kinds: all })
+  expect(normalizeState({ indicators: { patterns: { visible: true, kinds: ['hammer', 'cup'] } } }).indicators.patterns).toEqual({
+    visible: true,
+    kinds: ['hammer'],
+  })
+  expect(normalizeState({ indicators: { patterns: { visible: 'yes' } } }).indicators.patterns).toEqual({ visible: false, kinds: all })
+})

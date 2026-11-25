@@ -192,6 +192,8 @@ export type LineLook = Pick<DrawingBase, 'color' | 'width' | 'lineStyle' | 'opac
 
 export type SmaConfig = { id: string; length: number; color: string; width: number; kind?: 'ema' }
 
+export type PatternKind = 'doji' | 'hammer' | 'shootingStar' | 'bullishEngulfing' | 'bearishEngulfing'
+
 export type IndicatorAlertKind = 'rsi' | 'average' | 'move'
 
 export type IndicatorAlert = { id: string; kind: IndicatorAlertKind; value: number; averageId?: string; armed: boolean }
@@ -206,6 +208,7 @@ export type Indicators = {
   volumeProfile: { visible: boolean; rows: number }
   levels: { visible: boolean; perSide: number }
   marks: { earnings: boolean; dividends: boolean }
+  patterns: { visible: boolean; kinds: PatternKind[] }
 }
 
 export type ChartType = 'candles' | 'bars' | 'line' | 'area' | 'baseline'
@@ -280,6 +283,7 @@ export const DEFAULT_STATE: AppState = {
     volumeProfile: { visible: false, rows: 24 },
     levels: { visible: false, perSide: 3 },
     marks: { earnings: true, dividends: true },
+    patterns: { visible: false, kinds: ['doji', 'hammer', 'shootingStar', 'bullishEngulfing', 'bearishEngulfing'] },
   },
   chart: { type: 'candles', scale: 'normal', invert: false, cursor: 'normal', currency: 'original' },
   listWidth: LIST_DEFAULT_WIDTH,

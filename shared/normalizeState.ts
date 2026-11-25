@@ -315,6 +315,7 @@ const toIndicators = (raw: unknown): Indicators => {
   const levels = asRecord(indicators.levels)
   const perSide = asFinite(levels.perSide)
   const marks = asRecord(indicators.marks)
+  const patterns = asRecord(indicators.patterns)
   const defaults = DEFAULT_STATE.indicators
   return {
     volume: { visible: asBoolean(volume.visible, defaults.volume.visible) },
@@ -356,6 +357,10 @@ const toIndicators = (raw: unknown): Indicators => {
     marks: {
       earnings: asBoolean(marks.earnings, defaults.marks.earnings),
       dividends: asBoolean(marks.dividends, defaults.marks.dividends),
+    },
+    patterns: {
+      visible: asBoolean(patterns.visible, defaults.patterns.visible),
+      kinds: Array.isArray(patterns.kinds) ? defaults.patterns.kinds.filter((kind) => (patterns.kinds as unknown[]).includes(kind)) : defaults.patterns.kinds,
     },
   }
 }
