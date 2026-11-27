@@ -1,7 +1,10 @@
 import { expect, test } from 'vitest'
 import { type AppState, type CompanyProfile, DEFAULT_STATE, type History } from '../shared/types'
 import { type DataProvider, providerError } from './provider/yahoo'
+import { googleError } from './googleAuth'
+import type { GoogleStatus, GoogleSync } from './googleSync'
 import { type ApiResult, createApi, expectsBody, isLocalHost, isOwnRequest, parseRequestUrl } from './routes'
+import type { StateStore } from './stateStore'
 import { type Telegram, isTelegramError, telegramError as telegramFailure } from './telegram'
 
 const EMPTY_PROFILE: CompanyProfile = {
@@ -41,6 +44,8 @@ type Overrides = {
   getHistory?: (symbol: string) => Promise<History>
   search?: DataProvider['search']
   quotes?: DataProvider['quotes']
+  google?: GoogleSync
+  state?: StateStore
 }
 
 const makeApi = (over: Overrides = {}) => {
@@ -141,6 +146,7 @@ const makeApi = (over: Overrides = {}) => {
     ...(over.testPrices ? { testPrices: over.testPrices } : {}),
     ...(over.backup ? { backup: over.backup } : {}),
     ...(over.testYahoo ? { testYahoo: over.testYahoo } : {}),
+    ...(over.google ? { google: over.google } : {}),
     backupKey: {
       status: async () => ({ configured: requested.backupKey.length > 0, source: 'Twelve Data' }),
       set: async (key) => {
@@ -160,7 +166,7 @@ const makeApi = (over: Overrides = {}) => {
         return symbol === 'SINLOGO' ? null : { bytes: Buffer.from('PNG'), contentType: 'image/png' }
       },
     },
-    state: {
+    state: over.state ?? {
       read: async () => ({ ...DEFAULT_STATE, symbol: 'KO' }),
       save: async (state, baseRev) => {
         if (baseRev !== 1) return { ok: false, reason: 'conflict' }
@@ -576,4 +582,217 @@ test('Should let the tests take Yahoo down only when the test hooks are on', asy
   const { call } = makeApi({ testYahoo: (down) => void downs.push(down) })
   expect(await call('PUT', '/api/test/yahoo', { down: true })).toEqual({ status: 200, body: { down: true } })
   expect(downs).toEqual([true])
+})
+
+const GOOGLE_STATUS: GoogleStatus = {
+  configured: true,
+  email: 'ana@example.com',
+  sync: 'idle',
+  signInUrl: null,
+  lastSyncAt: '2026-11-27T12:00:00.000Z',
+  choice: null,
+  replacedRev: null,
+}
+
+const fakeGoogle = (over: Partial<GoogleSync> = {}) => {
+  const asked: string[] = []
+  const answer = (what: string) => async () => {
+    asked.push(what)
+    return GOOGLE_STATUS
+  }
+  const google: GoogleSync = {
+    status: answer('status'),
+    signIn: async () => {
+      asked.push('sign in')
+      return { url: 'https://accounts.example/sign-in' }
+    },
+    finishSignIn: async () => undefined,
+    syncNow: answer('sync'),
+    choose: async (keep) => answer(`keep ${keep}`)(),
+    signOut: answer('sign out'),
+    localChanged: () => undefined,
+    beforeSave: async () => undefined,
+    freshen: () => undefined,
+    start: async () => undefined,
+    stop: () => undefined,
+    ...over,
+  }
+  return { google, asked }
+}
+
+test('Should say how Google Drive stands, sign in, sync, choose and sign out', async () => {
+  const { google, asked } = fakeGoogle()
+  const { call } = makeApi({ google })
+  expect(await call('GET', '/api/google')).toEqual({ status: 200, body: GOOGLE_STATUS })
+  expect(await call('POST', '/api/google/sign-in')).toEqual({ status: 200, body: { url: 'https://accounts.example/sign-in' } })
+  expect(await call('POST', '/api/google/sync')).toEqual({ status: 200, body: GOOGLE_STATUS })
+  expect(await call('PUT', '/api/google/choice', { keep: 'local' })).toEqual({ status: 200, body: GOOGLE_STATUS })
+  expect(await call('PUT', '/api/google/choice', { keep: 'drive' })).toEqual({ status: 200, body: GOOGLE_STATUS })
+  expect(await call('DELETE', '/api/google')).toEqual({ status: 200, body: GOOGLE_STATUS })
+  expect(asked).toEqual(['status', 'sign in', 'sync', 'keep local', 'keep drive', 'sign out'])
+  expect(expectsBody('PUT')).toBe(true)
+})
+
+test('Should refuse to choose anything but this computer or Drive', async () => {
+  const { google, asked } = fakeGoogle()
+  const { call } = makeApi({ google })
+  const bodies = [null, 'drive', {}, { keep: 'both' }, { keep: 1 }]
+  const results = await Promise.all(bodies.map((body) => call('PUT', '/api/google/choice', body)))
+  expect(results).toEqual(bodies.map(() => ({ status: 400, body: { error: 'invalid_choice' } })))
+  expect(asked).toEqual([])
+})
+
+test.each([
+  ['not_configured', 409],
+  ['invalid_state', 400],
+  ['denied', 400],
+  ['expired', 409],
+  ['offline', 502],
+  ['unavailable', 502],
+] as const)('Should answer a %s failure of Google with %i', async (kind, status) => {
+  const { google } = fakeGoogle({
+    signIn: async () => {
+      throw googleError(kind)
+    },
+  })
+  expect(await makeApi({ google }).call('POST', '/api/google/sign-in')).toEqual({ status, body: { error: kind } })
+})
+
+test('Should have no Google routes when doji runs without Google', async () => {
+  const { call } = makeApi()
+  const results = await Promise.all([
+    call('GET', '/api/google'),
+    call('POST', '/api/google/sign-in'),
+    call('POST', '/api/google/sync'),
+    call('PUT', '/api/google/choice', { keep: 'local' }),
+    call('DELETE', '/api/google'),
+  ])
+  expect(results).toEqual(results.map(() => ({ status: 404, body: { error: 'not_found' } })))
+})
+
+// A store that keeps what it is given, whose first write can be held back as a wait for Google Drive does.
+const keptState = () => {
+  const box = { state: { ...DEFAULT_STATE, symbol: 'KO' } as AppState, held: null as Promise<void> | null }
+  const store: StateStore = {
+    read: async () => box.state,
+    save: async (state, baseRev) => {
+      const wait = box.held
+      box.held = null
+      await wait
+      if (baseRev !== box.state.rev) return { ok: false, reason: 'conflict' }
+      box.state = { ...state, rev: baseRev + 1 }
+      return { ok: true, rev: box.state.rev }
+    },
+  }
+  const hold = () => {
+    let open: () => void = () => undefined
+    box.held = new Promise<void>((done) => (open = done))
+    return () => open()
+  }
+  return { box, hold, ...makeApi({ state: store }) }
+}
+
+const savedAs = (rev: number) => ({ status: 200, body: { ok: true, rev } })
+const REFUSED = { status: 409, body: { error: 'conflict' } }
+
+const first = { ...DEFAULT_STATE, symbol: 'MSFT', rev: 1, saveId: 'tab-1' }
+const second = { ...DEFAULT_STATE, symbol: 'NVDA', rev: 1, saveId: 'tab-2', follows: 'tab-1' }
+
+test('Should write a save that follows another on top of what that one wrote', async () => {
+  const { call, box } = keptState()
+  expect(await call('PUT', '/api/state', first)).toEqual(savedAs(2))
+  expect(await call('PUT', '/api/state', second)).toEqual(savedAs(3))
+  expect(box.state.symbol).toBe('NVDA')
+  expect(box.state).not.toHaveProperty('saveId')
+  expect(box.state).not.toHaveProperty('follows')
+})
+
+test('Should write the save that follows after one that is still waiting to be written', async () => {
+  const { call, box, hold } = keptState()
+  const open = hold()
+  const one = call('PUT', '/api/state', first)
+  const two = call('PUT', '/api/state', second)
+  await new Promise((done) => setTimeout(done, 0))
+  expect(box.state.symbol).toBe('KO')
+  open()
+  expect(await one).toEqual(savedAs(2))
+  expect(await two).toEqual(savedAs(3))
+  expect(box.state.symbol).toBe('NVDA')
+})
+
+test('Should write a whole chain of saves in order, whether sent whole or as changes', async () => {
+  const { call, box, hold } = keptState()
+  const open = hold()
+  const one = call('PUT', '/api/state', first)
+  const two = call('PATCH', '/api/state', { rev: 1, changes: { theme: 'light' }, saveId: 'tab-2', follows: 'tab-1' })
+  const three = call('PATCH', '/api/state', { rev: 1, changes: { timeframe: 'W' }, saveId: 'tab-3', follows: 'tab-2' })
+  open()
+  expect(await Promise.all([one, two, three])).toEqual([savedAs(2), savedAs(3), savedAs(4)])
+  expect(box.state).toMatchObject({ symbol: 'MSFT', theme: 'light', timeframe: 'W', rev: 4 })
+})
+
+test('Should refuse a save that follows a refused one, even if its revision has come round', async () => {
+  const { call, box } = keptState()
+  box.state = { ...box.state, rev: 7 }
+  expect(await call('PUT', '/api/state', { ...first, rev: 6 })).toEqual(REFUSED)
+  expect(await call('PUT', '/api/state', { ...second, rev: 7 })).toEqual(REFUSED)
+  expect(box.state.symbol).toBe('KO')
+})
+
+test('Should refuse a save that follows one it never received', async () => {
+  const { call, box } = keptState()
+  expect(await call('PUT', '/api/state', second)).toEqual(REFUSED)
+  expect(await call('PATCH', '/api/state', { rev: 1, changes: { theme: 'light' }, follows: 'nobody' })).toEqual(REFUSED)
+  expect(box.state).toMatchObject({ symbol: 'KO', rev: 1 })
+})
+
+test.each([
+  ['PUT', { ...second }],
+  ['PATCH', { rev: 1, changes: { theme: 'light' }, follows: 'tab-1' }],
+])('Should refuse a %s that follows a save someone else has written over since', async (method, body) => {
+  const { call, box } = keptState()
+  await call('PUT', '/api/state', first)
+  await call('PUT', '/api/state', { ...DEFAULT_STATE, symbol: 'TSLA', rev: 2 })
+  expect(await call(method, '/api/state', body)).toEqual(REFUSED)
+  expect(box.state).toMatchObject({ symbol: 'TSLA', rev: 3 })
+})
+
+test('Should remember only the latest saves', async () => {
+  const { call } = keptState()
+  await call('PUT', '/api/state', first)
+  for (let turn = 0; turn < 19; turn += 1) await call('PUT', '/api/state', { ...DEFAULT_STATE, rev: 1, saveId: `stale-${turn}` })
+  expect(await call('PUT', '/api/state', { ...second, saveId: undefined })).toEqual(savedAs(3))
+  const later = keptState()
+  await later.call('PUT', '/api/state', first)
+  for (let turn = 0; turn < 20; turn += 1) await later.call('PUT', '/api/state', { ...DEFAULT_STATE, rev: 1, saveId: `stale-${turn}` })
+  expect(await later.call('PUT', '/api/state', second)).toEqual(REFUSED)
+})
+
+test('Should answer a read of the state only once the saves already received are written', async () => {
+  const { call, hold } = keptState()
+  const open = hold()
+  const one = call('PUT', '/api/state', first)
+  const two = call('PUT', '/api/state', second)
+  let answer: ApiResult | null = null
+  const reading = call('GET', '/api/state').then((result) => (answer = result))
+  await new Promise((done) => setTimeout(done, 0))
+  expect(answer).toBeNull()
+  open()
+  await Promise.all([one, two, reading])
+  expect(answer).toMatchObject({ status: 200, body: { symbol: 'NVDA', rev: 3 } })
+})
+
+test('Should still answer a read of the state after a save that failed', async () => {
+  let fail: () => void = () => undefined
+  const { call } = makeApi({
+    state: {
+      read: async () => DEFAULT_STATE,
+      save: () => new Promise((_done, reject) => (fail = () => reject(new Error('disk full')))),
+    },
+  })
+  const saving = call('PUT', '/api/state', DEFAULT_STATE)
+  const reading = call('GET', '/api/state')
+  fail()
+  expect(await saving).toEqual({ status: 500, body: { error: 'internal' } })
+  expect(await reading).toEqual({ status: 200, body: DEFAULT_STATE })
 })
