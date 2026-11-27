@@ -1,4 +1,4 @@
-import { access, copyFile, mkdir, readFile, readdir, rm } from 'node:fs/promises'
+import { access, copyFile, mkdir, readFile, readdir, rm, stat } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { normalizeState } from '../shared/normalizeState'
 import type { AppState } from '../shared/types'
@@ -11,7 +11,16 @@ export type StateStore = {
   save: (state: AppState, baseRev: number) => Promise<SaveOutcome>
 }
 
+export type LocalStateFile = StateStore & {
+  replace: (state: AppState, baseRev: number) => Promise<SaveOutcome>
+  // Keeps settings from elsewhere, as they came, among the copies of what was replaced.
+  keepCopy: (text: string) => Promise<void>
+  // Null when there is no file, or none that can be read as settings.
+  changedAt: () => Promise<number | null>
+}
+
 const BACKUPS_KEPT = 7
+const REPLACED_KEPT = 10
 
 const isMissing = (error: unknown): boolean => (error as { code?: unknown } | null)?.code === 'ENOENT'
 
@@ -19,6 +28,28 @@ const twoDigits = (value: number): string => String(value).padStart(2, '0')
 
 const localDay = (date: Date): string =>
   `${date.getFullYear()}-${twoDigits(date.getMonth() + 1)}-${twoDigits(date.getDate())}`
+
+const localTime = (date: Date): string => [date.getHours(), date.getMinutes(), date.getSeconds()].map(twoDigits).join('')
+
+const exists = (file: string): Promise<boolean> =>
+  access(file).then(
+    () => true,
+    () => false,
+  )
+
+const asRegExpText = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const byAge = (a: string, b: string): number => a.localeCompare(b, 'en', { numeric: true })
+
+const holdsSettings = (text: string): boolean => {
+  try {
+    const raw: unknown = JSON.parse(text)
+    // An empty object holds none either: doji never writes one.
+    return typeof raw === 'object' && raw !== null && !Array.isArray(raw) && Object.keys(raw).length > 0
+  } catch {
+    return false
+  }
+}
 
 const savedOnOf = (text: string): string | null => {
   try {
@@ -29,9 +60,10 @@ const savedOnOf = (text: string): string | null => {
   }
 }
 
-export const createStateStore = (file: string, now: () => Date = () => new Date()): StateStore => {
+export const createStateStore = (file: string, now: () => Date = () => new Date()): LocalStateFile => {
   const dir = dirname(file)
   const backupPrefix = `${basename(file)}.bak-`
+  const replacedPattern = new RegExp(`^${asRegExpText(backupPrefix)}\\d{4}-\\d{2}-\\d{2}-\\d{6}(-\\d+)?$`)
   let queue: Promise<unknown> = Promise.resolve()
 
   const readText = async (): Promise<string | null> => {
@@ -55,38 +87,77 @@ export const createStateStore = (file: string, now: () => Date = () => new Date(
 
   const read = async (): Promise<AppState> => parse(await readText())
 
-  const backUp = async (today: string): Promise<void> => {
-    const backup = `${file}.bak-${today}`
-    const exists = await access(backup).then(
-      () => true,
-      () => false,
-    )
-    if (exists) return
-    await copyFile(file, backup)
-    const backups = (await readdir(dir)).filter((entry) => entry.startsWith(backupPrefix)).sort()
-    await Promise.all(backups.slice(0, -BACKUPS_KEPT).map((entry) => rm(join(dir, entry), { force: true })))
+  // The next copy made at the same second takes a higher number, so it never looks older than the ones before it.
+  const replacedName = async (stem: string): Promise<string> => {
+    const taken = (await readdir(dir))
+      .filter((entry) => entry === stem || entry.startsWith(`${stem}-`))
+      .map((entry) => Number(entry.slice(stem.length + 1)) || 1)
+    return taken.length === 0 ? stem : `${stem}-${Math.max(...taken) + 1}`
   }
 
-  const persist = async (state: AppState, baseRev: number): Promise<SaveOutcome> => {
+  const keepNewest = async (copies: string[], kept: number): Promise<void> => {
+    await Promise.all(copies.sort(byAge).slice(0, -kept).map((entry) => rm(join(dir, entry), { force: true })))
+  }
+
+  const rotate = async (): Promise<void> => {
+    const copies = (await readdir(dir)).filter((entry) => entry.startsWith(backupPrefix))
+    await keepNewest(copies.filter((entry) => replacedPattern.test(entry)), REPLACED_KEPT)
+    await keepNewest(copies.filter((entry) => !replacedPattern.test(entry)), BACKUPS_KEPT)
+  }
+
+  const timedName = (moment: Date): Promise<string> =>
+    replacedName(`${backupPrefix}${localDay(moment)}-${localTime(moment)}`)
+
+  const backUp = async (moment: Date, always: boolean): Promise<void> => {
+    const daily = `${backupPrefix}${localDay(moment)}`
+    const taken = await exists(join(dir, daily))
+    if (taken && !always) return
+    await copyFile(file, join(dir, taken ? await timedName(moment) : daily))
+    await rotate()
+  }
+
+  const persist = async (state: AppState, baseRev: number, alwaysCopy: boolean): Promise<SaveOutcome> => {
     const text = await readText()
     const current = await parse(text)
     if (baseRev !== current.rev) return { ok: false, reason: 'conflict' }
-    const today = localDay(now())
+    const moment = now()
+    const today = localDay(moment)
     const rev = current.rev + 1
     await mkdir(dir, { recursive: true })
-    if (text !== null && savedOnOf(text) !== today) await backUp(today)
+    if (text !== null && (alwaysCopy || savedOnOf(text) !== today)) await backUp(moment, alwaysCopy)
     await writeAtomic(file, JSON.stringify({ ...normalizeState(state), rev, savedOn: today }, null, 2))
     return { ok: true, rev }
   }
 
-  const save = (state: AppState, baseRev: number): Promise<SaveOutcome> => {
-    const run = queue.then(
-      () => persist(state, baseRev),
-      () => persist(state, baseRev),
-    )
+  const queued = <T>(work: () => Promise<T>): Promise<T> => {
+    const run = queue.then(work, work)
     queue = run.catch(() => undefined)
     return run
   }
 
-  return { read, save }
+  const keepCopy = (text: string): Promise<void> =>
+    queued(async () => {
+      await mkdir(dir, { recursive: true })
+      await writeAtomic(join(dir, await timedName(now())), text)
+      await rotate()
+    })
+
+  const changedAt = async (): Promise<number | null> => {
+    try {
+      const { mtimeMs } = await stat(file)
+      // The defaults read in place of unreadable settings must never pass for this computer's.
+      return holdsSettings(await readFile(file, 'utf8')) ? mtimeMs : null
+    } catch (error) {
+      if (isMissing(error)) return null
+      throw error
+    }
+  }
+
+  return {
+    read,
+    save: (state, baseRev) => queued(() => persist(state, baseRev, false)),
+    replace: (state, baseRev) => queued(() => persist(state, baseRev, true)),
+    keepCopy,
+    changedAt,
+  }
 }

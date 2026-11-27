@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from 'vitest'
@@ -22,10 +22,11 @@ const makeStore = async () => {
   const file = join(dir, 'nested', 'state.json')
   let clock = new Date(2026, 10, 23, 12, 0, 0).getTime()
   const store = createStateStore(file, () => new Date(clock))
-  const advanceDays = (days: number) => {
-    clock += days * 24 * 60 * 60 * 1000
+  const advanceSeconds = (seconds: number) => {
+    clock += seconds * 1000
   }
-  return { store, dir: join(dir, 'nested'), file, advanceDays }
+  const advanceDays = (days: number) => advanceSeconds(days * 24 * 60 * 60)
+  return { store, dir: join(dir, 'nested'), file, advanceDays, advanceSeconds }
 }
 
 test('Should return the defaults when the file does not exist', async () => {
@@ -113,4 +114,151 @@ test('Should keep only the seven most recent backups', async () => {
   expect(backups).toHaveLength(7)
   expect(backups[0]).toBe('state.json.bak-2026-11-27')
   expect(backups[6]).toBe('state.json.bak-2026-12-03')
+})
+
+test('Should keep a copy of the file it replaces even when today already has one', async () => {
+  const { store, dir, advanceDays } = await makeStore()
+  await store.save({ ...DEFAULT_STATE, symbol: 'KO' }, 1)
+  advanceDays(1)
+  await store.save({ ...DEFAULT_STATE, symbol: 'MSFT' }, 2)
+  expect(await store.replace({ ...DEFAULT_STATE, symbol: 'NVDA' }, 3)).toEqual({ ok: true, rev: 4 })
+  expect((await store.read()).symbol).toBe('NVDA')
+  expect((await readdir(dir)).sort()).toEqual(['state.json', 'state.json.bak-2026-11-24', 'state.json.bak-2026-11-24-120000'])
+  const daily = JSON.parse(await readFile(join(dir, 'state.json.bak-2026-11-24'), 'utf8')) as AppState
+  const replaced = JSON.parse(await readFile(join(dir, 'state.json.bak-2026-11-24-120000'), 'utf8')) as AppState
+  expect([daily.symbol, replaced.symbol]).toEqual(['KO', 'MSFT'])
+})
+
+test('Should keep a copy under the day when the file it replaces is the first change of the day', async () => {
+  const { store, dir } = await makeStore()
+  await store.save({ ...DEFAULT_STATE, symbol: 'KO' }, 1)
+  await store.replace({ ...DEFAULT_STATE, symbol: 'NVDA' }, 2)
+  expect((await readdir(dir)).sort()).toEqual(['state.json', 'state.json.bak-2026-11-23'])
+  expect(JSON.parse(await readFile(join(dir, 'state.json.bak-2026-11-23'), 'utf8'))).toMatchObject({ symbol: 'KO' })
+})
+
+test('Should never overwrite an earlier copy when it replaces twice in the same second', async () => {
+  const { store, dir } = await makeStore()
+  await store.save({ ...DEFAULT_STATE, symbol: 'KO' }, 1)
+  await store.replace({ ...DEFAULT_STATE, symbol: 'MSFT' }, 2)
+  await store.replace({ ...DEFAULT_STATE, symbol: 'NVDA' }, 3)
+  await store.replace({ ...DEFAULT_STATE, symbol: 'AAPL' }, 4)
+  const copies = (await readdir(dir)).filter((name) => name.includes('.bak-')).sort()
+  const symbols = await Promise.all(copies.map(async (name) => (JSON.parse(await readFile(join(dir, name), 'utf8')) as AppState).symbol))
+  expect(symbols).toEqual(['KO', 'MSFT', 'NVDA'])
+})
+
+test('Should refuse to replace a state that changed since it was read', async () => {
+  const { store, dir } = await makeStore()
+  await store.save({ ...DEFAULT_STATE, symbol: 'KO' }, 1)
+  expect(await store.replace({ ...DEFAULT_STATE, symbol: 'MSFT' }, 1)).toEqual({ ok: false, reason: 'conflict' })
+  expect((await store.read()).symbol).toBe('KO')
+  expect(await readdir(dir)).toEqual(['state.json'])
+})
+
+const copiesIn = async (dir: string) => {
+  const names = (await readdir(dir)).filter((name) => name.includes('.bak-'))
+  const daily = names.filter((name) => /\.bak-\d{4}-\d{2}-\d{2}$/.test(name)).sort()
+  const replaced = names.filter((name) => !daily.includes(name)).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }))
+  const symbolsOf = (list: string[]) =>
+    Promise.all(list.map(async (name) => (JSON.parse(await readFile(join(dir, name), 'utf8')) as AppState).symbol))
+  return { daily, replaced, symbolsOf }
+}
+
+test('Should keep seven daily copies and, apart from them, the ten last ones it replaced', async () => {
+  const { store, dir, advanceDays, advanceSeconds } = await makeStore()
+  await store.save({ ...DEFAULT_STATE, symbol: 'KO' }, 1)
+  let rev = 2
+  for (let day = 0; day < 8; day += 1) {
+    advanceDays(1)
+    await store.save({ ...DEFAULT_STATE, symbol: `DAY${day}` }, rev++)
+  }
+  for (let turn = 0; turn < 12; turn += 1) {
+    advanceSeconds(1)
+    await store.replace({ ...DEFAULT_STATE, symbol: `NEW${turn}` }, rev++)
+  }
+  const { daily, replaced, symbolsOf } = await copiesIn(dir)
+  expect(daily).toEqual([25, 26, 27, 28, 29, 30].map((day) => `state.json.bak-2026-11-${day}`).concat('state.json.bak-2026-12-01'))
+  expect(replaced).toHaveLength(10)
+  expect(await symbolsOf(replaced)).toEqual(Array.from({ length: 10 }, (_, index) => `NEW${index + 1}`))
+})
+
+test('Should keep the newest replaced copies even when many are made in one second', async () => {
+  const { store, dir } = await makeStore()
+  await store.save({ ...DEFAULT_STATE, symbol: 'KO' }, 1)
+  for (let turn = 0; turn < 14; turn += 1) await store.replace({ ...DEFAULT_STATE, symbol: `NEW${turn}` }, turn + 2)
+  const { daily, replaced, symbolsOf } = await copiesIn(dir)
+  expect(await symbolsOf(daily)).toEqual(['KO'])
+  expect(await symbolsOf(replaced)).toEqual(Array.from({ length: 10 }, (_, index) => `NEW${index + 3}`))
+})
+
+test('Should tell replaced copies from daily ones whatever the file is called', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'doji-state-'))
+  let clock = new Date(2026, 10, 23, 9, 0, 0).getTime()
+  const store = createStateStore(join(dir, 'my (state).json'), () => new Date(clock))
+  await store.save(DEFAULT_STATE, 1)
+  for (let turn = 0; turn < 12; turn += 1) {
+    clock += 1000
+    await store.replace(DEFAULT_STATE, turn + 2)
+  }
+  const { daily, replaced } = await copiesIn(dir)
+  expect(daily).toEqual(['my (state).json.bak-2026-11-23'])
+  expect(replaced).toHaveLength(10)
+  expect(replaced[0]).toBe('my (state).json.bak-2026-11-23-090003')
+})
+
+test('Should say when the file last changed, and nothing while there is no file', async () => {
+  const { store, file } = await makeStore()
+  expect(await store.changedAt()).toBeNull()
+  await store.save(DEFAULT_STATE, 1)
+  const moment = new Date('2026-11-20T10:30:00.000Z')
+  await utimes(file, moment, moment)
+  expect(await store.changedAt()).toBe(moment.getTime())
+  expect(await store.changedAt()).toBe((await stat(file)).mtimeMs)
+})
+
+test.each([
+  ['text that is not JSON', '{ oops'],
+  ['an empty file', ''],
+  ['a list', '[1]'],
+  ['a bare value', 'null'],
+  ['an empty object', '{ }'],
+])('Should count a file holding %s as one that says nothing about when settings changed', async (_name, text) => {
+  const { store, dir, file } = await makeStore()
+  await store.save(DEFAULT_STATE, 1)
+  await writeFile(file, text)
+  expect(await store.changedAt()).toBeNull()
+  expect(await readdir(dir)).toEqual(['state.json'])
+})
+
+test('Should keep a copy of settings from elsewhere as they came, leaving its own file alone', async () => {
+  const { store, dir, file } = await makeStore()
+  await store.save({ ...DEFAULT_STATE, symbol: 'KO' }, 1)
+  const before = await readFile(file, 'utf8')
+  await store.keepCopy('{"symbol":"NVDA","future":1}')
+  await store.keepCopy('{"symbol":"TSLA"}')
+  expect(await readFile(file, 'utf8')).toBe(before)
+  expect((await readdir(dir)).sort()).toEqual(['state.json', 'state.json.bak-2026-11-23-120000', 'state.json.bak-2026-11-23-120000-2'])
+  expect(await readFile(join(dir, 'state.json.bak-2026-11-23-120000'), 'utf8')).toBe('{"symbol":"NVDA","future":1}')
+  expect(await readFile(join(dir, 'state.json.bak-2026-11-23-120000-2'), 'utf8')).toBe('{"symbol":"TSLA"}')
+})
+
+test('Should keep copies from elsewhere before it has settings of its own', async () => {
+  const { store, dir } = await makeStore()
+  await store.keepCopy('{"symbol":"NVDA"}')
+  expect(await readdir(dir)).toEqual(['state.json.bak-2026-11-23-120000'])
+})
+
+test('Should count copies from elsewhere with the replaced ones, never against the daily ones', async () => {
+  const { store, dir, advanceDays, advanceSeconds } = await makeStore()
+  await store.save({ ...DEFAULT_STATE, symbol: 'KO' }, 1)
+  advanceDays(1)
+  await store.save({ ...DEFAULT_STATE, symbol: 'MSFT' }, 2)
+  for (let turn = 0; turn < 12; turn += 1) {
+    advanceSeconds(1)
+    await store.keepCopy(JSON.stringify({ symbol: `NEW${turn}` }))
+  }
+  const { daily, replaced, symbolsOf } = await copiesIn(dir)
+  expect(daily).toEqual(['state.json.bak-2026-11-24'])
+  expect(await symbolsOf(replaced)).toEqual(Array.from({ length: 10 }, (_, index) => `NEW${index + 2}`))
 })
