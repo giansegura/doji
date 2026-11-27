@@ -138,6 +138,34 @@ La interfaz está en inglés: los nombres entre comillas son los que ves en pant
   - En esta primera versión cubre acciones y ETF de EE. UU., criptomonedas y divisas; las de otras bolsas, índices y futuros siguen solo con Yahoo. Los precios en vivo, el buscador, los resultados y la ficha siguen dependiendo de Yahoo. Sus históricos no traen splits ni dividendos.
   - La clave se guarda en `data/backup.json`, en tu ordenador, y no sale en la configuración que exportas. Stooq, la opción sin clave, ahora pide verificar un navegador y no se usa.
 
+## Guardar en Google Drive
+
+Es opcional: sin iniciar sesión, doji funciona como siempre y no manda nada a Google. Si entras con tu cuenta, doji guarda una copia de tu configuración en tu propio Google Drive, para que no se pierda y te siga a cualquier ordenador donde abras doji. No hay ningún servidor nuestro: doji habla con tu Drive desde tu ordenador. La sección "Google Drive" de "Settings" solo sale si tu copia de doji tiene un [cliente de Google](#crear-el-cliente-de-google-quien-publica-doji).
+
+- **Iniciar sesión:** en "Settings", "Google Drive", "Sign in with Google". La página de Google se abre en otra pestaña; si el navegador la bloquea, usa "Open the Google page". El enlace vale diez minutos; si cerraste la página sin terminar, "Start again" abre otra. Google te pide permiso solo para los archivos que crea doji: no ve el resto de tu Drive. Al terminar, cierra esa pestaña y vuelve a doji.
+- **Dónde queda la copia:** en el archivo `state.json` de una carpeta `doji` en "Mi unidad". Lleva lo mismo que `data/state.json`: listas, dibujos, alertas, notas y posiciones. No se suben las claves de Telegram ni de Twelve Data, ni `data/cache/`, ni tu sesión de Google.
+- **Cuándo se sincroniza:** al arrancar, al iniciar sesión, cada cinco minutos, cada minuto mientras tengas doji a la vista y al pulsar "Sync now", doji mira lo que hay en Drive y trae la copia si es más nueva. También mira antes de guardar un cambio, si hace más de un minuto que no mira Drive (por ejemplo, al despertar el ordenador), para no subir una configuración atrasada. Ese guardado espera a Drive cinco segundos como mucho; si Drive no responde a tiempo, durante el minuto siguiente los cambios se guardan sin esperar. Cada cambio (hecho en la app, por tu IA o por una alerta que salta) se sube unos segundos después. "Settings" dice con qué cuenta has entrado y cuándo fue la última sincronización.
+- **La primera vez:** si este ordenador aún no tiene configuración, usa la de Drive sin preguntar. Si las dos existen y son distintas, doji pregunta con cuál quedarse ("Keep this computer's" o "Use Google Drive's") y enseña las listas, los símbolos, los dibujos y la fecha de cada una. Hasta que contestes no sube ni cambia nada. La copia que no elijas se guarda antes en `data/state.json.bak-…`.
+- **Dos ordenadores:** gana el último cambio. Cuando la copia de Drive sustituye a la de este ordenador, doji guarda antes la de aquí en `data/state.json.bak-…` y la barra de arriba avisa ("Your settings were replaced by the copy in Google Drive."), también al abrir doji en el navegador si el cambio llegó mientras no lo mirabas y doji ha seguido en marcha desde entonces. Cuando gana la de este ordenador, la anterior queda en Drive, en el historial de versiones del archivo ("Gestionar versiones"), que Drive conserva por un tiempo limitado (en general, 30 días o 100 versiones). Si un cambio no se puede guardar porque Drive tenía una copia más nueva, la pestaña se recarga con la de Drive y el aviso dice además que ese último cambio no se guardó ("Replaced by Google Drive. Last change not saved.").
+- **Sin conexión:** todo sigue funcionando y se guarda en tu ordenador. "Settings" lo dice y doji lo vuelve a intentar: a los 30 segundos y luego cada vez más espaciado, hasta cada cinco minutos.
+- **Cerrar sesión:** "Sign out" retira el permiso en Google y borra `data/google.json`. El archivo se queda en tu Drive; si no lo quieres, bórralo desde Drive. Al retirar el permiso, doji lo pierde en toda tu cuenta: tus otros ordenadores dirán que la sesión ha caducado y habrá que volver a entrar en ellos. Conservan su configuración y, al entrar con la misma cuenta, siguen sin preguntar nada.
+- **Sesión caducada:** si Google deja de aceptar la sesión (por ejemplo, porque has cerrado sesión en otro ordenador o has quitado el permiso en tu cuenta de Google), "Settings" lo dice; entra otra vez con "Sign in with Google".
+
+### Crear el cliente de Google (quien publica doji)
+
+Quien publica doji crea una sola vez el "cliente" con el que la app pide permiso a Google. Quien usa esa copia no tiene que hacer nada de esto: cada persona entra con su cuenta y sus datos van a su Drive.
+
+1. En <https://console.cloud.google.com>, crea un proyecto (por ejemplo, `doji`).
+2. "APIs y servicios" → "Biblioteca" → "Google Drive API" → "Habilitar".
+3. En "Google Auth Platform" (la pantalla de consentimiento de OAuth):
+   - Tipo de usuario "Externo", nombre de la aplicación `doji` y los correos de asistencia y de contacto.
+   - En "Acceso a los datos", añade solo `https://www.googleapis.com/auth/drive.file`.
+   - En "Público", "Publicar aplicación", para dejarla "En producción". Es importante: en modo de prueba las sesiones caducan a los 7 días y solo pueden entrar los usuarios de prueba que añadas (hasta 100). `drive.file` no es un permiso sensible, así que no hay que pasar su verificación; Google solo pide verificar la marca si pones un logo.
+4. "Clientes" → "Crear cliente" → tipo "App de escritorio". Copia el ID y el secreto del cliente.
+5. Pégalos en `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET`, en `server/googleClient.ts`, o arranca doji con las variables `DOJI_GOOGLE_CLIENT_ID` y `DOJI_GOOGLE_CLIENT_SECRET`. Google no trata como secreto el de una app de escritorio, así que puede ir en el código.
+
+Para probar sin Google, `DOJI_GOOGLE_API=http://127.0.0.1:<puerto>` hace que doji hable con un Google falso en ese puerto (con cualquier ID y secreto).
+
 ## Atajos
 
 - **Atajos:** las flechas arriba y abajo recorren la lista. `Alt+T` arma la línea de tendencia, `Alt+H` la horizontal, `Alt+C` el canal, `Alt+R` el rectángulo y `Alt+M` la regla; `Esc` vuelve al cursor. `Alt+W` pliega o despliega la lista. `?` abre un cuadro con todos los atajos, al que también se llega desde "Settings", con "Keyboard shortcuts".
@@ -198,9 +226,10 @@ Si doji corre en otro puerto, añade la variable de entorno `DOJI_URL=http://127
 
 En la carpeta `data/` del proyecto, que no se versiona:
 
-- `data/state.json`: listas de seguimiento, líneas, tema e indicadores. Es el archivo que conviene copiar si quieres una copia de seguridad. "Export settings" te da esa misma copia desde la app, y es la forma de llevar tu configuración a otro ordenador. Se puede importar tanto un archivo exportado como una copia de `state.json`.
-- `data/state.json.bak-AAAA-MM-DD`: copia automática del estado tal como estaba antes del primer cambio de cada día. Se conservan las siete últimas.
-- `data/state.json.corrupt-…`: si alguna vez el archivo no se puede leer como JSON, se guarda aparte con este nombre y la app arranca con valores por defecto.
+- `data/state.json`: listas de seguimiento, líneas, tema e indicadores. Es el archivo que conviene copiar si quieres una copia de seguridad. "Export settings" te da esa misma copia desde la app, y sirve para llevar tu configuración a otro ordenador sin [guardarla en Google Drive](#guardar-en-google-drive). Se puede importar tanto un archivo exportado como una copia de `state.json`.
+- `data/state.json.bak-AAAA-MM-DD`: copia automática del estado tal como estaba antes del primer cambio de cada día. Se conservan las siete últimas. Cada vez que la copia de Google Drive sustituye a la de este ordenador se guarda otra; si ese día ya hay una, su nombre lleva además la hora (`…-HHMMSS`). Si al entrar en Google Drive eliges quedarte con la copia de este ordenador, la de Drive se guarda aquí también con la hora. De estas, con la hora, se conservan las diez últimas, aparte de las diarias.
+- `data/google.json`: tu sesión de Google, si guardas la configuración en Drive. Solo se envía a Google y nunca se sube. "Sign out" lo borra.
+- `data/state.json.corrupt-…`: si alguna vez el archivo no se puede leer como JSON, se guarda aparte con este nombre y la app arranca con valores por defecto. Si guardas la configuración en Drive, doji no sube esos valores: trae la copia de Drive, o pregunta con cuál quedarte si antes de poder mirar Drive ya habías guardado algún cambio. Hace lo mismo con un archivo que solo contenga `{}`.
 - `data/cache/`: histórico descargado de cada acción y logos de las empresas. Se puede borrar sin perder nada.
 
 `DOJI_DATA_DIR=/otra/carpeta npm start` usa otra carpeta.
@@ -233,6 +262,12 @@ Los precios salen de los endpoints públicos de Yahoo Finance. No es una API ofi
 - El arrastre de filas de la lista está probado en Chrome; en Firefox no se ha comprobado.
 - Cada pestaña con precios en vivo mantiene una conexión abierta con el servidor, y los navegadores admiten unas seis por sitio: con más de cinco pestañas de doji visibles a la vez (o con alertas armadas), las siguientes se quedan esperando.
 - El servidor solo escucha en `127.0.0.1` y rechaza las peticiones a `/api` que haga otra web desde el navegador.
+- Con doji en marcha en dos ordenadores a la vez, los dos vigilan las mismas alertas y cada aviso llega dos veces a Telegram.
+- En Google Drive, doji solo ve lo que él crea: una carpeta `doji` hecha a mano no la usa y crea la suya.
+- No se admiten copias de más de 5 MB en Google Drive.
+- Usa la misma versión de doji en todos tus ordenadores: al subir la configuración, una versión antigua pierde lo que no conoce.
+- En Google Drive gana el último cambio sobre la configuración entera, sin mezclar campo a campo: de los cambios hechos en dos ordenadores en el mismo minuto, sin conexión, o mientras Google tarda más de unos segundos en responder o falla (y hasta un minuto después), solo queda el más reciente. El otro se queda en una copia `bak` de su ordenador y, si llegó a subirse, en las versiones de Drive.
+- Después de cerrar sesión y volver a entrar, puede que Google no deje a doji ver la carpeta anterior; entonces crea una nueva.
 
 ## Prueba completa en Chrome
 
