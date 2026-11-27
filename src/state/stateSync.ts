@@ -2,6 +2,9 @@ import type { AppState } from '../../shared/types'
 
 export type SaveResult = { kind: 'saved'; rev: number } | { kind: 'conflict' } | { kind: 'failed' }
 
+// The name of a save and, for one sent while another is still under way, the name of the one it goes after.
+export type SaveLink = { saveId: string; follows?: string }
+
 export type StateSync = {
   loaded: (state: AppState) => void
   changed: (state: AppState) => void
@@ -12,7 +15,7 @@ export type StateSync = {
 }
 
 type SyncDeps = {
-  put: (state: AppState, keepalive: boolean, saved: AppState | null) => Promise<SaveResult>
+  put: (state: AppState, keepalive: boolean, saved: AppState | null, link: SaveLink) => Promise<SaveResult>
   onSaved: () => void
   onConflict: () => void
   onFailed: () => void
@@ -23,11 +26,13 @@ type SyncDeps = {
 }
 
 export const createStateSync = (deps: SyncDeps): StateSync => {
+  const page = Math.random().toString(36).slice(2)
+  let sends = 0
   let rev = 1
   let generation = 0
   let pending: AppState | null = null
   let saved: AppState | null = null
-  let inFlight = false
+  let inFlight: { state: AppState; id: string } | null = null
   let timer: unknown = null
 
   const cancelTimer = (): void => {
@@ -65,13 +70,18 @@ export const createStateSync = (deps: SyncDeps): StateSync => {
   }
 
   const send = (keepalive: boolean): void => {
-    if (inFlight || !pending) return
     const sent = pending
+    const underway = inFlight
+    // One save at a time, except as the page is left: the newest change then goes after the one under way.
+    if (!sent || (underway && (!keepalive || sent === underway.state))) return
     const sentGeneration = generation
-    inFlight = true
-    deps.put({ ...sent, rev }, keepalive, saved).then((result) => {
-      if (sentGeneration !== generation) return
-      inFlight = false
+    sends += 1
+    const id = `${page}-${sends}`
+    inFlight = { state: sent, id }
+    const link = { saveId: id, follows: underway?.id }
+    deps.put({ ...sent, rev }, keepalive, underway?.state ?? saved, link).then((result) => {
+      if (sentGeneration !== generation || inFlight?.id !== id) return
+      inFlight = null
       settle(sent, result)
     })
   }
@@ -82,7 +92,7 @@ export const createStateSync = (deps: SyncDeps): StateSync => {
     rev = state.rev
     saved = state
     pending = null
-    inFlight = false
+    inFlight = null
   }
 
   const changed = (state: AppState): void => {
@@ -91,7 +101,7 @@ export const createStateSync = (deps: SyncDeps): StateSync => {
   }
 
   const flush = (): void => {
-    if (!pending || inFlight) return
+    if (!pending) return
     cancelTimer()
     send(true)
   }
@@ -100,7 +110,7 @@ export const createStateSync = (deps: SyncDeps): StateSync => {
     loaded,
     changed,
     flush,
-    hasUnsaved: () => pending !== null || inFlight,
+    hasUnsaved: () => pending !== null || inFlight !== null,
     rev: () => rev,
     dispose: cancelTimer,
   }

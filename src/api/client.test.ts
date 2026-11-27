@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { type AppState, DEFAULT_STATE, type TrendLine } from '../../shared/types'
-import { getHistory, getKeptHistory, getWatchMetrics, putState, resolveSymbols } from './client'
+import { getHistory, getKeptHistory, getWatchMetrics, googleApi, googleReloadNotice, putState, resolveSymbols } from './client'
 
 const reply = (status: number, body: unknown) =>
   vi.fn(async () => ({ ok: status >= 200 && status < 300, status, json: async () => body }))
@@ -93,6 +93,18 @@ test('Should send the whole state while the page stays open, whatever its size',
   expect(sent.body.lines).toEqual(heavy.lines)
 })
 
+test.each([
+  ['whole', { ...DEFAULT_STATE, rev: 7 }, 'PUT'],
+  ['as changes', heavy, 'PATCH'],
+])('Should name a save and the one it follows when sent %s', async (_name, state, method) => {
+  const fetchMock = reply(200, { ok: true, rev: 8 })
+  vi.stubGlobal('fetch', fetchMock)
+  await putState({ ...state, theme: 'light' }, true, state, { saveId: 'tab-2', follows: 'tab-1' })
+  const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+  expect(init.method).toBe(method)
+  expect(JSON.parse(init.body as string)).toMatchObject({ rev: 7, saveId: 'tab-2', follows: 'tab-1' })
+})
+
 test('Should send the whole state when it does not know what the server has', async () => {
   const sent = await sentBy({ ...heavy, theme: 'light' }, true, null)
   expect(sent.method).toBe('PUT')
@@ -132,4 +144,51 @@ test('Should send each group of candidates to be checked and return what Yahoo k
   expect(await resolveSymbols([['AAPL'], ['MC.PA', 'MC.AS']])).toEqual([apple, null])
   const url = (fetchMock.mock.calls[0] as unknown as [string])[0]
   expect(new URL(url, 'http://doji').searchParams.get('symbols')).toBe('AAPL,MC.PA|MC.AS')
+})
+
+test('Should ask the server about Google Drive and tell it what to do', async () => {
+  const fetchMock = reply(200, { url: 'https://accounts.example/sign-in' })
+  vi.stubGlobal('fetch', fetchMock)
+  await googleApi.status()
+  expect(await googleApi.signIn()).toEqual({ url: 'https://accounts.example/sign-in' })
+  await googleApi.syncNow()
+  await googleApi.choose('drive')
+  await googleApi.signOut()
+  const calls = fetchMock.mock.calls as unknown as [string, RequestInit | undefined][]
+  expect(calls.map(([path, init]) => `${init?.method ?? 'GET'} ${path}`)).toEqual([
+    'GET /api/google',
+    'POST /api/google/sign-in',
+    'POST /api/google/sync',
+    'PUT /api/google/choice',
+    'DELETE /api/google',
+  ])
+  expect(calls[3][1]).toMatchObject({ headers: { 'Content-Type': 'application/json' }, body: '{"keep":"drive"}' })
+})
+
+test.each([
+  ['the settings loaded are the copy of Drive', 8, 7],
+  ['a change was saved on top of the copy before it was seen', 9, 7],
+  ['much changed since the settings were last seen', 20, 1],
+])('Should say that Drive replaced the settings when %s', async (_name, rev, since) => {
+  vi.stubGlobal('fetch', reply(200, { replacedRev: 8 }))
+  expect(await googleReloadNotice(rev, since, false)).toBe('Your settings were replaced by the copy in Google Drive.')
+})
+
+test('Should say in a shorter way that Drive replaced the settings and a change was lost', async () => {
+  vi.stubGlobal('fetch', reply(200, { replacedRev: 8 }))
+  expect(await googleReloadNotice(8, 7, true)).toBe('Replaced by Google Drive. Last change not saved.')
+})
+
+test.each([
+  ['the copy of Drive was already seen', 8, 9, 8],
+  ['the settings loaded are from before the replacement', 8, 7, 6],
+  ['Drive replaced nothing', null, 9, 1],
+])('Should say nothing about a reload when %s', async (_name, replacedRev, rev, since) => {
+  vi.stubGlobal('fetch', reply(200, { replacedRev }))
+  expect(await googleReloadNotice(rev, since, false)).toBeNull()
+})
+
+test('Should say nothing about a reload when it cannot ask', async () => {
+  vi.stubGlobal('fetch', reply(404, { error: 'not_found' }))
+  expect(await googleReloadNotice(8, 7, true)).toBeNull()
 })
