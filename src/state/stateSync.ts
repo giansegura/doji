@@ -33,6 +33,8 @@ export const createStateSync = (deps: SyncDeps): StateSync => {
   let pending: AppState | null = null
   let saved: AppState | null = null
   let inFlight: { state: AppState; id: string } | null = null
+  // Saves overtaken by a follower and not answered yet.
+  const unanswered = new Set<string>()
   let timer: unknown = null
 
   const cancelTimer = (): void => {
@@ -74,6 +76,12 @@ export const createStateSync = (deps: SyncDeps): StateSync => {
     const underway = inFlight
     // One save at a time, except as the page is left: the newest change then goes after the one under way.
     if (!sent || (underway && (!keepalive || sent === underway.state))) return
+    // A retry waits for those answers, which give the revision to build on.
+    if (!keepalive && unanswered.size > 0) {
+      schedule(deps.retryMs)
+      return
+    }
+    if (underway) unanswered.add(underway.id)
     const sentGeneration = generation
     sends += 1
     const id = `${page}-${sends}`
@@ -81,6 +89,7 @@ export const createStateSync = (deps: SyncDeps): StateSync => {
     const link = { saveId: id, follows: underway?.id }
     deps.put({ ...sent, rev }, keepalive, underway?.state ?? saved, link).then((result) => {
       if (sentGeneration !== generation) return
+      unanswered.delete(id)
       if (inFlight?.id !== id) {
         // Overtaken by a follower. What got written is still the base to try again from, should the follower not be.
         if (result.kind === 'saved' && result.rev > rev) {
@@ -101,6 +110,7 @@ export const createStateSync = (deps: SyncDeps): StateSync => {
     saved = state
     pending = null
     inFlight = null
+    unanswered.clear()
   }
 
   const changed = (state: AppState): void => {

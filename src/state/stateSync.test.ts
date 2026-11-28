@@ -302,3 +302,26 @@ test('Should not go back to an earlier revision when the save it overtook answer
   expect(sync.rev()).toBe(6)
   expect(events).toEqual(['saved'])
 })
+
+test('Should hold a retry until the save it overtook has answered, and build on what that one wrote', async () => {
+  const { sync, puts, fire, answer, pendingTimer, second } = leftWhileSaving()
+  await answer(1, { kind: 'failed' })
+  fire()
+  fire()
+  expect(puts).toHaveLength(2)
+  expect(pendingTimer()?.ms).toBe(5000)
+  await answer(0, { kind: 'saved', rev: 5 })
+  fire()
+  expect(puts[2].state).toMatchObject({ symbol: second.symbol, rev: 5 })
+  await answer(2, { kind: 'saved', rev: 6 })
+  expect(sync.hasUnsaved()).toBe(false)
+})
+
+test('Should save again at once after a fresh state, whatever was overtaken before it', async () => {
+  const { sync, puts, fire, answer } = leftWhileSaving()
+  await answer(1, { kind: 'conflict' })
+  sync.loaded(state('TSLA', 9))
+  sync.changed(state('NVDA', 9))
+  fire()
+  expect(puts[2].state).toMatchObject({ symbol: 'NVDA', rev: 9 })
+})
