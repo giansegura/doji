@@ -148,7 +148,8 @@ export const createApi = (deps: ApiDeps): Route => {
     new Promise<SaveOutcome>((done) => {
       followers.set(id, done)
       pause(FOLLOWED_WAIT_MS).then(() => {
-        followers.delete(id)
+        // A later follower of the same save has a wait of its own, which this one must not end.
+        if (followers.get(id) === done) followers.delete(id)
         done(REFUSED)
       })
     })
@@ -179,7 +180,11 @@ export const createApi = (deps: ApiDeps): Route => {
       followers.get(name)?.(outcome)
       followers.delete(name)
     }
-    if (recentSaves.size > SAVES_REMEMBERED) recentSaves.delete(recentSaves.keys().next().value as string)
+    // The oldest answered saves are forgotten. One still waiting stays, as its follower may yet arrive.
+    for (const old of recentSaves.keys()) {
+      if (recentSaves.size <= SAVES_REMEMBERED) break
+      if (!unanswered.has(old)) recentSaves.delete(old)
+    }
     return outcome
   }
 

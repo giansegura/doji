@@ -771,6 +771,28 @@ test('Should remember only the latest saves', async () => {
   expect(await later.call('PUT', '/api/state', second)).toEqual(REFUSED)
 })
 
+test('Should not forget a save still waiting to be written, however many saves come after it', async () => {
+  const { call, hold } = keptState()
+  const open = hold()
+  const one = call('PUT', '/api/state', first)
+  for (let turn = 0; turn < 20; turn += 1) await call('PUT', '/api/state', { ...DEFAULT_STATE, rev: 9, saveId: `stale-${turn}` })
+  const two = call('PUT', '/api/state', second)
+  open()
+  expect(await Promise.all([one, two])).toEqual([savedAs(2), savedAs(3)])
+})
+
+test('Should leave a later follower waiting when the wait of an earlier one ends', async () => {
+  const ends: (() => void)[] = []
+  const { call } = keptState(() => new Promise<void>((done) => ends.push(done)))
+  const earlier = call('PUT', '/api/state', second)
+  const later = call('PUT', '/api/state', { ...second, saveId: 'tab-3' })
+  ends[0]()
+  expect(await earlier).toEqual(REFUSED)
+  expect(await call('PUT', '/api/state', first)).toEqual(savedAs(2))
+  ends[1]()
+  expect(await later).toEqual(savedAs(3))
+})
+
 test('Should answer a read of the state only once the saves already received are written', async () => {
   const { call, hold } = keptState()
   const open = hold()
