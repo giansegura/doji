@@ -101,8 +101,10 @@ export const createStateStore = (file: string, now: () => Date = () => new Date(
     await Promise.all(copies.sort(byAge).slice(0, -kept).map((entry) => rm(join(dir, entry), { force: true })))
   }
 
+  const copiesKept = async (): Promise<string[]> => (await readdir(dir)).filter((entry) => entry.startsWith(backupPrefix))
+
   const rotate = async (): Promise<void> => {
-    const copies = (await readdir(dir)).filter((entry) => entry.startsWith(backupPrefix))
+    const copies = await copiesKept()
     await keepNewest(copies.filter((entry) => replacedPattern.test(entry)), REPLACED_KEPT)
     await keepNewest(copies.filter((entry) => !replacedPattern.test(entry)), BACKUPS_KEPT)
   }
@@ -120,7 +122,10 @@ export const createStateStore = (file: string, now: () => Date = () => new Date(
     const daily = `${backupPrefix}${localDay(moment)}`
     const taken = await exists(join(dir, daily))
     if (taken && !always) return
-    await copyFile(file, join(dir, taken ? await timedName(moment) : daily))
+    // What is replaced takes a timed name too when a later day has a copy, as after the clock went back: rotation
+    // would count a daily copy for this day among the oldest and could drop it at once.
+    const late = always && (await copiesKept()).some((entry) => !replacedPattern.test(entry) && byAge(entry, daily) > 0)
+    await copyFile(file, join(dir, taken || late ? await timedName(moment) : daily))
     await rotate()
   }
 

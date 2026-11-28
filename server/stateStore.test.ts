@@ -334,3 +334,29 @@ test('Should go on counting up when a copy is brought with the clock set back', 
   advanceSeconds(-60)
   expect(await replaced(DEFAULT_STATE, first)).toBe(first + 1)
 })
+
+test('Should keep the copy of what it replaces when the clock goes back to a day older than every daily copy kept', async () => {
+  const { store, dir, advanceDays, replaced } = await makeStore()
+  await store.save({ ...DEFAULT_STATE, symbol: 'KO' }, 1)
+  for (let day = 0; day < 7; day += 1) {
+    advanceDays(1)
+    await store.save({ ...DEFAULT_STATE, symbol: `DAY${day}` }, day + 2)
+  }
+  advanceDays(-10)
+  await replaced({ ...DEFAULT_STATE, symbol: 'NVDA' }, 9)
+  const { daily, replaced: copies, symbolsOf } = await copiesIn(dir)
+  expect(daily).toHaveLength(7)
+  expect(await symbolsOf(copies)).toEqual(['DAY6'])
+})
+
+test('Should name the copy before an ordinary save by its day, even when a later day has one', async () => {
+  const { store, dir, advanceDays } = await makeStore()
+  await store.save({ ...DEFAULT_STATE, symbol: 'KO' }, 1)
+  advanceDays(2)
+  await store.save({ ...DEFAULT_STATE, symbol: 'MSFT' }, 2)
+  advanceDays(-1)
+  await store.save({ ...DEFAULT_STATE, symbol: 'NVDA' }, 3)
+  const { daily, replaced } = await copiesIn(dir)
+  expect(daily).toEqual(['state.json.bak-2026-11-24', 'state.json.bak-2026-11-25'])
+  expect(replaced).toEqual([])
+})
