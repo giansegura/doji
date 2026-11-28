@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Privacidad de doji</title><link rel="icon" href="favicon.svg"><style>
+:root{--bg:#FBFAFF;--ink:#1D1A2B;--muted:#5D5876;--accent:#7C5CFF;--line:#E4E0F3}
+@media (prefers-color-scheme:dark){:root{--bg:#14121D;--ink:#ECEAF5;--muted:#A9A4C2;--accent:#A08BFF;--line:#2C2840}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:680px;margin:0 auto;padding:48px 20px 64px}
+header{display:flex;align-items:center;gap:14px;margin-bottom:28px}header img{width:48px;height:48px}
+h1{font-size:34px;line-height:1.1;margin:0}h2{font-size:21px;margin:36px 0 8px}
+p,li{color:var(--ink)}.muted{color:var(--muted)}a{color:var(--accent)}
+ul{padding-left:22px}nav{display:flex;flex-wrap:wrap;gap:18px;margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-size:15px}
+.lang{font-size:15px;color:var(--muted)}
+</style></head>
+<body><main>
+<header><img src="favicon.svg" alt=""><h1>Política de privacidad</h1></header>
+<p class="muted">Última actualización: 28 de noviembre de 2026.</p>
+<p>doji es una aplicación que se instala y se ejecuta en tu ordenador. No tiene servidor propio: quien la publica no recibe, guarda ni ve ningún dato tuyo.</p>
+<h2>Qué guarda doji</h2>
+<p>Tus listas, dibujos, alertas, notas y ajustes se guardan en tu ordenador, en la carpeta <code>data</code> de doji. Las claves que configures (Telegram, Twelve Data) también se quedan ahí.</p>
+<h2>Si entras con Google</h2>
+<p>Entrar con Google es opcional. Si lo haces:</p>
+<ul>
+<li>doji pide solo el permiso <code>drive.file</code>, que le deja ver y cambiar únicamente los archivos que crea él. No puede ver el resto de tu Drive.</li>
+<li>doji crea en tu Drive una carpeta <code>doji</code> con un archivo <code>state.json</code>: una copia de tus listas, dibujos, alertas, notas y posiciones, para tenerla en otros ordenadores. No sube tus claves de Telegram ni de Twelve Data, ni tu sesión de Google.</li>
+<li>doji lee el correo de tu cuenta de Google solo para enseñarte en «Settings» con qué cuenta has entrado. Se queda en tu ordenador.</li>
+<li>La sesión de Google se guarda en tu ordenador, en <code>data/google.json</code>. doji habla directamente con Google desde tu ordenador; nada pasa por otro servidor.</li>
+<li>Los datos que doji recibe de Google no se venden, no se comparten con nadie, no se usan para publicidad ni para entrenar modelos de IA.</li>
+</ul>
+<p>El uso que hace doji de la información recibida de las API de Google cumple la <a href="https://developers.google.com/terms/api-services-user-data-policy">Política de Datos de Usuario de los Servicios de API de Google</a>, incluidos los requisitos de Uso Limitado.</p>
+<h2>Cómo borrar tus datos</h2>
+<ul>
+<li>En doji, «Settings», «Google Drive», «Sign out» borra tu sesión de este ordenador y retira el permiso en Google.</li>
+<li>También puedes retirarlo desde las <a href="https://myaccount.google.com/connections">conexiones de tu cuenta de Google</a>.</li>
+<li>La copia de tu Drive es tuya: bórrala desde Google Drive cuando quieras. Lo que hay en tu ordenador se borra eliminando la carpeta <code>data</code> de doji.</li>
+</ul>
+<h2>Contacto</h2>
+<p>Para cualquier duda, abre una incidencia en <a href="https://github.com/giansegura/doji/issues">github.com/giansegura/doji</a>.</p>
+<h2 lang="en">In English</h2>
+<p lang="en">doji runs on your computer and has no server; its publisher never receives your data. Signing in with Google is optional and uses only the <code>drive.file</code> scope: doji can see and change only the <code>doji/state.json</code> file it creates in your Drive, which holds a copy of your watchlists, drawings, alerts, notes and positions. Your Google session stays on your computer in <code>data/google.json</code>. Data received from Google is not sold, shared, used for ads or used to train AI models. doji's use of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements. "Sign out" deletes the session and revokes access; you can also revoke it at <a href="https://myaccount.google.com/connections">myaccount.google.com/connections</a> and delete the file from your Drive. Questions: <a href="https://github.com/giansegura/doji/issues">GitHub issues</a>.</p>
+<nav><a href="./">doji</a><a href="https://github.com/giansegura/doji">Código en GitHub</a></nav>
+</main></body></html>
