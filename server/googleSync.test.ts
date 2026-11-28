@@ -141,7 +141,7 @@ const computer = (google: Google, initial: AppState | null = null, saved: unknow
   const kept: string[] = []
   const copies: AppState[] = []
   const replaced: AppState[] = []
-  const account = { saved, refuses: false }
+  const account = { saved, refuses: false, failReads: 0, beforeToken: () => undefined as void }
   const timers: { run: () => void; ms: number }[] = []
   const gate = { wait: async () => undefined as void }
   const tokens: string[] = []
@@ -153,6 +153,7 @@ const computer = (google: Google, initial: AppState | null = null, saved: unknow
     makeDrive: (token) =>
       google.drive(
         async (fresh) => {
+          account.beforeToken()
           const value = await token(fresh)
           tokens.push(value)
           return value
@@ -188,6 +189,10 @@ const computer = (google: Google, initial: AppState | null = null, saved: unknow
     },
     store: {
       load: async () => {
+        if (account.failReads > 0) {
+          account.failReads -= 1
+          throw new Error('cannot read')
+        }
         if (account.saved === null) throw new Error('no file')
         return account.saved
       },
@@ -1735,6 +1740,30 @@ test.each([
   // Asked about what is here now, the same answer counts.
   expect(await choose(pc, 'local')).toMatchObject({ sync: 'idle' })
   expect(google.stored()).toBe(driveTextOf(stateWith('MSFT')))
+})
+
+test('Should keep distrusting the last sync while its record cannot be read', async () => {
+  const { google, pc } = await synced()
+  pc.account.failReads = Infinity
+  breakSettings(pc)
+  pc.clock.at = NOW + 1_000
+  expect(await pc.change({ symbol: 'MSFT' })).toMatchObject({ ok: true })
+  pc.account.failReads = 0
+  await pc.sync.syncNow()
+  expect(await pc.sync.status()).toMatchObject({ sync: 'choose' })
+  expect(google.uploads).toEqual([])
+  expect(google.stored()).toBe(driveTextOf(stateWith('KO')))
+})
+
+test('Should not take a record that cannot be read for a sign-in that ended', async () => {
+  const pc = computer(fakeGoogle(), stateWith('KO'), { email: 'ana@example.com', refreshToken: 'saved-refresh' })
+  pc.account.beforeToken = () => {
+    pc.account.beforeToken = () => undefined
+    pc.account.failReads = 1
+  }
+  await pc.sync.syncNow()
+  expect(await pc.sync.status()).toMatchObject({ sync: 'failed' })
+  expect(pc.account.saved).toMatchObject({ refreshToken: 'saved-refresh' })
 })
 
 // A computer whose Drive stops answering: every look hangs until released.

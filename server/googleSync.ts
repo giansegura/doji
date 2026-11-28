@@ -268,7 +268,8 @@ export const createGoogleSync = (deps: SyncDeps): GoogleSync => {
     async (fresh = false): Promise<string> => {
       if (mine !== generation) throw googleError('expired')
       if (!fresh && access && deps.now() < access.expiresAt - TOKEN_MARGIN_MS) return access.accessToken
-      const refreshToken = (await load())?.refreshToken
+      // A record that cannot be read fails this look: it does not say that the sign-in ended.
+      const refreshToken = (await deps.store.load().then(accountFrom))?.refreshToken
       if (!refreshToken) throw googleError('expired')
       const next = await deps.auth.refresh(refreshToken)
       // Signed out, or in again, while Google answered: nothing more goes to Drive for the earlier sign-in.
@@ -325,7 +326,9 @@ export const createGoogleSync = (deps: SyncDeps): GoogleSync => {
     // Whichever sign-in the record belongs to by now, it says nothing about what replaces the lost settings.
     await inStore(async () => {
       const account = await load()
-      if (account) await deps.store.save({ ...account, syncedHash: undefined, localHash: undefined })
+      // Unread, it may still hold the old hashes: they are forgotten only once it has been written without them.
+      if (!account) throw new Error('no sync record to clear')
+      await deps.store.save({ ...account, syncedHash: undefined, localHash: undefined })
     })
     unforgotten = false
     return true
