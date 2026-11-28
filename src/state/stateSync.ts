@@ -25,6 +25,8 @@ type SyncDeps = {
   retryMs: number
 }
 
+type Sent = { state: AppState; id: string }
+
 export const createStateSync = (deps: SyncDeps): StateSync => {
   const page = Math.random().toString(36).slice(2)
   let sends = 0
@@ -32,9 +34,9 @@ export const createStateSync = (deps: SyncDeps): StateSync => {
   let generation = 0
   let pending: AppState | null = null
   let saved: AppState | null = null
-  let inFlight: { state: AppState; id: string } | null = null
-  // Saves overtaken by a follower and not answered yet.
-  const unanswered = new Set<string>()
+  let inFlight: Sent | null = null
+  // Saves overtaken by a follower and not answered yet, by name.
+  const unanswered = new Map<string, Sent>()
   let timer: unknown = null
 
   const cancelTimer = (): void => {
@@ -61,6 +63,8 @@ export const createStateSync = (deps: SyncDeps): StateSync => {
       schedule(deps.retryMs)
       return
     }
+    // Whatever it was sent after is written too.
+    unanswered.clear()
     rev = result.rev
     saved = sent
     if (pending !== sent) {
@@ -81,13 +85,15 @@ export const createStateSync = (deps: SyncDeps): StateSync => {
       schedule(deps.retryMs)
       return
     }
-    if (underway) unanswered.add(underway.id)
+    if (underway) unanswered.set(underway.id, underway)
+    // As the page is left, the newest change goes after a save still unanswered just as after one under way.
+    const before = underway ?? [...unanswered.values()].at(-1)
     const sentGeneration = generation
     sends += 1
     const id = `${page}-${sends}`
     inFlight = { state: sent, id }
-    const link = { saveId: id, follows: underway?.id }
-    deps.put({ ...sent, rev }, keepalive, underway?.state ?? saved, link).then((result) => {
+    const link = { saveId: id, follows: before?.id }
+    deps.put({ ...sent, rev }, keepalive, before?.state ?? saved, link).then((result) => {
       if (sentGeneration !== generation) return
       unanswered.delete(id)
       if (inFlight?.id !== id) {

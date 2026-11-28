@@ -317,6 +317,28 @@ test('Should hold a retry until the save it overtook has answered, and build on 
   expect(sync.hasUnsaved()).toBe(false)
 })
 
+test('Should send the last change after a save still unanswered when the page is left again', async () => {
+  const { sync, puts, answer, first, second } = leftWhileSaving()
+  await answer(1, { kind: 'failed' })
+  sync.flush()
+  expect(puts[2].state.symbol).toBe(second.symbol)
+  expect(puts[2].link.follows).toBe(puts[0].link.saveId)
+  expect(puts[2].saved).toBe(first)
+})
+
+test('Should go after no earlier save once a later one was written', async () => {
+  const { sync, puts, answer, fire } = leftWhileSaving()
+  await answer(1, { kind: 'saved', rev: 6 })
+  sync.changed(state('NVDA'))
+  sync.flush()
+  expect(puts[2].link.follows).toBeUndefined()
+  expect(puts[2].state.rev).toBe(6)
+  await answer(2, { kind: 'saved', rev: 7 })
+  sync.changed(state('TSLA'))
+  fire()
+  expect(puts[3].state).toMatchObject({ symbol: 'TSLA', rev: 7 })
+})
+
 test('Should save again at once after a fresh state, whatever was overtaken before it', async () => {
   const { sync, puts, fire, answer } = leftWhileSaving()
   await answer(1, { kind: 'conflict' })
