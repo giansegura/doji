@@ -186,6 +186,12 @@ export const createGoogleSync = (deps: SyncDeps): GoogleSync => {
   let attemptedAt = 0
   let failedFast = false
   let stalledAt = 0
+  // How often settings were found lost, and how often by the time the ones being compared were read: null when
+  // there were none to read, as on a new computer.
+  let losses = 0
+  let comparedAt: number | null = null
+  // Set while the record may still describe settings lost since, as when it could not be written.
+  let unforgotten = false
   let running: Promise<void> | null = null
   let queue: Promise<unknown> = Promise.resolve()
   let storeQueue: Promise<unknown> = Promise.resolve()
@@ -241,6 +247,8 @@ export const createGoogleSync = (deps: SyncDeps): GoogleSync => {
 
   const settle = async (mine: number, change: Partial<GoogleAccount>): Promise<void> => {
     await remember(mine, { ...change, lastSyncAt: new Date(deps.now()).toISOString() })
+    // Settings lost since they were read: what is recorded here says nothing about what got saved over them.
+    if (comparedAt !== null && losses !== comparedAt) unforgotten = true
     if (mine !== generation) return
     question = null
     succeeded()
@@ -293,22 +301,36 @@ export const createGoogleSync = (deps: SyncDeps): GoogleSync => {
 
   // Settings that are gone or unreadable say nothing about the last sync. Forgetting it, even while Drive cannot be
   // reached, makes doji ask before uploading whatever is saved over them.
-  const forgetIfLost = async (mine: number): Promise<boolean> => {
-    if ((await deps.local.changedAt()) !== null) return false
-    await remember(mine, { syncedHash: undefined, localHash: undefined })
+  const forgetIfLost = async (): Promise<boolean> => {
+    if ((await deps.local.changedAt()) === null) {
+      losses += 1
+      unforgotten = true
+    }
+    if (!unforgotten) return false
+    // Whichever sign-in the record belongs to by now, it says nothing about what replaces the lost settings.
+    await inStore(async () => {
+      const account = await load()
+      if (account) await deps.store.save({ ...account, syncedHash: undefined, localHash: undefined })
+    })
+    unforgotten = false
     return true
   }
 
   // Resolves to true once this computer and Drive have been compared and the outcome dealt with.
   const reconcile = async (mine: number, account: GoogleAccount): Promise<boolean> => {
-    const lost = await forgetIfLost(mine)
+    await forgetIfLost()
+    const lossesBefore = losses
+    // Read after that check, not before: a save may have cleared the record since this look began.
+    const record = await load()
     const drive = deps.makeDrive(tokenFor(mine))
     const place = await locate(drive, mine, account)
     const { state: current, changedAt } = await deps.local.snapshot()
+    comparedAt = changedAt === null ? null : losses
     const text = driveTextOf(current)
     const hash = hashOf(text)
     const { file } = place
-    const synced = lost ? null : syncedOf(account)
+    // The record no longer counts if the settings were lost during this look.
+    const synced = record && losses === lossesBefore ? syncedOf(record) : null
     const action = decideSync({ local: { exists: changedAt !== null, hash, changedAt }, remote: file, synced })
     if (!file || action === 'upload') return upload(drive, mine, place, text, changedAt)
     if (action === 'none') {
@@ -416,7 +438,7 @@ export const createGoogleSync = (deps: SyncDeps): GoogleSync => {
     if (!deps.client) return
     const mine = generation
     // Settings lost since the last look are looked at again before anything is written over them, however recent it was.
-    const lost = await forgetIfLost(mine).catch(() => false)
+    const lost = await forgetIfLost().catch(() => false)
     if (lost) checkedAt = 0
     // Once Drive has not answered in time, saves stop waiting for it for a minute.
     if (!stale() || deps.now() - stalledAt < FRESH_MS || !(await load())?.refreshToken) return

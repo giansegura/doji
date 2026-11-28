@@ -137,7 +137,7 @@ const fakeAuth = (google: Google, clock: { at: number }) => {
 
 const computer = (google: Google, initial: AppState | null = null, saved: unknown = null) => {
   const clock = { at: NOW }
-  const local = { state: initial, changedAt: initial ? NOW - MINUTE : (null as number | null), refusals: 0, keepFails: false, keeping: undefined as Promise<void> | undefined, reportedTime: undefined as number | undefined }
+  const local = { state: initial, changedAt: initial ? NOW - MINUTE : (null as number | null), refusals: 0, keepFails: false, keeping: undefined as Promise<void> | undefined, reportedTime: undefined as number | undefined, timing: undefined as Promise<void> | undefined }
   const kept: string[] = []
   const copies: AppState[] = []
   const replaced: AppState[] = []
@@ -161,7 +161,12 @@ const computer = (google: Google, initial: AppState | null = null, saved: unknow
       ),
     local: {
       read,
-      changedAt: async () => local.reportedTime ?? local.changedAt,
+      changedAt: async () => {
+        const wait = local.timing
+        local.timing = undefined
+        await wait
+        return local.reportedTime ?? local.changedAt
+      },
       snapshot: async () => ({ state: await read(), changedAt: local.changedAt }),
       keepCopy: async (text) => {
         if (local.keepFails) throw new Error('disk full')
@@ -1469,12 +1474,117 @@ test('Should ask before uploading what was saved offline over settings lost sinc
   expect(google.uploads).toEqual([])
 })
 
-test('Should still save over lost settings when the sync record cannot be written', async () => {
-  const { pc } = await synced()
+test('Should still save over lost settings when the sync record cannot be written, and upload nothing by itself', async () => {
+  const { google, pc } = await synced()
   breakSettings(pc)
   pc.account.refuses = true
   pc.clock.at = NOW + 1_000
   expect(await pc.change({ symbol: 'MSFT' })).toMatchObject({ ok: true })
+  await pc.fire(3_000)
+  expect(await pc.sync.status()).toMatchObject({ sync: 'failed' })
+  expect(google.uploads).toEqual([])
+  pc.account.refuses = false
+  await pc.sync.syncNow()
+  expect(await pc.sync.status()).toMatchObject({ sync: 'choose' })
+  expect(google.uploads).toEqual([])
+  expect(google.stored()).toBe(driveTextOf(stateWith('KO')))
+})
+
+test('Should not upload on a record that a save cleared after the look had begun', async () => {
+  const { google, pc } = await synced()
+  breakSettings(pc)
+  pc.account.refuses = true
+  pc.clock.at = NOW + 1_000
+  await pc.change({ symbol: 'MSFT' })
+  pc.account.refuses = false
+  const timing = held()
+  pc.local.timing = timing.wait
+  const looking = pc.sync.syncNow()
+  await idle()
+  const saving = pc.change({ symbol: 'NVDA' })
+  await idle()
+  timing.open()
+  await looking
+  await saving
+  expect(await pc.sync.status()).toMatchObject({ sync: 'choose' })
+  expect(google.uploads).toEqual([])
+  expect(google.stored()).toBe(driveTextOf(stateWith('KO')))
+})
+
+test('Should ask, not upload, when settings are lost while a look waits for Drive and something is saved over them', async () => {
+  const { google, pc, drive, waited, atOnce } = await hanging()
+  pc.sync.freshen()
+  await idle()
+  breakSettings(pc)
+  expect(await atOnce('MSFT')).toBe(false)
+  await waited(5_000)
+  drive.open()
+  await idle()
+  expect(await pc.sync.status()).toMatchObject({ sync: 'choose' })
+  expect(google.uploads).toEqual([])
+  expect(google.stored()).toBe(driveTextOf(stateWith('KO')))
+})
+
+test('Should ask before the next upload when settings are lost while an upload is under way', async () => {
+  const { google, pc } = await synced()
+  const drive = held()
+  let calls = 0
+  pc.gate.wait = () => ((calls += 1) === 2 ? drive.wait : Promise.resolve())
+  pc.edit('MSFT')
+  await pc.fire(3_000)
+  breakSettings(pc)
+  pc.clock.at = NOW + 1_000
+  const saving = watched(pc.change({ symbol: 'NVDA' }))
+  await idle()
+  await pc.fire(4_000)
+  expect(saving.done).toBe(true)
+  drive.open()
+  await idle()
+  await pc.fire(3_000)
+  expect(await pc.sync.status()).toMatchObject({ sync: 'choose' })
+  expect(google.uploads).toEqual([driveTextOf(stateWith('MSFT'))])
+})
+
+test('Should ask nothing after a second save met the settings that were being brought back', async () => {
+  const { google, pc } = await synced()
+  const drive = held()
+  pc.gate.wait = () => drive.wait
+  breakSettings(pc)
+  pc.clock.at = NOW + 1_000
+  const first = watched(pc.change({ symbol: 'MSFT' }))
+  await idle()
+  const second = watched(pc.change({ symbol: 'NVDA' }))
+  await idle()
+  drive.open()
+  await idle()
+  expect([first.value, second.value]).toEqual([
+    { ok: false, reason: 'conflict' },
+    { ok: false, reason: 'conflict' },
+  ])
+  expect(await pc.change({ symbol: 'TSLA' })).toMatchObject({ ok: true })
+  await pc.fire(3_000)
+  expect(await pc.sync.status()).toMatchObject({ sync: 'idle', choice: null })
+  expect(google.stored()).toBe(driveTextOf(stateWith('TSLA')))
+})
+
+test('Should ask nothing when a new computer is first changed while its settings are first being uploaded', async () => {
+  const google = fakeGoogle()
+  const pc = computer(google)
+  const drive = held()
+  let calls = 0
+  pc.gate.wait = () => ((calls += 1) === 5 ? drive.wait : Promise.resolve())
+  await pc.signIn()
+  expect(google.uploads).toEqual([])
+  pc.clock.at = NOW + 1_000
+  const saving = watched(pc.change({ symbol: 'MSFT' }))
+  await idle()
+  await pc.fire(4_000)
+  expect(saving.done).toBe(true)
+  drive.open()
+  await idle()
+  await pc.fire(3_000)
+  expect(await pc.sync.status()).toMatchObject({ sync: 'idle', choice: null })
+  expect(google.stored()).toBe(driveTextOf(stateWith('MSFT')))
 })
 
 test('Should ask nothing at the first change on a computer that signed in with no settings', async () => {
