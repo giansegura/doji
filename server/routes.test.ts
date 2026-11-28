@@ -674,13 +674,14 @@ test('Should have no Google routes when doji runs without Google', async () => {
 
 // A store that keeps what it is given, whose first write can be held back as a wait for Google Drive does.
 const keptState = (pause: (ms: number) => Promise<void> = async () => undefined) => {
-  const box = { state: { ...DEFAULT_STATE, symbol: 'KO' } as AppState, held: null as Promise<void> | null }
+  const box = { state: { ...DEFAULT_STATE, symbol: 'KO' } as AppState, held: null as Promise<void> | null, fails: false }
   const store: StateStore = {
     read: async () => box.state,
     save: async (state, baseRev) => {
       const wait = box.held
       box.held = null
       await wait
+      if (box.fails) throw new Error('disk full')
       if (baseRev !== box.state.rev) return { ok: false, reason: 'conflict' }
       box.state = { ...state, rev: baseRev + 1 }
       return { ok: true, rev: box.state.rev }
@@ -844,4 +845,47 @@ test('Should refuse the follower of a save that does not arrive in time', async 
   expect(await two).toEqual(REFUSED)
   expect(await call('PUT', '/api/state', first)).toEqual(savedAs(2))
   expect(box.state.symbol).toBe('MSFT')
+})
+
+// More saves than the server remembers, arriving so that the first ones are forgotten before the ring closes.
+const longRing = Array.from({ length: 22 }, (_, index) => [`s${index}`, `s${(index + 1) % 22}`])
+const [opening, closing, ...between] = longRing
+
+test.each([
+  ['itself', [['a', 'a']]],
+  ['one that follows it', [['a', 'b'], ['b', 'a']]],
+  ['one that follows itself', [['a', 'a'], ['b', 'a']]],
+  ['a ring of three', [['a', 'b'], ['b', 'c'], ['c', 'a']]],
+  ['a ring longer than the saves remembered', [opening, ...between.reverse(), closing]],
+])('Should refuse rather than leave waiting a save that follows %s, and go on answering reads', async (_name, links) => {
+  const { call, box } = keptState(() => new Promise<void>(() => undefined))
+  const saves = links.map(([saveId, follows]) => call('PUT', '/api/state', { ...first, saveId, follows }))
+  expect(await Promise.all(saves)).toEqual(links.map(() => REFUSED))
+  expect(await call('GET', '/api/state')).toEqual({ status: 200, body: box.state })
+})
+
+test('Should not let a name still waiting pass to a second save, which could close a circle unseen', async () => {
+  const { call, box } = keptState(() => new Promise<void>(() => undefined))
+  const waiting = call('PUT', '/api/state', { ...first, saveId: 'a', follows: 'b' })
+  const behind = call('PUT', '/api/state', { ...first, saveId: 'x', follows: 'a' })
+  const again = call('PUT', '/api/state', { ...first, saveId: 'a' })
+  const closing = call('PUT', '/api/state', { ...first, saveId: 'b', follows: 'x' })
+  expect(await Promise.all([waiting, behind, again, closing])).toEqual([REFUSED, REFUSED, savedAs(2), REFUSED])
+  expect(await call('GET', '/api/state')).toEqual({ status: 200, body: box.state })
+})
+
+test('Should take a name again after the save that had it could not be written', async () => {
+  const { call, box } = keptState()
+  box.fails = true
+  expect(await call('PUT', '/api/state', first)).toEqual({ status: 500, body: { error: 'internal' } })
+  box.fails = false
+  expect(await call('PUT', '/api/state', first)).toEqual(savedAs(2))
+  expect(await call('PUT', '/api/state', second)).toEqual(savedAs(3))
+})
+
+test('Should take a name again once the save that had it is answered', async () => {
+  const { call } = keptState()
+  expect(await call('PUT', '/api/state', first)).toEqual(savedAs(2))
+  expect(await call('PUT', '/api/state', { ...first, rev: 2 })).toEqual(savedAs(3))
+  expect(await call('PUT', '/api/state', { ...second, saveId: 'tab-3' })).toEqual(savedAs(4))
 })
