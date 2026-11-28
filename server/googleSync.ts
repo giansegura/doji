@@ -192,6 +192,8 @@ export const createGoogleSync = (deps: SyncDeps): GoogleSync => {
   let comparedAt: number | null = null
   // Set while the record may still describe settings lost since, as when it could not be written.
   let unforgotten = false
+  // Settings being replaced with Drive's. Signing in or out lets that finish, so nothing changes once it is done.
+  let applying: Promise<unknown> = Promise.resolve()
   let running: Promise<void> | null = null
   let queue: Promise<unknown> = Promise.resolve()
   let storeQueue: Promise<unknown> = Promise.resolve()
@@ -286,7 +288,7 @@ export const createGoogleSync = (deps: SyncDeps): GoogleSync => {
     return true
   }
 
-  const apply = async (mine: number, remote: AppState, hash: string, baseRev: number): Promise<boolean> => {
+  const replaceLocal = async (mine: number, remote: AppState, hash: string, baseRev: number): Promise<boolean> => {
     if (mine !== generation) return false
     const outcome = await deps.local.replace(remote, baseRev)
     if (!outcome.ok) {
@@ -297,6 +299,12 @@ export const createGoogleSync = (deps: SyncDeps): GoogleSync => {
     deps.onReplaced({ ...remote, rev: outcome.rev })
     await settle(mine, { syncedHash: hash, localHash: hashOf(driveTextOf(remote)) })
     return true
+  }
+
+  const apply = (mine: number, remote: AppState, hash: string, baseRev: number): Promise<boolean> => {
+    const done = replaceLocal(mine, remote, hash, baseRev)
+    applying = done.catch(() => undefined)
+    return done
   }
 
   // Settings that are gone or unreadable say nothing about the last sync. Forgetting it, even while Drive cannot be
@@ -495,6 +503,7 @@ export const createGoogleSync = (deps: SyncDeps): GoogleSync => {
     try {
       const tokens = await deps.auth.finish(query)
       const email = await deps.makeDrive(async () => tokens.accessToken).email()
+      await applying
       if (mine !== generation) throw googleError('invalid_state')
       generation += 1
       const signedIn = generation
@@ -544,6 +553,7 @@ export const createGoogleSync = (deps: SyncDeps): GoogleSync => {
   }
 
   const signOut = async (): Promise<GoogleStatus> => {
+    await applying
     generation += 1
     cancelAll()
     forget()

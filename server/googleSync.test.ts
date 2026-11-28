@@ -137,7 +137,7 @@ const fakeAuth = (google: Google, clock: { at: number }) => {
 
 const computer = (google: Google, initial: AppState | null = null, saved: unknown = null) => {
   const clock = { at: NOW }
-  const local = { state: initial, changedAt: initial ? NOW - MINUTE : (null as number | null), refusals: 0, keepFails: false, keeping: undefined as Promise<void> | undefined, reportedTime: undefined as number | undefined, timing: undefined as Promise<void> | undefined }
+  const local = { state: initial, changedAt: initial ? NOW - MINUTE : (null as number | null), refusals: 0, keepFails: false, keeping: undefined as Promise<void> | undefined, reportedTime: undefined as number | undefined, timing: undefined as Promise<void> | undefined, replacing: undefined as Promise<void> | undefined }
   const kept: string[] = []
   const copies: AppState[] = []
   const replaced: AppState[] = []
@@ -174,6 +174,7 @@ const computer = (google: Google, initial: AppState | null = null, saved: unknow
         kept.push(text)
       },
       replace: async (state, baseRev) => {
+        await local.replacing
         const current = await read()
         if (local.refusals > 0 || baseRev !== current.rev) {
           local.refusals -= 1
@@ -1606,6 +1607,62 @@ test('Should compare the settings with the time of change seen together with the
   await pc.sync.syncNow()
   expect(pc.local.state?.symbol).toBe('MSFT')
   expect(google.stored()).toBe(driveTextOf(stateWith('MSFT')))
+})
+
+// A sync under way that has begun to replace the settings of this computer with a newer copy of Drive.
+const replacingNow = async () => {
+  const { google, pc } = await synced()
+  google.put(driveTextOf(stateWith('NVDA')), NOW + MINUTE)
+  let open: () => void = () => undefined
+  let fail: () => void = () => undefined
+  pc.local.replacing = new Promise<void>((done, reject) => {
+    open = done
+    fail = () => reject(new Error('disk full'))
+  })
+  const syncing = pc.sync.syncNow()
+  await idle()
+  return { google, pc, syncing, open, fail }
+}
+
+test('Should finish replacing the settings before signing out, so that nothing changes once signed out', async () => {
+  const { pc, syncing, open } = await replacingNow()
+  const leaving = watched(pc.sync.signOut())
+  await idle()
+  expect(leaving.done).toBe(false)
+  open()
+  await syncing
+  await idle()
+  expect(leaving.value).toMatchObject({ sync: 'signedOut', replacedRev: null })
+  expect(pc.local.state?.symbol).toBe('NVDA')
+  expect(pc.account.saved).toBeNull()
+})
+
+test('Should finish replacing the settings before another account signs in', async () => {
+  const { google, pc, syncing, open } = await replacingNow()
+  google.box.email = 'bo@example.com'
+  await pc.sync.signIn()
+  const entering = watched(pc.sync.finishSignIn(new URLSearchParams({ code: 'c2', state: 's1' })).then(() => true))
+  await idle()
+  expect(entering.done).toBe(false)
+  expect(pc.account.saved).toMatchObject({ email: 'ana@example.com' })
+  open()
+  await syncing
+  await idle()
+  expect(entering.done).toBe(true)
+  expect(pc.local.state?.symbol).toBe('NVDA')
+  expect(pc.account.saved).toMatchObject({ email: 'bo@example.com' })
+})
+
+test('Should still sign out when the settings being replaced cannot be written', async () => {
+  const { pc, syncing, fail } = await replacingNow()
+  const leaving = watched(pc.sync.signOut())
+  await idle()
+  fail()
+  await syncing
+  await idle()
+  expect(leaving.value).toMatchObject({ sync: 'signedOut' })
+  expect(pc.account.saved).toBeNull()
+  expect(pc.local.state?.symbol).toBe('KO')
 })
 
 // A computer whose Drive stops answering: every look hangs until released.
