@@ -1,6 +1,6 @@
-import { type FiredAlert, alertLevels, armedSymbols, createAlertWatcher, latestPrice } from '../shared/alerts'
+import { type FiredAlert, alertLevels, armedSymbols, createAlertWatcher, isLive, latestPrice } from '../shared/alerts'
 import { withHistory } from '../shared/alertHistory'
-import { afterFiring, canAlert, expiredAlert, withoutAlert } from '../shared/drawings'
+import { afterFiring, expiredAlert, withoutAlert } from '../shared/drawings'
 import { type IndicatorHit, createIndicatorWatcher, indicatorLabel, sessionDayOf, withLivePrice } from '../shared/indicatorAlerts'
 import { tradesEveryDay } from '../shared/symbols'
 import type { AlertEvent, AppState, Drawing, LiveTick, Quote } from '../shared/types'
@@ -38,7 +38,7 @@ const dayOf = (date: Date): string => `${date.getFullYear()}-${twoDigits(date.ge
 
 type Outcome = { hits: FiredAlert[]; indicatorHits: IndicatorHit[]; events: AlertEvent[]; today: string }
 
-type Recorded = { state: AppState; events: AlertEvent[] }
+type Recorded = { state: AppState | null; events: AlertEvent[] }
 
 const firedOn = (hit: FiredAlert, symbol: string, drawing: Drawing, today: string): boolean =>
   hit.symbol === symbol && hit.drawingId === drawing.id && alertLevels(drawing, today, tradesEveryDay(symbol)).some((level) => level === hit.level)
@@ -75,11 +75,9 @@ const stillArmed = (current: AppState | null, hit: IndicatorHit): boolean =>
   current?.indicatorAlerts[hit.symbol]?.some((alert) => alert.id === hit.alertId && alert.armed) ?? false
 
 const stillSet = (current: AppState, hit: FiredAlert, today: string): boolean =>
-  current.lines[hit.symbol]?.some(
-    (drawing) => drawing.id === hit.drawingId && canAlert(drawing) && drawing.alert === true && !expiredAlert(drawing, today),
-  ) ?? false
+  current.lines[hit.symbol]?.some((drawing) => drawing.id === hit.drawingId && isLive(drawing, today)) ?? false
 
-// Only the alerts still set in the state they are recorded on, which may have replaced the one they fired on.
+// Only the alerts that could still fire in the state they are recorded on, which may have replaced theirs.
 const standingIn = (current: AppState, { hits, indicatorHits, events, today }: Outcome): Outcome => {
   const lines = hits.map((hit) => stillSet(current, hit, today))
   const others = indicatorHits.map((hit) => stillArmed(current, hit))
@@ -138,24 +136,22 @@ export const createAlertMonitor = (deps: MonitorDeps): AlertMonitor => {
     return found
   }
 
-  const recordOnce = async (result: Outcome): Promise<Recorded | null> => {
-    try {
-      const fresh = await deps.read()
-      const standing = standingIn(fresh, result)
-      const next = afterOutcome(fresh, standing)
-      const outcome = await deps.save(next, fresh.rev)
-      return outcome.ok ? { state: { ...next, rev: outcome.rev }, events: standing.events } : null
-    } catch {
-      return null
-    }
-  }
-
-  const record = async (result: Outcome): Promise<Recorded | null> => {
+  const record = async (result: Outcome): Promise<Recorded> => {
+    // What gets announced should no attempt be saved: the alerts standing in the last state read.
+    let due = result.events
     for (let attempt = 0; attempt < SAVE_ATTEMPTS; attempt += 1) {
-      const saved = await recordOnce(result)
-      if (saved) return saved
+      try {
+        const fresh = await deps.read()
+        const standing = standingIn(fresh, result)
+        due = standing.events
+        const next = afterOutcome(fresh, standing)
+        const outcome = await deps.save(next, fresh.rev)
+        if (outcome.ok) return { state: { ...next, rev: outcome.rev }, events: due }
+      } catch {
+        continue
+      }
     }
-    return null
+    return { state: null, events: due }
   }
 
   const check = (prices: Record<string, number>): Promise<AlertEvent[]> =>
@@ -190,10 +186,8 @@ export const createAlertMonitor = (deps: MonitorDeps): AlertMonitor => {
         }
       })
       const events = [...lineEvents, ...indicatorEvents]
-      const recorded = await record({ hits, indicatorHits, events, today })
-      if (recorded) stateSaved(recorded.state)
-      // An alert that could not be recorded is announced all the same.
-      const due = recorded ? recorded.events : events
+      const { state: saved, events: due } = await record({ hits, indicatorHits, events, today })
+      if (saved) stateSaved(saved)
       if (due.length === 0) return []
       deps.announce(due)
       return due

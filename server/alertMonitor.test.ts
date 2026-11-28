@@ -39,13 +39,13 @@ const harness = (
     read: async () => box.state,
     save: async (state, baseRev): Promise<SaveOutcome> => {
       box.saves += 1
-      if (box.failures > 0) {
-        box.failures -= 1
-        throw new Error('disk full')
-      }
       if (over.replacedBy && box.saves === 1) {
         box.state = over.replacedBy
         return { ok: false, reason: 'conflict' }
+      }
+      if (box.failures > 0) {
+        box.failures -= 1
+        throw new Error('disk full')
       }
       if (box.conflicts > 0) {
         box.conflicts -= 1
@@ -192,6 +192,38 @@ test.each([
   expect(box.announced.map((alert) => alert.symbol)).toEqual(['PEP'])
   expect(box.state.alertHistory.map((event) => event.symbol)).toEqual(['PEP'])
   expect(box.state.lines.PEP[0]).not.toHaveProperty('alert')
+})
+
+const TODAY = (() => {
+  const moment = new Date('2026-11-24T15:00:00Z')
+  return `${moment.getFullYear()}-${String(moment.getMonth() + 1).padStart(2, '0')}-${String(moment.getDate()).padStart(2, '0')}`
+})()
+
+test.each([
+  ['already fired today', TODAY, []],
+  ['last fired another day', '2026-11-23', ['KO']],
+])('Should say a repeating alert once a day when the state which replaced this one has it %s', async (_name, alertFiredOn, said) => {
+  const repeating = (over: object = {}) => ({ KO: [level('k', 100, { alertRepeat: true, ...over } as Partial<Drawing>)] })
+  const { box, monitor } = harness(stateWith(repeating()), { replacedBy: stateWith(repeating({ alertFiredOn }), 9) })
+  await monitor.start()
+  box.send?.([tick('KO', 99)])
+  await monitor.settled()
+  box.send?.([tick('KO', 101)])
+  await monitor.settled()
+  expect(box.announced.map((alert) => alert.symbol)).toEqual(said)
+  expect(box.state.alertHistory.map((event) => event.symbol)).toEqual(said)
+})
+
+test('Should keep quiet about an alert already gone even when saving then fails', async () => {
+  const replacedBy = stateWith({ PEP: [level('p', 50)] }, 9)
+  const { box, monitor } = harness(stateWith({ KO: [level('k', 100)], PEP: [level('p', 50)] }), { replacedBy, failures: 10 })
+  await monitor.start()
+  box.send?.([tick('KO', 99), tick('PEP', 49)])
+  await monitor.settled()
+  box.send?.([tick('KO', 101), tick('PEP', 51)])
+  await monitor.settled()
+  expect(box.saves).toBe(3)
+  expect(box.announced.map((alert) => alert.symbol)).toEqual(['PEP'])
 })
 
 test('Should say nothing of an indicator alert that the state which replaced this one no longer has', async () => {
