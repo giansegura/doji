@@ -73,7 +73,14 @@ type SyncDeps = {
 
 type Place = { folderId: string; file: DriveFile | null }
 
-type Question = { hash: string; text: string; drive: AppState; choice: NonNullable<GoogleStatus['choice']> }
+type Question = {
+  hash: string
+  text: string
+  drive: AppState
+  // How often settings had been found lost when those of this computer were read for the question.
+  losses: number | null
+  choice: NonNullable<GoogleStatus['choice']>
+}
 
 type Alarm = 'upload' | 'retry' | 'pull'
 
@@ -176,7 +183,7 @@ export const createGoogleSync = (deps: SyncDeps): GoogleSync => {
   let generation = 0
   let access: AccessToken | null = null
   let question: Question | null = null
-  let answer: { keep: GoogleKeep; hash: string } | null = null
+  let answer: ({ keep: GoogleKeep } & Pick<Question, 'hash' | 'losses'>) | null = null
   let phase: 'idle' | 'offline' | 'failed' = 'idle'
   let replacedRev: number | null = null
   let finishing = 0
@@ -345,7 +352,8 @@ export const createGoogleSync = (deps: SyncDeps): GoogleSync => {
       await settle(mine, file.hash === hash ? inSync(hash) : {})
       return true
     }
-    const answered = action === 'choose' && answer?.hash === file.hash ? answer.keep : null
+    // An answer counts only while no settings have been lost since those it was given about were read.
+    const answered = action === 'choose' && answer?.hash === file.hash && answer.losses === losses ? answer.keep : null
     if (answered === 'local') return upload(drive, mine, place, text, changedAt)
     const theirs = question?.hash === file.hash ? question.text : await drive.download(file.id)
     const remote = remoteStateFrom(theirs)
@@ -357,6 +365,7 @@ export const createGoogleSync = (deps: SyncDeps): GoogleSync => {
       hash: file.hash,
       text: theirs,
       drive: remote,
+      losses: comparedAt,
       choice: { id: file.hash, local: summaryOf(current, changedAt), drive: summaryOf(remote, file.changedAt) },
     }
     return true
@@ -542,7 +551,7 @@ export const createGoogleSync = (deps: SyncDeps): GoogleSync => {
       if (keep === 'local') await deps.local.keepCopy(asked.text)
       if (mine !== generation) return
       question = null
-      answer = { keep, hash: asked.hash }
+      answer = { keep, hash: asked.hash, losses: asked.losses }
       if (keep === 'local') return runCycle()
       await deps.local
         .read()

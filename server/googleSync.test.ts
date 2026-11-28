@@ -1665,6 +1665,78 @@ test('Should still sign out when the settings being replaced cannot be written',
   expect(pc.local.state?.symbol).toBe('KO')
 })
 
+// Settings lost, and something saved over them, somewhere between asking the question and acting on its answer.
+const loseAndSave = async (pc: ReturnType<typeof computer>) => {
+  breakSettings(pc)
+  return pc.change({ symbol: 'MSFT' })
+}
+
+test.each([
+  [
+    'after the answer, before Drive could be reached',
+    async () => {
+      const { google, pc } = await differing()
+      google.box.down = 'offline'
+      await choose(pc, 'local')
+      await loseAndSave(pc)
+      google.box.down = null
+      await pc.sync.syncNow()
+      return { google, pc }
+    },
+  ],
+  [
+    'while the question waits',
+    async () => {
+      const { google, pc } = await differing()
+      await loseAndSave(pc)
+      await choose(pc, 'local')
+      return { google, pc }
+    },
+  ],
+  [
+    'while the copy of Drive is being kept',
+    async () => {
+      const { google, pc } = await differing()
+      const disk = held()
+      pc.local.keeping = disk.wait
+      const answering = choose(pc, 'local')
+      await idle()
+      await loseAndSave(pc)
+      disk.open()
+      await answering
+      return { google, pc }
+    },
+  ],
+  [
+    'while the question was being asked',
+    async () => {
+      const google = fakeGoogle()
+      google.put(driveTextOf(stateWith('NVDA')), NOW - 2 * MINUTE)
+      const pc = computer(google, stateWith('KO', { rev: 4 }))
+      const download = held()
+      let calls = 0
+      pc.gate.wait = () => ((calls += 1) === 4 ? download.wait : Promise.resolve())
+      await pc.signIn()
+      const saving = loseAndSave(pc)
+      await idle()
+      await pc.fire(5_000)
+      await saving
+      download.open()
+      await idle()
+      await choose(pc, 'local')
+      return { google, pc }
+    },
+  ],
+])('Should ask again, not upload, when settings are lost %s', async (_when, scenario) => {
+  const { google, pc } = await scenario()
+  expect(await pc.sync.status()).toMatchObject({ sync: 'choose' })
+  expect(google.uploads).toEqual([])
+  expect(google.stored()).toBe(driveTextOf(stateWith('NVDA')))
+  // Asked about what is here now, the same answer counts.
+  expect(await choose(pc, 'local')).toMatchObject({ sync: 'idle' })
+  expect(google.stored()).toBe(driveTextOf(stateWith('MSFT')))
+})
+
 // A computer whose Drive stops answering: every look hangs until released.
 const hanging = async () => {
   const { google, pc } = await synced()
