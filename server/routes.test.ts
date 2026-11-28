@@ -46,6 +46,7 @@ type Overrides = {
   quotes?: DataProvider['quotes']
   google?: GoogleSync
   state?: StateStore
+  pause?: (ms: number) => Promise<void>
 }
 
 const makeApi = (over: Overrides = {}) => {
@@ -147,6 +148,7 @@ const makeApi = (over: Overrides = {}) => {
     ...(over.backup ? { backup: over.backup } : {}),
     ...(over.testYahoo ? { testYahoo: over.testYahoo } : {}),
     ...(over.google ? { google: over.google } : {}),
+    ...(over.pause ? { pause: over.pause } : {}),
     backupKey: {
       status: async () => ({ configured: requested.backupKey.length > 0, source: 'Twelve Data' }),
       set: async (key) => {
@@ -608,7 +610,7 @@ const fakeGoogle = (over: Partial<GoogleSync> = {}) => {
     },
     finishSignIn: async () => undefined,
     syncNow: answer('sync'),
-    choose: async (keep) => answer(`keep ${keep}`)(),
+    choose: async (keep, shown) => answer(`keep ${keep} of ${shown}`)(),
     signOut: answer('sign out'),
     localChanged: () => undefined,
     beforeSave: async () => undefined,
@@ -626,17 +628,17 @@ test('Should say how Google Drive stands, sign in, sync, choose and sign out', a
   expect(await call('GET', '/api/google')).toEqual({ status: 200, body: GOOGLE_STATUS })
   expect(await call('POST', '/api/google/sign-in')).toEqual({ status: 200, body: { url: 'https://accounts.example/sign-in' } })
   expect(await call('POST', '/api/google/sync')).toEqual({ status: 200, body: GOOGLE_STATUS })
-  expect(await call('PUT', '/api/google/choice', { keep: 'local' })).toEqual({ status: 200, body: GOOGLE_STATUS })
-  expect(await call('PUT', '/api/google/choice', { keep: 'drive' })).toEqual({ status: 200, body: GOOGLE_STATUS })
+  expect(await call('PUT', '/api/google/choice', { keep: 'local', choice: 'copy-1' })).toEqual({ status: 200, body: GOOGLE_STATUS })
+  expect(await call('PUT', '/api/google/choice', { keep: 'drive', choice: 'copy-2' })).toEqual({ status: 200, body: GOOGLE_STATUS })
   expect(await call('DELETE', '/api/google')).toEqual({ status: 200, body: GOOGLE_STATUS })
-  expect(asked).toEqual(['status', 'sign in', 'sync', 'keep local', 'keep drive', 'sign out'])
+  expect(asked).toEqual(['status', 'sign in', 'sync', 'keep local of copy-1', 'keep drive of copy-2', 'sign out'])
   expect(expectsBody('PUT')).toBe(true)
 })
 
-test('Should refuse to choose anything but this computer or Drive', async () => {
+test('Should refuse to choose anything but this computer or Drive, about a copy it names', async () => {
   const { google, asked } = fakeGoogle()
   const { call } = makeApi({ google })
-  const bodies = [null, 'drive', {}, { keep: 'both' }, { keep: 1 }]
+  const bodies = [null, 'drive', {}, { keep: 'both', choice: 'copy-1' }, { keep: 1, choice: 'copy-1' }, { keep: 'drive' }, { keep: 'local', choice: 7 }]
   const results = await Promise.all(bodies.map((body) => call('PUT', '/api/google/choice', body)))
   expect(results).toEqual(bodies.map(() => ({ status: 400, body: { error: 'invalid_choice' } })))
   expect(asked).toEqual([])
@@ -664,14 +666,14 @@ test('Should have no Google routes when doji runs without Google', async () => {
     call('GET', '/api/google'),
     call('POST', '/api/google/sign-in'),
     call('POST', '/api/google/sync'),
-    call('PUT', '/api/google/choice', { keep: 'local' }),
+    call('PUT', '/api/google/choice', { keep: 'local', choice: 'copy-1' }),
     call('DELETE', '/api/google'),
   ])
   expect(results).toEqual(results.map(() => ({ status: 404, body: { error: 'not_found' } })))
 })
 
 // A store that keeps what it is given, whose first write can be held back as a wait for Google Drive does.
-const keptState = () => {
+const keptState = (pause: (ms: number) => Promise<void> = async () => undefined) => {
   const box = { state: { ...DEFAULT_STATE, symbol: 'KO' } as AppState, held: null as Promise<void> | null }
   const store: StateStore = {
     read: async () => box.state,
@@ -689,7 +691,7 @@ const keptState = () => {
     box.held = new Promise<void>((done) => (open = done))
     return () => open()
   }
-  return { box, hold, ...makeApi({ state: store }) }
+  return { box, hold, ...makeApi({ state: store, pause }) }
 }
 
 const savedAs = (rev: number) => ({ status: 200, body: { ok: true, rev } })
@@ -739,7 +741,7 @@ test('Should refuse a save that follows a refused one, even if its revision has 
   expect(box.state.symbol).toBe('KO')
 })
 
-test('Should refuse a save that follows one it never received', async () => {
+test('Should refuse a save that follows one it never received, once it has waited for it', async () => {
   const { call, box } = keptState()
   expect(await call('PUT', '/api/state', second)).toEqual(REFUSED)
   expect(await call('PATCH', '/api/state', { rev: 1, changes: { theme: 'light' }, follows: 'nobody' })).toEqual(REFUSED)
@@ -795,4 +797,51 @@ test('Should still answer a read of the state after a save that failed', async (
   fail()
   expect(await saving).toEqual({ status: 500, body: { error: 'internal' } })
   expect(await reading).toEqual({ status: 200, body: DEFAULT_STATE })
+})
+
+// A pause that ends when the test says so.
+const heldPause = () => {
+  const asked: number[] = []
+  let end: () => void = () => undefined
+  const pause = (ms: number) => {
+    asked.push(ms)
+    return new Promise<void>((done) => (end = done))
+  }
+  return { asked, pause, end: () => end() }
+}
+
+test.each([
+  ['whole', 'PUT', second],
+  ['as changes', 'PATCH', { rev: 1, changes: { symbol: 'NVDA' }, saveId: 'tab-2', follows: 'tab-1' }],
+])('Should wait for the save followed when its follower, sent %s, arrives first', async (_name, method, follower) => {
+  const wait = heldPause()
+  const { call, box } = keptState(wait.pause)
+  const two = call(method, '/api/state', follower)
+  await new Promise((done) => setTimeout(done, 0))
+  expect(box.state.symbol).toBe('KO')
+  expect(wait.asked).toEqual([2_000])
+  const one = call('PUT', '/api/state', first)
+  expect(await Promise.all([one, two])).toEqual([savedAs(2), savedAs(3)])
+  expect(box.state).toMatchObject({ symbol: 'NVDA', rev: 3 })
+  wait.end()
+})
+
+test('Should keep the order of a chain that arrives backwards', async () => {
+  const wait = heldPause()
+  const { call, box } = keptState(wait.pause)
+  const three = call('PATCH', '/api/state', { rev: 1, changes: { timeframe: 'W' }, saveId: 'tab-3', follows: 'tab-2' })
+  const two = call('PATCH', '/api/state', { rev: 1, changes: { theme: 'light' }, saveId: 'tab-2', follows: 'tab-1' })
+  const one = call('PUT', '/api/state', first)
+  expect(await Promise.all([one, two, three])).toEqual([savedAs(2), savedAs(3), savedAs(4)])
+  expect(box.state).toMatchObject({ symbol: 'MSFT', theme: 'light', timeframe: 'W' })
+})
+
+test('Should refuse the follower of a save that does not arrive in time', async () => {
+  const wait = heldPause()
+  const { call, box } = keptState(wait.pause)
+  const two = call('PUT', '/api/state', second)
+  wait.end()
+  expect(await two).toEqual(REFUSED)
+  expect(await call('PUT', '/api/state', first)).toEqual(savedAs(2))
+  expect(box.state.symbol).toBe('MSFT')
 })

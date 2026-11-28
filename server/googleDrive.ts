@@ -27,6 +27,7 @@ const FOLDER_NAME = 'doji'
 const FOLDER_TYPE = 'application/vnd.google-apps.folder'
 const FILE_NAME = 'state.json'
 const FILE_TYPE = 'application/json'
+const MAX_PAGES = 100
 
 export const multipartBody = (metadata: object, text: string, boundary: string): string =>
   [
@@ -80,10 +81,18 @@ export const createDrive = (deps: DriveDeps): Drive => {
     return first.status === 401 ? attempt(url, request, true) : first
   }
 
-  const search = async <T>(q: string, fields: string): Promise<T[]> => {
-    const { files } = jsonOf<{ files?: unknown }>(await call('/drive/v3/files', { q, fields: `files(${fields})`, spaces: 'drive' }))
-    if (!Array.isArray(files)) throw googleError('unavailable')
-    return files as T[]
+  // Drive may answer with empty pages before the one that holds the match, so none is found only after the last.
+  const firstFound = async <T>(q: string, fields: string): Promise<T | undefined> => {
+    let pageToken = ''
+    for (let page = 0; page < MAX_PAGES; page += 1) {
+      const query = { q, fields: `nextPageToken,files(${fields})`, spaces: 'drive', ...(pageToken ? { pageToken } : {}) }
+      const { files, nextPageToken } = jsonOf<{ files?: unknown; nextPageToken?: unknown }>(await call('/drive/v3/files', query))
+      if (!Array.isArray(files)) throw googleError('unavailable')
+      if (files.length > 0) return files[0] as T
+      if (typeof nextPageToken !== 'string' || nextPageToken === '') return undefined
+      pageToken = nextPageToken
+    }
+    throw googleError('unavailable')
   }
 
   const upload = async (method: string, path: string, metadata: object, text: string): Promise<DriveFile> => {
@@ -104,7 +113,7 @@ export const createDrive = (deps: DriveDeps): Drive => {
       return textIn(about.user?.emailAddress)
     },
     findFolder: async () => {
-      const [folder] = await search<{ id?: unknown }>(
+      const folder = await firstFound<{ id?: unknown }>(
         `name = '${FOLDER_NAME}' and mimeType = '${FOLDER_TYPE}' and 'root' in parents and trashed = false`,
         'id',
       )
@@ -119,7 +128,7 @@ export const createDrive = (deps: DriveDeps): Drive => {
       return textIn(jsonOf<{ id?: unknown }>(answer).id)
     },
     findFile: async (folderId) => {
-      const [file] = await search<StoredFile>(`name = '${FILE_NAME}' and '${folderId}' in parents and trashed = false`, FILE_FIELDS)
+      const file = await firstFound<StoredFile>(`name = '${FILE_NAME}' and '${folderId}' in parents and trashed = false`, FILE_FIELDS)
       return file ? fileFrom(file) : null
     },
     fileInfo: async (id) => {

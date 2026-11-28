@@ -73,7 +73,7 @@ export type GoogleStatus = {
   sync: 'signedOut' | 'waiting' | 'idle' | 'syncing' | 'offline' | 'failed' | 'expired' | 'choose'
   signInUrl: string | null
   lastSyncAt: string | null
-  choice: { local: GoogleSummary; drive: GoogleSummary } | null
+  choice: { id: string; local: GoogleSummary; drive: GoogleSummary } | null
   replacedRev: number | null
 }
 
@@ -81,7 +81,7 @@ export type GoogleApi = {
   status: () => Promise<GoogleStatus>
   signIn: () => Promise<{ url: string }>
   syncNow: () => Promise<GoogleStatus>
-  choose: (keep: 'local' | 'drive') => Promise<GoogleStatus>
+  choose: (keep: 'local' | 'drive', choice: string) => Promise<GoogleStatus>
   signOut: () => Promise<GoogleStatus>
 }
 
@@ -89,8 +89,8 @@ export const googleApi: GoogleApi = {
   status: () => request('/api/google'),
   signIn: () => request('/api/google/sign-in', { method: 'POST' }),
   syncNow: () => request('/api/google/sync', { method: 'POST' }),
-  choose: (keep) =>
-    request('/api/google/choice', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keep }) }),
+  choose: (keep, choice) =>
+    request('/api/google/choice', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keep, choice }) }),
   signOut: () => request('/api/google', { method: 'DELETE' }),
 }
 

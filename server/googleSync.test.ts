@@ -1,11 +1,14 @@
 import { createHash } from 'node:crypto'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { expect, test } from 'vitest'
 import { normalizeState } from '../shared/normalizeState'
 import { type AppState, DEFAULT_STATE, type HorizontalLine } from '../shared/types'
 import { createAlertMonitor } from './alertMonitor'
 import { type GoogleAuth, type GoogleErrorKind, googleError, isGoogleError } from './googleAuth'
 import type { Drive, DriveFile } from './googleDrive'
-import type { SaveOutcome } from './stateStore'
+import { type SaveOutcome, createStateStore } from './stateStore'
 import { callbackPage, createGoogleSync, decideSync, driveTextOf, hashOf, summaryOf, trackSaves } from './googleSync'
 
 const NOW = Date.parse('2026-11-27T12:00:00.000Z')
@@ -97,10 +100,15 @@ type Google = ReturnType<typeof fakeGoogle>
 const fakeAuth = (google: Google, clock: { at: number }) => {
   let pending: string | null = null
   let exchange: () => Promise<void> = async () => undefined
+  let refreshing: () => Promise<void> = async () => undefined
   const auth: GoogleAuth = {
     start: () => (pending = 'https://accounts.example/sign-in?state=s1'),
     pendingUrl: () => pending,
+    cancel: () => {
+      pending = null
+    },
     finish: async (query) => {
+      if (!pending) throw googleError('invalid_state')
       pending = null
       await exchange()
       if (query.get('error')) throw googleError('denied')
@@ -108,6 +116,7 @@ const fakeAuth = (google: Google, clock: { at: number }) => {
     },
     refresh: async (token) => {
       google.refreshes.push(token)
+      await refreshing()
       if (google.box.expired) throw googleError('expired')
       return { accessToken: 'access-secret-2', expiresAt: clock.at + 60 * MINUTE }
     },
@@ -120,12 +129,15 @@ const fakeAuth = (google: Google, clock: { at: number }) => {
     holdExchange: (wait: () => Promise<void>) => {
       exchange = wait
     },
+    holdRefresh: (wait: () => Promise<void>) => {
+      refreshing = wait
+    },
   }
 }
 
 const computer = (google: Google, initial: AppState | null = null, saved: unknown = null) => {
   const clock = { at: NOW }
-  const local = { state: initial, changedAt: initial ? NOW - MINUTE : (null as number | null), refusals: 0, keepFails: false, keeping: undefined as Promise<void> | undefined }
+  const local = { state: initial, changedAt: initial ? NOW - MINUTE : (null as number | null), refusals: 0, keepFails: false, keeping: undefined as Promise<void> | undefined, reportedTime: undefined as number | undefined }
   const kept: string[] = []
   const copies: AppState[] = []
   const replaced: AppState[] = []
@@ -133,7 +145,7 @@ const computer = (google: Google, initial: AppState | null = null, saved: unknow
   const timers: { run: () => void; ms: number }[] = []
   const gate = { wait: async () => undefined as void }
   const tokens: string[] = []
-  const { auth, holdExchange } = fakeAuth(google, clock)
+  const { auth, holdExchange, holdRefresh } = fakeAuth(google, clock)
   const read = async () => local.state ?? normalizeState(null)
   const sync = createGoogleSync({
     client: CLIENT,
@@ -149,7 +161,8 @@ const computer = (google: Google, initial: AppState | null = null, saved: unknow
       ),
     local: {
       read,
-      changedAt: async () => local.changedAt,
+      changedAt: async () => local.reportedTime ?? local.changedAt,
+      snapshot: async () => ({ state: await read(), changedAt: local.changedAt }),
       keepCopy: async (text) => {
         if (local.keepFails) throw new Error('disk full')
         await local.keeping
@@ -223,7 +236,7 @@ const computer = (google: Google, initial: AppState | null = null, saved: unknow
     local.changedAt = at
     sync.localChanged()
   }
-  return { sync, clock, local, copies, kept, replaced, account, gate, tokens, saves, change, delays, fire, signIn, edit, holdExchange }
+  return { sync, clock, local, copies, kept, replaced, account, gate, tokens, saves, change, delays, fire, signIn, edit, holdExchange, holdRefresh }
 }
 
 const SECRETS = /refresh-secret|access-secret/
@@ -235,6 +248,10 @@ const known = (remote: string, local = remote) => ({ remote, local })
 const here = (hash: string, changedAt = 1) => ({ exists: true, hash, changedAt })
 
 const GONE = { exists: false, hash: 'a', changedAt: null }
+
+// Answers the question as the person does who has just seen it.
+const choose = async (pc: ReturnType<typeof computer>, keep: 'local' | 'drive') =>
+  pc.sync.choose(keep, (await pc.sync.status()).choice?.id ?? '')
 
 test('Should upload when Drive has no file', () => {
   expect(decideSync({ local: here('a'), remote: null, synced: known('a') })).toBe('upload')
@@ -377,6 +394,7 @@ test('Should do nothing without a Google client', async () => {
       replace: async () => ({ ok: true, rev: 2 }),
       keepCopy: async () => undefined,
       changedAt: async () => NOW,
+      snapshot: async () => ({ state: DEFAULT_STATE, changedAt: NOW }),
     },
     store: { load: async () => ({ email: 'ana@example.com', refreshToken: 'r' }), save: async () => undefined, clear: async () => undefined },
     onReplaced: () => undefined,
@@ -499,7 +517,7 @@ test('Should ask which copy to keep when this computer and Drive differ', async 
 
 test('Should use the copy of Drive when chosen, keeping the one of this computer', async () => {
   const { google, pc } = await differing()
-  const status = await pc.sync.choose('drive')
+  const status = await choose(pc, 'drive')
   expect(status).toMatchObject({ sync: 'idle', replacedRev: 5, choice: null, lastSyncAt: '2026-11-27T12:00:00.000Z' })
   expect(pc.local.state).toMatchObject({ symbol: 'NVDA', rev: 5 })
   expect(pc.copies.map((state) => state.symbol)).toEqual(['KO'])
@@ -511,7 +529,7 @@ test('Should use the copy of Drive when chosen, keeping the one of this computer
 
 test('Should upload the copy of this computer when chosen', async () => {
   const { google, pc } = await differing()
-  const status = await pc.sync.choose('local')
+  const status = await choose(pc, 'local')
   expect(status).toMatchObject({ sync: 'idle', replacedRev: null, choice: null })
   expect(google.stored()).toBe(driveTextOf(stateWith('KO')))
   expect(pc.local.state?.symbol).toBe('KO')
@@ -521,17 +539,17 @@ test('Should upload the copy of this computer when chosen', async () => {
 test('Should ask again when Drive changed after the question was asked', async () => {
   const { google, pc } = await differing()
   google.put(driveTextOf(stateWith('TSLA')), NOW)
-  const status = await pc.sync.choose('local')
+  const status = await choose(pc, 'local')
   expect(status.sync).toBe('choose')
   expect(google.stored()).toBe(driveTextOf(stateWith('TSLA')))
-  expect(await pc.sync.choose('drive')).toMatchObject({ sync: 'idle' })
+  expect(await choose(pc, 'drive')).toMatchObject({ sync: 'idle' })
   expect(pc.local.state?.symbol).toBe('TSLA')
 })
 
 test('Should remember the choice of this computer while offline and upload it later', async () => {
   const { google, pc } = await differing()
   google.box.down = 'offline'
-  expect(await pc.sync.choose('local')).toMatchObject({ sync: 'offline', choice: null })
+  expect(await choose(pc, 'local')).toMatchObject({ sync: 'offline', choice: null })
   google.box.down = null
   await pc.fire(30_000)
   expect(google.stored()).toBe(driveTextOf(stateWith('KO')))
@@ -543,7 +561,7 @@ test('Should use the copy of Drive it already has even while offline', async () 
   google.box.down = 'offline'
   await pc.fire(5 * MINUTE)
   expect(await pc.sync.status()).toMatchObject({ sync: 'choose' })
-  await pc.sync.choose('drive')
+  await choose(pc, 'drive')
   expect(pc.local.state?.symbol).toBe('NVDA')
 })
 
@@ -551,7 +569,7 @@ test('Should ignore an answer when there is no question', async () => {
   const google = fakeGoogle()
   const pc = computer(google, stateWith('KO'))
   await pc.signIn()
-  expect(await pc.sync.choose('drive')).toMatchObject({ sync: 'idle' })
+  expect(await choose(pc, 'drive')).toMatchObject({ sync: 'idle' })
   expect(pc.copies).toEqual([])
   expect(google.uploads).toHaveLength(1)
 })
@@ -894,7 +912,7 @@ test('Should settle the same way after choosing a copy written by a newer doji',
   google.put(fromNewerDoji('NVDA'), NOW - MINUTE)
   const pc = computer(google, stateWith('KO'))
   await pc.signIn()
-  await pc.sync.choose('drive')
+  await choose(pc, 'drive')
   await pc.sync.syncNow()
   expect(google.uploads).toEqual([])
   expect(pc.replaced).toHaveLength(1)
@@ -1018,7 +1036,7 @@ test('Should save at once while the person has not chosen a copy', async () => {
 test('Should count the first-time question as a look at Drive', async () => {
   const { google, pc } = await differing()
   pc.clock.at = NOW + 30_000
-  await pc.sync.choose('drive')
+  await choose(pc, 'drive')
   google.put(driveTextOf(stateWith('TSLA')), NOW + MINUTE)
   const asked = pc.tokens.length
   pc.clock.at = NOW + MINUTE - 1
@@ -1334,7 +1352,7 @@ test('Should not take its own uploads for news when Drive sums them its own way'
 test('Should keep the copy of Drive here before uploading over it when this computer is chosen', async () => {
   const { google, pc } = await differing()
   const theirs = google.stored()
-  await pc.sync.choose('local')
+  await choose(pc, 'local')
   expect(pc.kept).toEqual([theirs])
   expect(google.stored()).toBe(driveTextOf(stateWith('KO')))
 })
@@ -1343,18 +1361,18 @@ test('Should keep the copy of Drive here at once when this computer is chosen of
   const { google, pc } = await differing()
   const theirs = google.stored()
   google.box.down = 'offline'
-  await pc.sync.choose('local')
+  await choose(pc, 'local')
   expect(pc.kept).toEqual([theirs])
 })
 
 test('Should upload nothing and go on asking when the copy of Drive cannot be kept here', async () => {
   const { google, pc } = await differing()
   pc.local.keepFails = true
-  await expect(pc.sync.choose('local')).rejects.toThrow('disk full')
+  await expect(choose(pc, 'local')).rejects.toThrow('disk full')
   expect(google.uploads).toEqual([])
   expect(await pc.sync.status()).toMatchObject({ sync: 'choose' })
   pc.local.keepFails = false
-  await pc.sync.choose('local')
+  await choose(pc, 'local')
   expect(google.stored()).toBe(driveTextOf(stateWith('KO')))
 })
 
@@ -1362,7 +1380,7 @@ test('Should not carry an answer into a sign-in made while the copy of Drive was
   const { google, pc } = await differing()
   const disk = held()
   pc.local.keeping = disk.wait
-  const choosing = pc.sync.choose('local')
+  const choosing = choose(pc, 'local')
   await idle()
   await pc.sync.signOut()
   await pc.signIn()
@@ -1385,6 +1403,99 @@ test('Should ask, not upload, when settings that were unreadable are written whi
   await syncing
   expect(await pc.sync.status()).toMatchObject({ sync: 'choose' })
   expect(google.uploads).toEqual([])
+})
+
+test.each(['local', 'drive'] as const)('Should apply nothing when the copy answered about (%s) is no longer the one asked about', async (keep) => {
+  const { google, pc } = await differing()
+  const shown = (await pc.sync.status()).choice?.id as string
+  google.put(driveTextOf(stateWith('TSLA')), NOW + MINUTE)
+  const refreshing = pc.sync.syncNow()
+  const status = await pc.sync.choose(keep, shown)
+  await refreshing
+  expect(status).toMatchObject({ sync: 'choose' })
+  expect(status.choice?.id).not.toBe(shown)
+  expect(pc.local.state?.symbol).toBe('KO')
+  expect(pc.kept).toEqual([])
+  expect(google.uploads).toEqual([])
+  await pc.sync.choose(keep, status.choice?.id as string)
+  expect(pc.local.state?.symbol).toBe(keep === 'drive' ? 'TSLA' : 'KO')
+})
+
+test('Should send nothing to Drive with a token that arrived after signing out', async () => {
+  const { google, pc } = await synced()
+  const asked = pc.tokens.length
+  const token = held()
+  pc.holdRefresh(() => token.wait)
+  pc.clock.at = NOW + 61 * MINUTE
+  pc.edit('MSFT')
+  await pc.fire(3_000)
+  await pc.sync.signOut()
+  token.open()
+  await idle()
+  expect(pc.tokens).toHaveLength(asked)
+  expect(google.uploads).toEqual([])
+})
+
+test('Should not sign back in from a Google page left open when signing out', async () => {
+  const pc = computer(fakeGoogle(), stateWith('KO'))
+  await pc.sync.signIn()
+  expect(await pc.sync.signOut()).toMatchObject({ sync: 'signedOut', signInUrl: null })
+  await expect(pc.sync.finishSignIn(new URLSearchParams({ code: 'c1', state: 's1' }))).rejects.toSatisfy(
+    (error) => isGoogleError(error) && error.kind === 'invalid_state',
+  )
+  expect(await pc.sync.status()).toMatchObject({ sync: 'signedOut', email: null })
+  expect(pc.account.saved).toBeNull()
+})
+
+test('Should bring the copy of Drive back before saving over settings lost since a look just made', async () => {
+  const { google, pc } = await synced()
+  breakSettings(pc)
+  pc.clock.at = NOW + 1_000
+  expect(await pc.change({ symbol: 'MSFT' })).toEqual({ ok: false, reason: 'conflict' })
+  expect(pc.local.state?.symbol).toBe('KO')
+  expect(google.uploads).toEqual([])
+})
+
+test('Should ask before uploading what was saved offline over settings lost since a look just made', async () => {
+  const { google, pc } = await synced()
+  breakSettings(pc)
+  google.box.down = 'offline'
+  pc.clock.at = NOW + 1_000
+  expect(await pc.change({ symbol: 'MSFT' })).toMatchObject({ ok: true })
+  google.box.down = null
+  await pc.fire(3_000)
+  expect(await pc.sync.status()).toMatchObject({ sync: 'choose' })
+  expect(google.stored()).toBe(driveTextOf(stateWith('KO')))
+  expect(google.uploads).toEqual([])
+})
+
+test('Should still save over lost settings when the sync record cannot be written', async () => {
+  const { pc } = await synced()
+  breakSettings(pc)
+  pc.account.refuses = true
+  pc.clock.at = NOW + 1_000
+  expect(await pc.change({ symbol: 'MSFT' })).toMatchObject({ ok: true })
+})
+
+test('Should ask nothing at the first change on a computer that signed in with no settings', async () => {
+  const google = fakeGoogle()
+  const pc = computer(google)
+  await pc.signIn()
+  pc.clock.at = NOW + 1_000
+  expect(await pc.change({ symbol: 'MSFT' })).toMatchObject({ ok: true })
+  await pc.fire(3_000)
+  expect(await pc.sync.status()).toMatchObject({ sync: 'idle', choice: null })
+  expect(google.stored()).toBe(driveTextOf(stateWith('MSFT')))
+})
+
+test('Should compare the settings with the time of change seen together with them', async () => {
+  const { google, pc } = await synced()
+  google.put(driveTextOf(stateWith('NVDA')), NOW + MINUTE)
+  pc.edit('MSFT', NOW + 2 * MINUTE)
+  pc.local.reportedTime = NOW - MINUTE
+  await pc.sync.syncNow()
+  expect(pc.local.state?.symbol).toBe('MSFT')
+  expect(google.stored()).toBe(driveTextOf(stateWith('MSFT')))
 })
 
 // A computer whose Drive stops answering: every look hangs until released.
@@ -1494,6 +1605,74 @@ test('Should not hold a failure of this computer against Drive, however long it 
   pc.clock.at += 30_000
   await pc.fire(30_000)
   expect(await atOnce('MSFT')).toBe(false)
+})
+
+test('Should not hold against a new sign-in a wait begun before it', async () => {
+  const { pc, drive, waited, atOnce } = await hanging()
+  expect(await atOnce('MSFT')).toBe(false)
+  pc.gate.wait = () => Promise.resolve()
+  await pc.sync.signOut()
+  await pc.signIn()
+  const next = held()
+  pc.gate.wait = () => next.wait
+  await waited(5_000)
+  drive.open()
+  await idle()
+  expect(await atOnce('NVDA')).toBe(false)
+})
+
+// A computer over a real settings file, so that its revisions are the ones its pages are given.
+const onDisk = async (google: Google) => {
+  const file = join(await mkdtemp(join(tmpdir(), 'doji-sync-')), 'state.json')
+  const clock = { at: NOW }
+  const store = createStateStore(file, () => new Date(clock.at))
+  let account: unknown = null
+  const { auth } = fakeAuth(google, clock)
+  const sync = createGoogleSync({
+    client: CLIENT,
+    auth,
+    makeDrive: (token) => google.drive(token, async () => undefined),
+    local: store,
+    store: {
+      load: async () => account,
+      save: async (data) => {
+        account = JSON.parse(JSON.stringify(data))
+      },
+      clear: async () => {
+        account = null
+      },
+    },
+    onReplaced: () => undefined,
+    now: () => clock.at,
+    setTimer: () => null,
+    clearTimer: () => undefined,
+  })
+  const saves = trackSaves(store, { beforeSave: () => sync.beforeSave(), saved: () => sync.localChanged() })
+  await sync.signIn()
+  await sync.finishSignIn(new URLSearchParams({ code: 'c1', state: 's1' }))
+  await sync.syncNow()
+  return { file, clock, store, sync, saves }
+}
+
+test.each([
+  ['deleted', (file: string) => rm(file)],
+  ['broken', (file: string) => writeFile(file, '{ oops')],
+  ['emptied', (file: string) => writeFile(file, '{}')],
+])('Should refuse the save of an open page over %s settings and keep the newer copy of Drive', async (_name, lose) => {
+  const google = fakeGoogle()
+  google.put(driveTextOf(stateWith('KO')), NOW - MINUTE)
+  const pc = await onDisk(google)
+  const newer = driveTextOf(stateWith('KO', { notes: { KO: 'from the other computer' } }))
+  // Once for a computer just set up, and again for a page showing what was brought back the first time.
+  for (let loss = 1; loss <= 2; loss += 1) {
+    const shown = await pc.saves.read()
+    google.put(newer, pc.clock.at + 1_000)
+    await lose(pc.file)
+    pc.clock.at += 2_000
+    expect(await pc.saves.save({ ...shown, symbol: 'MSFT' }, shown.rev)).toEqual({ ok: false, reason: 'conflict' })
+    expect(google.stored()).toBe(newer)
+    expect(await pc.saves.read()).toMatchObject({ symbol: 'KO', notes: { KO: 'from the other computer' } })
+  }
 })
 
 test('Should stop looking when stopped', async () => {

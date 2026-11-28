@@ -26,7 +26,14 @@ const makeStore = async () => {
     clock += seconds * 1000
   }
   const advanceDays = (days: number) => advanceSeconds(days * 24 * 60 * 60)
-  return { store, dir: join(dir, 'nested'), file, advanceDays, advanceSeconds }
+  // The revision a copy brought from elsewhere takes at the moment of the clock.
+  const broughtAt = () => clock
+  const replaced = async (state: AppState, baseRev: number): Promise<number> => {
+    const outcome = await store.replace(state, baseRev)
+    if (!outcome.ok) throw new Error('refused')
+    return outcome.rev
+  }
+  return { store, dir: join(dir, 'nested'), file, advanceDays, advanceSeconds, broughtAt, replaced }
 }
 
 test('Should return the defaults when the file does not exist', async () => {
@@ -117,11 +124,11 @@ test('Should keep only the seven most recent backups', async () => {
 })
 
 test('Should keep a copy of the file it replaces even when today already has one', async () => {
-  const { store, dir, advanceDays } = await makeStore()
+  const { store, dir, advanceDays, broughtAt } = await makeStore()
   await store.save({ ...DEFAULT_STATE, symbol: 'KO' }, 1)
   advanceDays(1)
   await store.save({ ...DEFAULT_STATE, symbol: 'MSFT' }, 2)
-  expect(await store.replace({ ...DEFAULT_STATE, symbol: 'NVDA' }, 3)).toEqual({ ok: true, rev: 4 })
+  expect(await store.replace({ ...DEFAULT_STATE, symbol: 'NVDA' }, 3)).toEqual({ ok: true, rev: broughtAt() })
   expect((await store.read()).symbol).toBe('NVDA')
   expect((await readdir(dir)).sort()).toEqual(['state.json', 'state.json.bak-2026-11-24', 'state.json.bak-2026-11-24-120000'])
   const daily = JSON.parse(await readFile(join(dir, 'state.json.bak-2026-11-24'), 'utf8')) as AppState
@@ -138,11 +145,11 @@ test('Should keep a copy under the day when the file it replaces is the first ch
 })
 
 test('Should never overwrite an earlier copy when it replaces twice in the same second', async () => {
-  const { store, dir } = await makeStore()
+  const { store, dir, replaced } = await makeStore()
   await store.save({ ...DEFAULT_STATE, symbol: 'KO' }, 1)
-  await store.replace({ ...DEFAULT_STATE, symbol: 'MSFT' }, 2)
-  await store.replace({ ...DEFAULT_STATE, symbol: 'NVDA' }, 3)
-  await store.replace({ ...DEFAULT_STATE, symbol: 'AAPL' }, 4)
+  let rev = await replaced({ ...DEFAULT_STATE, symbol: 'MSFT' }, 2)
+  rev = await replaced({ ...DEFAULT_STATE, symbol: 'NVDA' }, rev)
+  await replaced({ ...DEFAULT_STATE, symbol: 'AAPL' }, rev)
   const copies = (await readdir(dir)).filter((name) => name.includes('.bak-')).sort()
   const symbols = await Promise.all(copies.map(async (name) => (JSON.parse(await readFile(join(dir, name), 'utf8')) as AppState).symbol))
   expect(symbols).toEqual(['KO', 'MSFT', 'NVDA'])
@@ -166,7 +173,7 @@ const copiesIn = async (dir: string) => {
 }
 
 test('Should keep seven daily copies and, apart from them, the ten last ones it replaced', async () => {
-  const { store, dir, advanceDays, advanceSeconds } = await makeStore()
+  const { store, dir, advanceDays, advanceSeconds, replaced: replace } = await makeStore()
   await store.save({ ...DEFAULT_STATE, symbol: 'KO' }, 1)
   let rev = 2
   for (let day = 0; day < 8; day += 1) {
@@ -175,7 +182,7 @@ test('Should keep seven daily copies and, apart from them, the ten last ones it 
   }
   for (let turn = 0; turn < 12; turn += 1) {
     advanceSeconds(1)
-    await store.replace({ ...DEFAULT_STATE, symbol: `NEW${turn}` }, rev++)
+    rev = await replace({ ...DEFAULT_STATE, symbol: `NEW${turn}` }, rev)
   }
   const { daily, replaced, symbolsOf } = await copiesIn(dir)
   expect(daily).toEqual([25, 26, 27, 28, 29, 30].map((day) => `state.json.bak-2026-11-${day}`).concat('state.json.bak-2026-12-01'))
@@ -184,9 +191,10 @@ test('Should keep seven daily copies and, apart from them, the ten last ones it 
 })
 
 test('Should keep the newest replaced copies even when many are made in one second', async () => {
-  const { store, dir } = await makeStore()
+  const { store, dir, replaced: replace } = await makeStore()
   await store.save({ ...DEFAULT_STATE, symbol: 'KO' }, 1)
-  for (let turn = 0; turn < 14; turn += 1) await store.replace({ ...DEFAULT_STATE, symbol: `NEW${turn}` }, turn + 2)
+  let rev = 2
+  for (let turn = 0; turn < 14; turn += 1) rev = await replace({ ...DEFAULT_STATE, symbol: `NEW${turn}` }, rev)
   const { daily, replaced, symbolsOf } = await copiesIn(dir)
   expect(await symbolsOf(daily)).toEqual(['KO'])
   expect(await symbolsOf(replaced)).toEqual(Array.from({ length: 10 }, (_, index) => `NEW${index + 3}`))
@@ -199,7 +207,7 @@ test('Should tell replaced copies from daily ones whatever the file is called', 
   await store.save(DEFAULT_STATE, 1)
   for (let turn = 0; turn < 12; turn += 1) {
     clock += 1000
-    await store.replace(DEFAULT_STATE, turn + 2)
+    await store.replace(DEFAULT_STATE, (await store.read()).rev)
   }
   const { daily, replaced } = await copiesIn(dir)
   expect(daily).toEqual(['my (state).json.bak-2026-11-23'])
@@ -261,4 +269,68 @@ test('Should count copies from elsewhere with the replaced ones, never against t
   const { daily, replaced, symbolsOf } = await copiesIn(dir)
   expect(daily).toEqual(['state.json.bak-2026-11-24'])
   expect(await symbolsOf(replaced)).toEqual(Array.from({ length: 10 }, (_, index) => `NEW${index + 2}`))
+})
+
+test('Should keep the newest replaced copies after the clock goes back, as when summer time ends', async () => {
+  const { store, dir, advanceSeconds, replaced: replace } = await makeStore()
+  await store.save({ ...DEFAULT_STATE, symbol: 'KO' }, 1)
+  let rev = 2
+  for (let turn = 0; turn < 11; turn += 1) {
+    advanceSeconds(1)
+    rev = await replace({ ...DEFAULT_STATE, symbol: `NEW${turn}` }, rev)
+  }
+  advanceSeconds(-60 * 60)
+  for (let turn = 11; turn < 14; turn += 1) {
+    advanceSeconds(1)
+    rev = await replace({ ...DEFAULT_STATE, symbol: `NEW${turn}` }, rev)
+  }
+  await store.keepCopy('{"symbol":"THEIRS"}')
+  const { daily, replaced, symbolsOf } = await copiesIn(dir)
+  expect(await symbolsOf(daily)).toEqual(['KO'])
+  expect(await symbolsOf(replaced)).toEqual([...Array.from({ length: 9 }, (_, index) => `NEW${index + 4}`), 'THEIRS'])
+})
+
+test('Should give the settings and the time they changed as they stand together, after a save under way', async () => {
+  const { store, file } = await makeStore()
+  await store.save({ ...DEFAULT_STATE, symbol: 'KO' }, 1)
+  const old = new Date('2026-11-20T10:30:00.000Z')
+  await utimes(file, old, old)
+  const saving = store.save({ ...DEFAULT_STATE, symbol: 'MSFT' }, 2)
+  const seen = await store.snapshot()
+  await saving
+  expect(seen.state).toMatchObject({ symbol: 'MSFT', rev: 3 })
+  expect(seen.changedAt).toBe((await stat(file)).mtimeMs)
+})
+
+test('Should give the defaults and no time of change while there are no settings', async () => {
+  const { store } = await makeStore()
+  expect(await store.snapshot()).toEqual({ state: DEFAULT_STATE, changedAt: null })
+})
+
+test.each([
+  ['deleted', (file: string) => rm(file)],
+  ['broken', (file: string) => writeFile(file, '{ oops')],
+  ['emptied', (file: string) => writeFile(file, '{}')],
+])('Should give a copy brought over %s settings a revision no page was ever shown', async (_name, lose) => {
+  const { store, file, advanceSeconds, replaced } = await makeStore()
+  await store.save(DEFAULT_STATE, 1)
+  await store.save(DEFAULT_STATE, 2)
+  const shown = [1, 2, 3]
+  for (let loss = 1; loss <= 2; loss += 1) {
+    await lose(file)
+    advanceSeconds(1)
+    const rev = await replaced({ ...DEFAULT_STATE, symbol: 'NVDA' }, 1)
+    expect(rev).toBeGreaterThan(Math.max(...shown))
+    for (const held of shown.slice(1)) expect(await store.save(DEFAULT_STATE, held)).toMatchObject({ ok: false })
+    expect(await store.save({ ...DEFAULT_STATE, symbol: 'NVDA' }, rev)).toEqual({ ok: true, rev: rev + 1 })
+    shown.push(rev, rev + 1)
+  }
+})
+
+test('Should go on counting up when a copy is brought with the clock set back', async () => {
+  const { store, advanceSeconds, replaced } = await makeStore()
+  await store.save(DEFAULT_STATE, 1)
+  const first = await replaced(DEFAULT_STATE, 2)
+  advanceSeconds(-60)
+  expect(await replaced(DEFAULT_STATE, first)).toBe(first + 1)
 })

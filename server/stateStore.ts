@@ -17,6 +17,8 @@ export type LocalStateFile = StateStore & {
   keepCopy: (text: string) => Promise<void>
   // Null when there is no file, or none that can be read as settings.
   changedAt: () => Promise<number | null>
+  // The settings and the time they changed as they stand together, with no save in between.
+  snapshot: () => Promise<{ state: AppState; changedAt: number | null }>
 }
 
 const BACKUPS_KEPT = 7
@@ -105,8 +107,14 @@ export const createStateStore = (file: string, now: () => Date = () => new Date(
     await keepNewest(copies.filter((entry) => !replacedPattern.test(entry)), BACKUPS_KEPT)
   }
 
-  const timedName = (moment: Date): Promise<string> =>
-    replacedName(`${backupPrefix}${localDay(moment)}-${localTime(moment)}`)
+  // A clock that goes back, as when summer time ends, must not make a new copy look older than the ones kept: it
+  // takes the latest name among them and the next number.
+  const timedName = async (moment: Date): Promise<string> => {
+    const stem = `${backupPrefix}${localDay(moment)}-${localTime(moment)}`
+    const latest = (await readdir(dir)).filter((entry) => replacedPattern.test(entry)).sort(byAge).at(-1)
+    const kept = latest?.slice(0, stem.length)
+    return replacedName(kept && byAge(kept, stem) > 0 ? kept : stem)
+  }
 
   const backUp = async (moment: Date, always: boolean): Promise<void> => {
     const daily = `${backupPrefix}${localDay(moment)}`
@@ -116,15 +124,17 @@ export const createStateStore = (file: string, now: () => Date = () => new Date(
     await rotate()
   }
 
-  const persist = async (state: AppState, baseRev: number, alwaysCopy: boolean): Promise<SaveOutcome> => {
+  const persist = async (state: AppState, baseRev: number, replacing: boolean): Promise<SaveOutcome> => {
     const text = await readText()
     const current = await parse(text)
     if (baseRev !== current.rev) return { ok: false, reason: 'conflict' }
     const moment = now()
     const today = localDay(moment)
-    const rev = current.rev + 1
+    // A copy brought from elsewhere takes a revision no open page can hold. Counting on from the file is not enough:
+    // lost settings read as revision 1, so the count would pass again through revisions pages were already given.
+    const rev = replacing ? Math.max(current.rev + 1, moment.getTime()) : current.rev + 1
     await mkdir(dir, { recursive: true })
-    if (text !== null && (alwaysCopy || savedOnOf(text) !== today)) await backUp(moment, alwaysCopy)
+    if (text !== null && (replacing || savedOnOf(text) !== today)) await backUp(moment, replacing)
     await writeAtomic(file, JSON.stringify({ ...normalizeState(state), rev, savedOn: today }, null, 2))
     return { ok: true, rev }
   }
@@ -153,11 +163,14 @@ export const createStateStore = (file: string, now: () => Date = () => new Date(
     }
   }
 
+  const snapshot = () => queued(async () => ({ changedAt: await changedAt(), state: await read() }))
+
   return {
     read,
     save: (state, baseRev) => queued(() => persist(state, baseRev, false)),
     replace: (state, baseRev) => queued(() => persist(state, baseRev, true)),
     keepCopy,
     changedAt,
+    snapshot,
   }
 }

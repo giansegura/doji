@@ -26,7 +26,8 @@ export type GoogleStatus = {
   sync: GoogleSyncState
   signInUrl: string | null
   lastSyncAt: string | null
-  choice: { local: GoogleSummary; drive: GoogleSummary } | null
+  // The id names the copy of Drive described, so that an answer can say which one it is about.
+  choice: { id: string; local: GoogleSummary; drive: GoogleSummary } | null
   replacedRev: number | null
 }
 
@@ -49,7 +50,7 @@ export type GoogleSync = {
   signIn: () => Promise<{ url: string }>
   finishSignIn: (query: URLSearchParams) => Promise<void>
   syncNow: () => Promise<GoogleStatus>
-  choose: (keep: GoogleKeep) => Promise<GoogleStatus>
+  choose: (keep: GoogleKeep, shown: string) => Promise<GoogleStatus>
   signOut: () => Promise<GoogleStatus>
   localChanged: () => void
   beforeSave: () => Promise<void>
@@ -62,7 +63,7 @@ type SyncDeps = {
   client: GoogleClient | null
   auth: GoogleAuth
   makeDrive: (token: (fresh?: boolean) => Promise<string>) => Drive
-  local: Pick<LocalStateFile, 'read' | 'replace' | 'changedAt' | 'keepCopy'>
+  local: Pick<LocalStateFile, 'read' | 'replace' | 'changedAt' | 'snapshot' | 'keepCopy'>
   store: GoogleStore
   onReplaced: (state: AppState) => void
   now: () => number
@@ -253,7 +254,9 @@ export const createGoogleSync = (deps: SyncDeps): GoogleSync => {
       const refreshToken = (await load())?.refreshToken
       if (!refreshToken) throw googleError('expired')
       const next = await deps.auth.refresh(refreshToken)
-      if (mine === generation) access = next
+      // Signed out, or in again, while Google answered: nothing more goes to Drive for the earlier sign-in.
+      if (mine !== generation) throw googleError('expired')
+      access = next
       return next.accessToken
     }
 
@@ -288,16 +291,20 @@ export const createGoogleSync = (deps: SyncDeps): GoogleSync => {
     return true
   }
 
+  // Settings that are gone or unreadable say nothing about the last sync. Forgetting it, even while Drive cannot be
+  // reached, makes doji ask before uploading whatever is saved over them.
+  const forgetIfLost = async (mine: number): Promise<boolean> => {
+    if ((await deps.local.changedAt()) !== null) return false
+    await remember(mine, { syncedHash: undefined, localHash: undefined })
+    return true
+  }
+
   // Resolves to true once this computer and Drive have been compared and the outcome dealt with.
   const reconcile = async (mine: number, account: GoogleAccount): Promise<boolean> => {
-    // Settings that are gone or unreadable say nothing about the last sync. Forgetting it, even while Drive cannot
-    // be reached, makes doji ask before uploading whatever is saved over them.
-    const lost = (await deps.local.changedAt()) === null
-    if (lost) await remember(mine, { syncedHash: undefined, localHash: undefined })
+    const lost = await forgetIfLost(mine)
     const drive = deps.makeDrive(tokenFor(mine))
     const place = await locate(drive, mine, account)
-    const changedAt = await deps.local.changedAt()
-    const current = await deps.local.read()
+    const { state: current, changedAt } = await deps.local.snapshot()
     const text = driveTextOf(current)
     const hash = hashOf(text)
     const { file } = place
@@ -320,7 +327,7 @@ export const createGoogleSync = (deps: SyncDeps): GoogleSync => {
       hash: file.hash,
       text: theirs,
       drive: remote,
-      choice: { local: summaryOf(current, changedAt), drive: summaryOf(remote, file.changedAt) },
+      choice: { id: file.hash, local: summaryOf(current, changedAt), drive: summaryOf(remote, file.changedAt) },
     }
     return true
   }
@@ -406,14 +413,21 @@ export const createGoogleSync = (deps: SyncDeps): GoogleSync => {
 
   // A change made on old settings would win over newer ones in Drive, so a save first waits for a look at Drive.
   const beforeSave = async (): Promise<void> => {
+    if (!deps.client) return
+    const mine = generation
+    // Settings lost since the last look are looked at again before anything is written over them, however recent it was.
+    const lost = await forgetIfLost(mine).catch(() => false)
+    if (lost) checkedAt = 0
     // Once Drive has not answered in time, saves stop waiting for it for a minute.
     if (!stale() || deps.now() - stalledAt < FRESH_MS || !(await load())?.refreshToken) return
     const underway = running
     // A failure that came back at once costs a save next to nothing to try again, as when a computer has just woken.
-    const cycle = underway ?? (attemptDue(failedFast ? SAVE_RETRY_MS : FRESH_MS) ? requestCycle() : null)
+    const spacing = lost ? 0 : failedFast ? SAVE_RETRY_MS : FRESH_MS
+    const cycle = underway ?? (attemptDue(spacing) ? requestCycle() : null)
     // A look already under way has used up part of the wait.
     const left = underway ? SAVE_WAIT_MS - (deps.now() - attemptedAt) : SAVE_WAIT_MS
-    if (cycle && left > 0 && !(await endsWithin(left, cycle))) stalledAt = deps.now()
+    // A wait begun before signing in or out says nothing about the sign-in there is now.
+    if (cycle && left > 0 && !(await endsWithin(left, cycle)) && mine === generation) stalledAt = deps.now()
   }
 
   const freshen = (): void => {
@@ -487,10 +501,11 @@ export const createGoogleSync = (deps: SyncDeps): GoogleSync => {
     return status()
   }
 
-  const choose = async (keep: GoogleKeep): Promise<GoogleStatus> => {
+  const choose = async (keep: GoogleKeep, shown: string): Promise<GoogleStatus> => {
     await inTurn(async () => {
       const asked = question
-      if (!asked) return
+      // An answer about another copy than the one asked about now is dropped, and the person sees the new question.
+      if (!asked || asked.hash !== shown) return
       const mine = generation
       // Drive's copy is about to be written over: it is kept here first, and nothing changes if that fails.
       if (keep === 'local') await deps.local.keepCopy(asked.text)
@@ -510,6 +525,8 @@ export const createGoogleSync = (deps: SyncDeps): GoogleSync => {
     generation += 1
     cancelAll()
     forget()
+    // A Google page still open must not sign this computer back in.
+    deps.auth.cancel()
     replacedRev = null
     failedFast = false
     const refreshToken = (await load())?.refreshToken

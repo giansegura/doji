@@ -37,6 +37,7 @@ type ApiDeps = {
   backupKey: BackupKey
   testYahoo?: (down: boolean) => void
   google?: GoogleSync
+  pause?: (ms: number) => Promise<void>
 }
 
 type Route = (request: ApiRequest) => Promise<ApiResult>
@@ -47,6 +48,7 @@ const WRITING_METHODS = ['PUT', 'PATCH']
 const MAX_RESOLVE_GROUPS = 50
 const MAX_CANDIDATES = 5
 const SAVES_REMEMBERED = 20
+const FOLLOWED_WAIT_MS = 2_000
 const REFUSED: SaveOutcome = { ok: false, reason: 'conflict' }
 
 const ok = (body: unknown): ApiResult => ({ status: 200, body })
@@ -135,14 +137,31 @@ const savedAnswer = (outcome: SaveOutcome): ApiResult =>
 export const createApi = (deps: ApiDeps): Route => {
   const recentSaves = new Map<string, Promise<SaveOutcome>>()
   let received: Promise<unknown> = Promise.resolve()
+  const followers = new Map<string, (outcome: Promise<SaveOutcome> | SaveOutcome) => void>()
+  const pause = deps.pause ?? ((ms: number) => new Promise<void>((done) => setTimeout(done, ms)))
+
+  // A follower is sent without waiting, so it can get here before the save it follows: it is given time to arrive.
+  const followed = (id: string): Promise<SaveOutcome> =>
+    recentSaves.get(id) ??
+    new Promise<SaveOutcome>((done) => {
+      followers.set(id, done)
+      pause(FOLLOWED_WAIT_MS).then(() => {
+        followers.delete(id)
+        done(REFUSED)
+      })
+    })
 
   // A page being left sends its latest change while the save before it may still be waiting to be written. The
   // follower waits for that one and goes only on top of what it wrote, so it never undoes what someone else saved.
   const inOrder = ({ rev, saveId, follows }: SaveRequest, write: (base: number) => Promise<SaveOutcome>) => {
-    const before = typeof follows === 'string' ? (recentSaves.get(follows) ?? Promise.resolve(REFUSED)) : null
+    const before = typeof follows === 'string' ? followed(follows) : null
     const outcome = before ? before.then((first) => (first.ok ? write(first.rev) : first)) : write(rev)
     received = Promise.allSettled([received, outcome]).then(() => undefined)
-    if (typeof saveId === 'string') recentSaves.set(saveId, outcome)
+    if (typeof saveId === 'string') {
+      recentSaves.set(saveId, outcome)
+      followers.get(saveId)?.(outcome)
+      followers.delete(saveId)
+    }
     if (recentSaves.size > SAVES_REMEMBERED) recentSaves.delete(recentSaves.keys().next().value as string)
     return outcome
   }
@@ -240,9 +259,9 @@ export const createApi = (deps: ApiDeps): Route => {
     'POST /api/google/sync': () => withGoogle((google) => google.syncNow()),
     'PUT /api/google/choice': async ({ body }) => {
       if (!deps.google) return fail(404, 'not_found')
-      const keep = (body as { keep?: unknown } | null)?.keep
-      if (keep !== 'local' && keep !== 'drive') return fail(400, 'invalid_choice')
-      return ok(await deps.google.choose(keep))
+      const { keep, choice } = (body ?? {}) as { keep?: unknown; choice?: unknown }
+      if ((keep !== 'local' && keep !== 'drive') || typeof choice !== 'string') return fail(400, 'invalid_choice')
+      return ok(await deps.google.choose(keep, choice))
     },
     'DELETE /api/google': () => withGoogle((google) => google.signOut()),
     'GET /api/backup': async () => ok(await deps.backupKey.status()),

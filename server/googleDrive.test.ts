@@ -50,7 +50,7 @@ test('Should look for the doji folder at the top of My Drive', async () => {
     path: `${API}/drive/v3/files`,
     query: {
       q: "name = 'doji' and mimeType = 'application/vnd.google-apps.folder' and 'root' in parents and trashed = false",
-      fields: 'files(id)',
+      fields: 'nextPageToken,files(id)',
       spaces: 'drive',
     },
   })
@@ -71,7 +71,7 @@ test('Should look for state.json inside the doji folder', async () => {
   expect(asked()).toEqual({
     method: 'GET',
     path: `${API}/drive/v3/files`,
-    query: { q: "name = 'state.json' and 'folder-1' in parents and trashed = false", fields: `files(${FIELDS})`, spaces: 'drive' },
+    query: { q: "name = 'state.json' and 'folder-1' in parents and trashed = false", fields: `nextPageToken,files(${FIELDS})`, spaces: 'drive' },
   })
   expect(await drive.findFile('folder-1')).toBeNull()
 })
@@ -173,4 +173,28 @@ test('Should pass on why there is no token', async () => {
     },
   })
   await expect(drive.findFolder()).rejects.toSatisfy(failsWith('expired'))
+})
+
+test.each([
+  ['the folder', (drive: ReturnType<typeof setup>['drive']) => drive.findFolder(), { id: 'folder-1' }, 'folder-1'],
+  ['state.json', (drive: ReturnType<typeof setup>['drive']) => drive.findFile('folder-1'), STORED, FILE],
+])('Should go through every page before saying that %s is not there', async (_name, look, stored, found) => {
+  const { drive, asked, calls } = setup(
+    { body: { files: [], nextPageToken: 'page-2' } },
+    { body: { files: [], nextPageToken: 'page-3' } },
+    { body: { files: [stored] } },
+    { body: { files: [] } },
+  )
+  expect(await look(drive)).toEqual(found)
+  expect(calls).toHaveLength(3)
+  expect(asked(0).query).not.toHaveProperty('pageToken')
+  expect([asked(1).query.pageToken, asked(2).query.pageToken]).toEqual(['page-2', 'page-3'])
+  expect(asked(2).query.q).toBe(asked(0).query.q)
+  expect(await look(drive)).toBeNull()
+})
+
+test('Should give up, rather than say nothing is there, when the pages never end', async () => {
+  const { drive, calls } = setup(...Array.from({ length: 200 }, () => ({ body: { files: [], nextPageToken: 'again' } })))
+  await expect(drive.findFolder()).rejects.toSatisfy(failsWith('unavailable'))
+  expect(calls.length).toBeLessThan(200)
 })

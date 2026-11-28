@@ -97,6 +97,11 @@ export const GooglePanel = ({ api = googleApi, openPage = openInNewTab }: Google
       {label}
     </Styles.TextButton>
   )
+  const keepButton = (keep: 'local' | 'drive', shown: string, label: string) => (
+    <Styles.TextButton type="button" disabled={busy} onClick={() => run(() => api.choose(keep, shown))}>
+      {label}
+    </Styles.TextButton>
+  )
   const signOutButton = (
     <Styles.TextButton type="button" $danger disabled={busy} onClick={() => run(() => api.signOut())}>
       Sign out
@@ -132,12 +137,8 @@ export const GooglePanel = ({ api = googleApi, openPage = openInNewTab }: Google
           <Styles.MenuNote>{summaryLine('This computer', status.choice.local)}</Styles.MenuNote>
           <Styles.MenuNote>{summaryLine('Google Drive', status.choice.drive)}</Styles.MenuNote>
           <Styles.WrappingActions>
-            <Styles.TextButton type="button" disabled={busy} onClick={() => run(() => api.choose('local'))}>
-              Keep this computer's
-            </Styles.TextButton>
-            <Styles.TextButton type="button" disabled={busy} onClick={() => run(() => api.choose('drive'))}>
-              Use Google Drive's
-            </Styles.TextButton>
+            {keepButton('local', status.choice.id, "Keep this computer's")}
+            {keepButton('drive', status.choice.id, "Use Google Drive's")}
             {signOutButton}
           </Styles.WrappingActions>
           <Styles.MenuNote>The other copy is kept as a backup.</Styles.MenuNote>

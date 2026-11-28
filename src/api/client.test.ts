@@ -152,7 +152,7 @@ test('Should ask the server about Google Drive and tell it what to do', async ()
   await googleApi.status()
   expect(await googleApi.signIn()).toEqual({ url: 'https://accounts.example/sign-in' })
   await googleApi.syncNow()
-  await googleApi.choose('drive')
+  await googleApi.choose('drive', 'copy-1')
   await googleApi.signOut()
   const calls = fetchMock.mock.calls as unknown as [string, RequestInit | undefined][]
   expect(calls.map(([path, init]) => `${init?.method ?? 'GET'} ${path}`)).toEqual([
@@ -162,7 +162,7 @@ test('Should ask the server about Google Drive and tell it what to do', async ()
     'PUT /api/google/choice',
     'DELETE /api/google',
   ])
-  expect(calls[3][1]).toMatchObject({ headers: { 'Content-Type': 'application/json' }, body: '{"keep":"drive"}' })
+  expect(calls[3][1]).toMatchObject({ headers: { 'Content-Type': 'application/json' }, body: '{"keep":"drive","choice":"copy-1"}' })
 })
 
 test.each([

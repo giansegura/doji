@@ -15,6 +15,7 @@ export type GoogleTokens = AccessToken & { refreshToken: string }
 export type GoogleAuth = {
   start: () => string
   pendingUrl: () => string | null
+  cancel: () => void
   finish: (query: URLSearchParams) => Promise<GoogleTokens>
   refresh: (refreshToken: string) => Promise<AccessToken>
   revoke: (token: string) => Promise<void>
@@ -141,5 +142,9 @@ export const createGoogleAuth = (deps: AuthDeps): GoogleAuth => {
     await post(deps.urls.revoke, { token }).catch(() => undefined)
   }
 
-  return { start, pendingUrl: () => current()?.url ?? null, finish, refresh, revoke }
+  const cancel = (): void => {
+    pending = null
+  }
+
+  return { start, pendingUrl: () => current()?.url ?? null, cancel, finish, refresh, revoke }
 }

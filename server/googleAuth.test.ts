@@ -200,3 +200,12 @@ test('Should not start anything without a Google client', async () => {
   expect(() => auth.start()).toThrow('not_configured')
   await expect(auth.refresh('r')).rejects.toSatisfy(failsWith('not_configured'))
 })
+
+test('Should refuse the return of a sign-in that was called off', async () => {
+  const { startedState, callback, calls, auth } = setup()
+  const state = startedState()
+  auth.cancel()
+  expect(auth.pendingUrl()).toBeNull()
+  await expect(callback(state)).rejects.toSatisfy(failsWith('invalid_state'))
+  expect(calls).toEqual([])
+})

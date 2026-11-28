@@ -21,6 +21,7 @@ const CHOOSE: GoogleStatus = {
   email: 'ana@example.com',
   sync: 'choose',
   choice: {
+    id: 'copy-1',
     local: { lists: 3, symbols: 41, drawings: 12, changedAt: '2026-11-27T14:05:00' },
     drive: { lists: 1, symbols: 1, drawings: 1, changedAt: null },
   },
@@ -187,7 +188,7 @@ test.each([
 ] as const)('Should keep the copy chosen with %s', async (name, keep) => {
   const { api } = mount(CHOOSE)
   await userEvent.setup().click(await screen.findByRole('button', { name }))
-  expect(api.choose).toHaveBeenCalledWith(keep)
+  expect(api.choose).toHaveBeenCalledWith(keep, 'copy-1')
   expect(await screen.findByRole('button', { name: 'Sync now' })).toBeTruthy()
   expect(screen.queryByRole('button', { name })).toBeNull()
 })
@@ -277,4 +278,21 @@ test('Should offer to start signing in again while waiting for the person', asyn
   await userEvent.setup().click(await screen.findByRole('button', { name: 'Start again' }))
   expect(api.signIn).toHaveBeenCalledTimes(1)
   expect(openPage).toHaveBeenCalledWith('https://accounts.example/sign-in')
+})
+
+test('Should show the new question when Drive changed since the one that was answered', async () => {
+  const newer: GoogleStatus = {
+    ...CHOOSE,
+    choice: { id: 'copy-2', local: CHOOSE.choice!.local, drive: { lists: 4, symbols: 9, drawings: 2, changedAt: null } },
+  }
+  const choose = vi.fn(async () => newer)
+  mount(CHOOSE, { choose })
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: "Use Google Drive's" }))
+  expect(await screen.findByText('Google Drive: 4 lists, 9 symbols, 2 drawings')).toBeTruthy()
+  await user.click(button("Use Google Drive's"))
+  expect(choose.mock.calls).toEqual([
+    ['drive', 'copy-1'],
+    ['drive', 'copy-2'],
+  ])
 })
