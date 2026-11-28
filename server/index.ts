@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { mkdir, readFile } from 'node:fs/promises'
 import { type IncomingMessage, type ServerResponse, createServer } from 'node:http'
 import { dirname, join, resolve } from 'node:path'
@@ -19,6 +19,10 @@ import { type DataProvider, type FetchLike, createYahooProvider, providerError }
 import { type SocketLike, createYahooStream } from './provider/yahooStream'
 import { createQuoteCache } from './quoteCache'
 import { createApi, expectsBody, isLocalHost, isOwnRequest, parseRequestUrl } from './routes'
+import { type GoogleErrorKind, type GoogleFetch, createGoogleAuth, isGoogleError } from './googleAuth'
+import { GOOGLE_CALLBACK_PATH, googleClientFrom, googleUrlsFrom } from './googleClient'
+import { createDrive } from './googleDrive'
+import { callbackPage, createGoogleSync, trackSaves } from './googleSync'
 import { type StateStore, createStateStore } from './stateStore'
 import { createStreamRoute } from './streamRoute'
 import { type TelegramFetch, createTelegram } from './telegram'
@@ -122,13 +126,59 @@ const telegram = createTelegram({
   },
 })
 
+const timers = {
+  setTimer: (run: () => void, ms: number): unknown => setTimeout(run, ms),
+  clearTimer: (timer: unknown): void => clearTimeout(timer as ReturnType<typeof setTimeout>),
+}
+
+const googleFile = join(dataDir, 'google.json')
+
+const networkGoogleFetch: GoogleFetch = (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
+
+const offlineGoogleFetch: GoogleFetch = async () => {
+  throw new Error('offline')
+}
+
+const googleFetch = process.env.DOJI_OFFLINE && !process.env.DOJI_GOOGLE_API ? offlineGoogleFetch : networkGoogleFetch
+
+const googleClient = googleClientFrom(process.env)
+
+const googleUrls = googleUrlsFrom(process.env)
+
+const googleSync = createGoogleSync({
+  client: googleClient,
+  auth: createGoogleAuth({
+    client: googleClient,
+    urls: googleUrls,
+    redirectUri: `http://${HOST}:${PORT}${GOOGLE_CALLBACK_PATH}`,
+    fetch: googleFetch,
+    now: () => Date.now(),
+    randomBytes,
+  }),
+  makeDrive: (token) => createDrive({ fetch: googleFetch, api: googleUrls.api, token }),
+  local: stateStore,
+  store: {
+    load: async () => JSON.parse(await readFile(googleFile, 'utf8')),
+    save: async (account) => {
+      await mkdir(dataDir, { recursive: true })
+      await writeAtomic(googleFile, JSON.stringify(account), 0o600)
+    },
+    clear: () => removeFile(googleFile),
+  },
+  onReplaced: (state) => alertMonitor.stateSaved(state),
+  now: () => Date.now(),
+  ...timers,
+})
+
+const trackedState = trackSaves(stateStore, { beforeSave: () => googleSync.beforeSave(), saved: () => googleSync.localChanged() })
+
 const alertBus = createAlertBus()
 
 const historyCache = createHistoryCache({ provider, dir: join(dataDir, 'cache'), now: () => new Date() })
 
 const alertMonitor = createAlertMonitor({
-  read: stateStore.read,
-  save: stateStore.save,
+  read: trackedState.read,
+  save: trackedState.save,
   join: (symbols, send) => liveHub.join(symbols, send),
   quotes: (symbols) => quotes.get(symbols),
   closes: async (symbol) => {
@@ -153,9 +203,12 @@ const alertMonitor = createAlertMonitor({
 })
 
 const watchedState: StateStore = {
-  read: stateStore.read,
+  read: async () => {
+    googleSync.freshen()
+    return trackedState.read()
+  },
   save: async (state, baseRev) => {
-    const outcome = await stateStore.save(state, baseRev)
+    const outcome = await trackedState.save(state, baseRev)
     if (outcome.ok) alertMonitor.stateSaved({ ...state, rev: outcome.rev })
     return outcome
   },
@@ -170,6 +223,7 @@ const api = createApi({
   metrics: createWatchMetrics({ history: historyCache }),
   provider: { ...provider, quotes: quotes.get },
   state: watchedState,
+  google: googleSync,
   telegram,
   ...(testHooksOn(process.env) ? { testPrices: (prices: Record<string, number>) => alertMonitor.check(prices) } : {}),
   news: createNewsCache({ fetchNews: provider.news, now: () => new Date() }),
@@ -227,11 +281,6 @@ const openSocket = (url: string): SocketLike => {
   }
 }
 
-const timers = {
-  setTimer: (run: () => void, ms: number): unknown => setTimeout(run, ms),
-  clearTimer: (timer: unknown): void => clearTimeout(timer as ReturnType<typeof setTimeout>),
-}
-
 const liveHub = createLiveHub({ now: () => Date.now(), watch: (symbols) => liveStream?.setSymbols(symbols), ...timers })
 
 const liveStream = process.env.DOJI_OFFLINE ? null : createYahooStream({ connect: openSocket, onTick: liveHub.push, ...timers })
@@ -250,6 +299,16 @@ const sendJson = (res: ServerResponse, status: number, body: unknown): void => {
 const sendText = (res: ServerResponse, status: number, text: string): void => {
   res.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8' })
   res.end(text)
+}
+
+const sendCallbackPage = (res: ServerResponse, failure: GoogleErrorKind | null): void => {
+  res.writeHead(failure ? 400 : 200, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Cache-Control': 'no-store',
+    'Referrer-Policy': 'no-referrer',
+    'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'",
+  })
+  res.end(callbackPage(failure))
 }
 
 const readBody = (req: IncomingMessage): Promise<unknown> =>
@@ -305,6 +364,14 @@ const handleRequest = (req: IncomingMessage, res: ServerResponse): void => {
     sendJson(res, 400, { error: 'invalid_request' })
     return
   }
+  // Google sends the browser back here from its own site, so this cannot live under /api/.
+  if (url.pathname === GOOGLE_CALLBACK_PATH && req.method === 'GET') {
+    googleSync.finishSignIn(url.searchParams).then(
+      () => sendCallbackPage(res, null),
+      (error: unknown) => sendCallbackPage(res, isGoogleError(error) ? error.kind : 'unavailable'),
+    )
+    return
+  }
   if (url.pathname.startsWith('/api/') && !isOwnRequest(req.headers['sec-fetch-site'])) {
     sendJson(res, 403, { error: 'forbidden' })
     return
@@ -347,4 +414,5 @@ server.listen(PORT, HOST, () => {
   console.log(`doji at http://${HOST}:${PORT}`)
   console.log(`data in ${dataDir}`)
   alertMonitor.start().catch(() => undefined)
+  googleSync.start().catch(() => undefined)
 })

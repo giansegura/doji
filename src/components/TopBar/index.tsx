@@ -19,6 +19,7 @@ import { THEME_OPTIONS, themes } from '../../theme/tokens'
 import { Logo } from '../Logo'
 import { ConfigPanel } from './ConfigPanel'
 import { BackupPanel } from './BackupPanel'
+import { GooglePanel } from './GooglePanel'
 import { TelegramPanel } from './TelegramPanel'
 import { StudiesPanel } from './StudiesPanel'
 import { NumberField } from './NumberField'
@@ -506,6 +507,7 @@ export const TopBar = ({
             )}
             <TelegramPanel />
             <BackupPanel />
+            <GooglePanel />
           </Styles.Menu>
         )}
       </Styles.MenuAnchor>

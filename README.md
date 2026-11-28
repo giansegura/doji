@@ -2,7 +2,7 @@
 
 # doji
 
-Gráficos de bolsa que corren en tu ordenador. Sin cuentas, sin suscripciones y sin mandar tus listas a ningún sitio.
+Gráficos de bolsa que corren en tu ordenador. Sin cuentas de doji, sin suscripciones y sin mandar tus listas a ningún servidor nuestro. Si quieres, guarda tu configuración en tu propio Google Drive.
 
 Tiene listas de seguimiento, indicadores, dibujos y alertas que te llegan a Telegram aunque no tengas el navegador abierto. Además, tu aplicación de IA puede leer tus gráficos y trabajar sobre ellos.
 
@@ -46,16 +46,19 @@ La IA no puede borrar listas ni los dibujos que hiciste tú, y no ve tus posicio
 
 ## Tus datos
 
-Todo se queda en la carpeta `data/`, que no se versiona:
+Todo se guarda en la carpeta `data/`, que no se versiona:
 
 | Archivo | Qué guarda |
 |---|---|
 | `data/state.json` | Tu configuración: listas, dibujos, alertas, notas y posiciones. Es lo que hay que copiar para tener una copia de seguridad. |
-| `data/state.json.bak-*` | Copias automáticas, una por día, de los últimos siete días. |
+| `data/state.json.bak-*` | Copias automáticas: una por día, de los últimos siete días, y aparte las diez últimas copias que doji descarta al sincronizar con Google Drive. |
 | `data/telegram.json`, `data/backup.json` | Las claves de Telegram y de Twelve Data. Nunca salen de tu ordenador. |
+| `data/google.json` | Tu sesión de Google, si guardas la configuración en Drive. Solo se envía a Google y nunca se sube. |
 | `data/cache/` | Históricos y logos descargados. Se puede borrar sin perder nada. |
 
 "Export settings", en "Settings", hace la misma copia desde la app. Para usar otra carpeta: `DOJI_DATA_DIR=/otra/carpeta npm start`.
+
+Con "Sign in with Google", en "Settings", doji guarda una copia de `state.json` en la carpeta `doji` de tu Google Drive y la mantiene al día entre ordenadores. Las claves de Telegram y de Twelve Data y `cache/` nunca se suben. Es opcional y necesita un cliente de Google: cómo funciona y cómo se crea, en la [guía](docs/guia.md#guardar-en-google-drive).
 
 ## De dónde salen los precios
 

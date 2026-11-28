@@ -305,6 +305,11 @@ export const MenuNote = styled.div<{ $danger?: boolean }>`
   overflow-wrap: anywhere;
 `
 
+export const MenuLink = styled.a`
+  padding: 0 8px 6px;
+  color: ${(props) => props.theme.ui.accent};
+`
+
 export const ConfirmBox = styled.div`
   margin-top: 4px;
   border-top: 1px solid ${(props) => props.theme.ui.border};
@@ -316,6 +321,10 @@ export const ConfirmActions = styled.div`
   padding: 0 0 2px;
 `
 
+export const WrappingActions = styled(ConfirmActions)`
+  flex-wrap: wrap;
+`
+
 export const TextButton = styled.button<{ $danger?: boolean }>`
   height: 26px;
   padding: 0 8px;
@@ -324,6 +333,11 @@ export const TextButton = styled.button<{ $danger?: boolean }>`
 
   &:hover {
     background: ${(props) => props.theme.ui.hover};
+  }
+
+  &[aria-disabled='true'] {
+    opacity: 0.5;
+    cursor: default;
   }
 `
 

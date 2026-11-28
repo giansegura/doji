@@ -2,6 +2,9 @@ import type { AppState } from '../../shared/types'
 
 export type SaveResult = { kind: 'saved'; rev: number } | { kind: 'conflict' } | { kind: 'failed' }
 
+// The name of a save and, for one sent while another is still under way, the name of the one it goes after.
+export type SaveLink = { saveId: string; follows?: string }
+
 export type StateSync = {
   loaded: (state: AppState) => void
   changed: (state: AppState) => void
@@ -12,7 +15,7 @@ export type StateSync = {
 }
 
 type SyncDeps = {
-  put: (state: AppState, keepalive: boolean, saved: AppState | null) => Promise<SaveResult>
+  put: (state: AppState, keepalive: boolean, saved: AppState | null, link: SaveLink) => Promise<SaveResult>
   onSaved: () => void
   onConflict: () => void
   onFailed: () => void
@@ -22,12 +25,18 @@ type SyncDeps = {
   retryMs: number
 }
 
+type Sent = { state: AppState; id: string }
+
 export const createStateSync = (deps: SyncDeps): StateSync => {
+  const page = Math.random().toString(36).slice(2)
+  let sends = 0
   let rev = 1
   let generation = 0
   let pending: AppState | null = null
   let saved: AppState | null = null
-  let inFlight = false
+  let inFlight: Sent | null = null
+  // Saves overtaken by a follower and not answered yet, by name.
+  const unanswered = new Map<string, Sent>()
   let timer: unknown = null
 
   const cancelTimer = (): void => {
@@ -54,6 +63,8 @@ export const createStateSync = (deps: SyncDeps): StateSync => {
       schedule(deps.retryMs)
       return
     }
+    // Whatever it was sent after is written too.
+    unanswered.clear()
     rev = result.rev
     saved = sent
     if (pending !== sent) {
@@ -65,13 +76,35 @@ export const createStateSync = (deps: SyncDeps): StateSync => {
   }
 
   const send = (keepalive: boolean): void => {
-    if (inFlight || !pending) return
     const sent = pending
+    const underway = inFlight
+    // One save at a time, except as the page is left: the newest change then goes after the one under way.
+    if (!sent || (underway && (!keepalive || sent === underway.state))) return
+    // A retry waits for those answers, which give the revision to build on.
+    if (!keepalive && unanswered.size > 0) {
+      schedule(deps.retryMs)
+      return
+    }
+    if (underway) unanswered.set(underway.id, underway)
+    // As the page is left, the newest change goes after a save still unanswered just as after one under way.
+    const before = underway ?? [...unanswered.values()].at(-1)
     const sentGeneration = generation
-    inFlight = true
-    deps.put({ ...sent, rev }, keepalive, saved).then((result) => {
+    sends += 1
+    const id = `${page}-${sends}`
+    inFlight = { state: sent, id }
+    const link = { saveId: id, follows: before?.id }
+    deps.put({ ...sent, rev }, keepalive, before?.state ?? saved, link).then((result) => {
       if (sentGeneration !== generation) return
-      inFlight = false
+      unanswered.delete(id)
+      if (inFlight?.id !== id) {
+        // Overtaken by a follower. What got written is still the base to try again from, should the follower not be.
+        if (result.kind === 'saved' && result.rev > rev) {
+          rev = result.rev
+          saved = sent
+        }
+        return
+      }
+      inFlight = null
       settle(sent, result)
     })
   }
@@ -82,7 +115,8 @@ export const createStateSync = (deps: SyncDeps): StateSync => {
     rev = state.rev
     saved = state
     pending = null
-    inFlight = false
+    inFlight = null
+    unanswered.clear()
   }
 
   const changed = (state: AppState): void => {
@@ -91,7 +125,7 @@ export const createStateSync = (deps: SyncDeps): StateSync => {
   }
 
   const flush = (): void => {
-    if (!pending || inFlight) return
+    if (!pending) return
     cancelTimer()
     send(true)
   }
@@ -100,7 +134,7 @@ export const createStateSync = (deps: SyncDeps): StateSync => {
     loaded,
     changed,
     flush,
-    hasUnsaved: () => pending !== null || inFlight,
+    hasUnsaved: () => pending !== null || inFlight !== null,
     rev: () => rev,
     dispose: cancelTimer,
   }

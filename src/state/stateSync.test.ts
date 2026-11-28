@@ -1,10 +1,10 @@
 import { expect, test } from 'vitest'
 import { type AppState, DEFAULT_STATE } from '../../shared/types'
-import { type SaveResult, createStateSync } from './stateSync'
+import { type SaveLink, type SaveResult, createStateSync } from './stateSync'
 
 type Timer = { run: () => void; ms: number; cancelled: boolean }
 
-type Put = { state: AppState; keepalive: boolean; saved: AppState | null; resolve: (result: SaveResult) => void }
+type Put = { state: AppState; keepalive: boolean; saved: AppState | null; link: SaveLink; resolve: (result: SaveResult) => void }
 
 const state = (symbol: string, rev = 4): AppState => ({ ...DEFAULT_STATE, symbol, rev })
 
@@ -13,8 +13,8 @@ const makeSync = () => {
   const puts: Put[] = []
   const events: string[] = []
   const sync = createStateSync({
-    put: (sent, keepalive, saved) =>
-      new Promise<SaveResult>((resolve) => puts.push({ state: sent, keepalive, saved, resolve })),
+    put: (sent, keepalive, saved, link) =>
+      new Promise<SaveResult>((resolve) => puts.push({ state: sent, keepalive, saved, link, resolve })),
     onSaved: () => events.push('saved'),
     onConflict: () => events.push('conflict'),
     onFailed: () => events.push('failed'),
@@ -191,4 +191,159 @@ test('Should keep what the server has when a save fails', async () => {
   await answer(0, { kind: 'failed' })
   fire()
   expect(puts[1].saved).toBe(loaded)
+})
+
+const leftWhileSaving = () => {
+  const setup = makeSync()
+  const loaded = state('AAPL')
+  const first = state('KO')
+  const second = state('MSFT')
+  setup.sync.loaded(loaded)
+  setup.sync.changed(first)
+  setup.fire()
+  setup.sync.changed(second)
+  setup.sync.flush()
+  return { ...setup, first, second }
+}
+
+test('Should give every save a name of its own', async () => {
+  const { sync, puts, fire, answer } = makeSync()
+  sync.loaded(state('AAPL'))
+  sync.changed(state('KO'))
+  fire()
+  await answer(0, { kind: 'saved', rev: 5 })
+  sync.changed(state('MSFT'))
+  fire()
+  expect(puts[0].link.saveId).toMatch(/\S/)
+  expect(puts[1].link.saveId).not.toBe(puts[0].link.saveId)
+  expect(puts.map((put) => put.link.follows)).toEqual([undefined, undefined])
+  const other = makeSync()
+  other.sync.loaded(state('AAPL'))
+  other.sync.changed(state('KO'))
+  other.fire()
+  expect(other.puts[0].link.saveId).not.toBe(puts[0].link.saveId)
+})
+
+test('Should send a newer change after the save under way when the page is left', () => {
+  const { puts, first, second } = leftWhileSaving()
+  expect(puts).toHaveLength(2)
+  expect(puts[1].state.symbol).toBe(second.symbol)
+  expect(puts[1].state.rev).toBe(4)
+  expect(puts[1].keepalive).toBe(true)
+  expect(puts[1].saved).toBe(first)
+  expect(puts[1].link.follows).toBe(puts[0].link.saveId)
+})
+
+test('Should send nothing more when the page is left with only the save under way', () => {
+  const { sync, puts, fire } = makeSync()
+  sync.loaded(state('AAPL'))
+  sync.changed(state('KO'))
+  fire()
+  sync.flush()
+  sync.flush()
+  expect(puts).toHaveLength(1)
+  expect(sync.hasUnsaved()).toBe(true)
+})
+
+test('Should send the newer change only once however often the page says it is being left', () => {
+  const { sync, puts, fire } = leftWhileSaving()
+  sync.flush()
+  fire()
+  expect(puts).toHaveLength(2)
+})
+
+test('Should go by the answer to the save that followed, should the page stay', async () => {
+  const { sync, puts, events, fire, answer } = leftWhileSaving()
+  await answer(0, { kind: 'saved', rev: 5 })
+  expect(events).toEqual([])
+  expect(sync.hasUnsaved()).toBe(true)
+  await answer(1, { kind: 'saved', rev: 6 })
+  expect(events).toEqual(['saved'])
+  expect(sync.rev()).toBe(6)
+  expect(sync.hasUnsaved()).toBe(false)
+  sync.changed(state('NVDA'))
+  fire()
+  expect(puts[2].link.follows).toBeUndefined()
+})
+
+test('Should reload when the save that followed was refused', async () => {
+  const { events, answer } = leftWhileSaving()
+  await answer(0, { kind: 'conflict' })
+  await answer(1, { kind: 'conflict' })
+  expect(events).toEqual(['conflict'])
+})
+
+test('Should try the save that followed again on top of the one that did get written', async () => {
+  const { puts, events, fire, answer, first, second } = leftWhileSaving()
+  await answer(0, { kind: 'saved', rev: 5 })
+  await answer(1, { kind: 'failed' })
+  expect(events).toEqual(['failed'])
+  fire()
+  expect(puts[2].state).toMatchObject({ symbol: second.symbol, rev: 5 })
+  expect(puts[2].saved).toBe(first)
+  await answer(2, { kind: 'saved', rev: 6 })
+  expect(events).toEqual(['failed', 'saved'])
+})
+
+test('Should learn of the save it overtook even when that answer comes after the follower failed', async () => {
+  const { sync, puts, events, fire, answer } = leftWhileSaving()
+  await answer(1, { kind: 'failed' })
+  await answer(0, { kind: 'saved', rev: 5 })
+  expect(events).toEqual(['failed'])
+  expect(sync.hasUnsaved()).toBe(true)
+  fire()
+  expect(puts[2].state.rev).toBe(5)
+})
+
+test('Should not go back to an earlier revision when the save it overtook answers last', async () => {
+  const { sync, answer, events } = leftWhileSaving()
+  await answer(1, { kind: 'saved', rev: 6 })
+  await answer(0, { kind: 'saved', rev: 5 })
+  expect(sync.rev()).toBe(6)
+  expect(events).toEqual(['saved'])
+})
+
+test('Should hold a retry until the save it overtook has answered, and build on what that one wrote', async () => {
+  const { sync, puts, fire, answer, pendingTimer, second } = leftWhileSaving()
+  await answer(1, { kind: 'failed' })
+  fire()
+  fire()
+  expect(puts).toHaveLength(2)
+  expect(pendingTimer()?.ms).toBe(5000)
+  await answer(0, { kind: 'saved', rev: 5 })
+  fire()
+  expect(puts[2].state).toMatchObject({ symbol: second.symbol, rev: 5 })
+  await answer(2, { kind: 'saved', rev: 6 })
+  expect(sync.hasUnsaved()).toBe(false)
+})
+
+test('Should send the last change after a save still unanswered when the page is left again', async () => {
+  const { sync, puts, answer, first, second } = leftWhileSaving()
+  await answer(1, { kind: 'failed' })
+  sync.flush()
+  expect(puts[2].state.symbol).toBe(second.symbol)
+  expect(puts[2].link.follows).toBe(puts[0].link.saveId)
+  expect(puts[2].saved).toBe(first)
+})
+
+test('Should go after no earlier save once a later one was written', async () => {
+  const { sync, puts, answer, fire } = leftWhileSaving()
+  await answer(1, { kind: 'saved', rev: 6 })
+  sync.changed(state('NVDA'))
+  sync.flush()
+  expect(puts[2].link.follows).toBeUndefined()
+  expect(puts[2].state.rev).toBe(6)
+  await answer(2, { kind: 'saved', rev: 7 })
+  sync.changed(state('TSLA'))
+  fire()
+  expect(puts[3].state).toMatchObject({ symbol: 'TSLA', rev: 7 })
+})
+
+test('Should save again at once after a fresh state, whatever was overtaken before it', async () => {
+  const { sync, puts, fire, answer } = leftWhileSaving()
+  await answer(1, { kind: 'conflict' })
+  sync.loaded(state('TSLA', 9))
+  sync.changed(state('NVDA', 9))
+  fire()
+  expect(puts[2].state).toMatchObject({ symbol: 'NVDA', rev: 9 })
 })

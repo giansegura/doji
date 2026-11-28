@@ -12,7 +12,15 @@ const tick = (symbol: string, price: number): LiveTick => ({ symbol, price, chan
 
 const harness = (
   initial: AppState,
-  over: { conflicts?: number; quotes?: Quote[]; closes?: number[]; failures?: number; daily?: () => Promise<DailyCloses | null> } = {},
+  over: {
+    conflicts?: number
+    quotes?: Quote[]
+    closes?: number[]
+    failures?: number
+    daily?: () => Promise<DailyCloses | null>
+    // What the state becomes while the first save is under way, as when a newer copy of it replaces this one.
+    replacedBy?: AppState
+  } = {},
 ) => {
   const box = {
     state: initial,
@@ -31,6 +39,10 @@ const harness = (
     read: async () => box.state,
     save: async (state, baseRev): Promise<SaveOutcome> => {
       box.saves += 1
+      if (over.replacedBy && box.saves === 1) {
+        box.state = over.replacedBy
+        return { ok: false, reason: 'conflict' }
+      }
       if (box.failures > 0) {
         box.failures -= 1
         throw new Error('disk full')
@@ -164,6 +176,65 @@ test('Should leave armed a line moved to another level while its old level fired
 })
 
 const moveAlert = { id: 'm', kind: 'move' as const, value: 3, armed: true }
+
+test.each([
+  ['removed', {}],
+  ['disarmed', { KO: [level('k', 100, { alert: false })] }],
+  ['past its last day', { KO: [level('k', 100, { alertUntil: '2026-11-23' } as Partial<Drawing>)] }],
+])('Should say nothing of an alert that the state which replaced this one has %s', async (_name, lines) => {
+  const replacedBy = stateWith({ ...lines, PEP: [level('p', 50)] }, 9)
+  const { box, monitor } = harness(stateWith({ KO: [level('k', 100)], PEP: [level('p', 50)] }), { replacedBy })
+  await monitor.start()
+  box.send?.([tick('KO', 99), tick('PEP', 49)])
+  await monitor.settled()
+  box.send?.([tick('KO', 101), tick('PEP', 51)])
+  await monitor.settled()
+  expect(box.announced.map((alert) => alert.symbol)).toEqual(['PEP'])
+  expect(box.state.alertHistory.map((event) => event.symbol)).toEqual(['PEP'])
+  expect(box.state.lines.PEP[0]).not.toHaveProperty('alert')
+})
+
+const TODAY = (() => {
+  const moment = new Date('2026-11-24T15:00:00Z')
+  return `${moment.getFullYear()}-${String(moment.getMonth() + 1).padStart(2, '0')}-${String(moment.getDate()).padStart(2, '0')}`
+})()
+
+test.each([
+  ['already fired today', TODAY, []],
+  ['last fired another day', '2026-11-23', ['KO']],
+])('Should say a repeating alert once a day when the state which replaced this one has it %s', async (_name, alertFiredOn, said) => {
+  const repeating = (over: object = {}) => ({ KO: [level('k', 100, { alertRepeat: true, ...over } as Partial<Drawing>)] })
+  const { box, monitor } = harness(stateWith(repeating()), { replacedBy: stateWith(repeating({ alertFiredOn }), 9) })
+  await monitor.start()
+  box.send?.([tick('KO', 99)])
+  await monitor.settled()
+  box.send?.([tick('KO', 101)])
+  await monitor.settled()
+  expect(box.announced.map((alert) => alert.symbol)).toEqual(said)
+  expect(box.state.alertHistory.map((event) => event.symbol)).toEqual(said)
+})
+
+test('Should keep quiet about an alert already gone even when saving then fails', async () => {
+  const replacedBy = stateWith({ PEP: [level('p', 50)] }, 9)
+  const { box, monitor } = harness(stateWith({ KO: [level('k', 100)], PEP: [level('p', 50)] }), { replacedBy, failures: 10 })
+  await monitor.start()
+  box.send?.([tick('KO', 99), tick('PEP', 49)])
+  await monitor.settled()
+  box.send?.([tick('KO', 101), tick('PEP', 51)])
+  await monitor.settled()
+  expect(box.saves).toBe(3)
+  expect(box.announced.map((alert) => alert.symbol)).toEqual(['PEP'])
+})
+
+test('Should say nothing of an indicator alert that the state which replaced this one no longer has', async () => {
+  const replacedBy = { ...stateWith({}, 9), indicatorAlerts: { KO: [] } }
+  const { box, monitor } = harness({ ...stateWith({}), indicatorAlerts: { KO: [moveAlert] } }, { closes: [100, 100], replacedBy })
+  await monitor.start()
+  box.send?.([tick('KO', 104)])
+  await monitor.settled()
+  expect(box.announced).toEqual([])
+  expect(box.state.alertHistory).toEqual([])
+})
 
 test('Should listen to the symbols with an armed indicator alert too', async () => {
   const { box, monitor } = harness({ ...stateWith({}), indicatorAlerts: { KO: [moveAlert], PEP: [{ ...moveAlert, armed: false }] } })

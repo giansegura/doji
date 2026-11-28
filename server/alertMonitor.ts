@@ -1,4 +1,4 @@
-import { type FiredAlert, alertLevels, armedSymbols, createAlertWatcher, latestPrice } from '../shared/alerts'
+import { type FiredAlert, alertLevels, armedSymbols, createAlertWatcher, isLive, latestPrice } from '../shared/alerts'
 import { withHistory } from '../shared/alertHistory'
 import { afterFiring, expiredAlert, withoutAlert } from '../shared/drawings'
 import { type IndicatorHit, createIndicatorWatcher, indicatorLabel, sessionDayOf, withLivePrice } from '../shared/indicatorAlerts'
@@ -38,6 +38,8 @@ const dayOf = (date: Date): string => `${date.getFullYear()}-${twoDigits(date.ge
 
 type Outcome = { hits: FiredAlert[]; indicatorHits: IndicatorHit[]; events: AlertEvent[]; today: string }
 
+type Recorded = { state: AppState | null; events: AlertEvent[] }
+
 const firedOn = (hit: FiredAlert, symbol: string, drawing: Drawing, today: string): boolean =>
   hit.symbol === symbol && hit.drawingId === drawing.id && alertLevels(drawing, today, tradesEveryDay(symbol)).some((level) => level === hit.level)
 
@@ -71,6 +73,22 @@ const textOf = (state: AppState, hit: FiredAlert): string | null => {
 
 const stillArmed = (current: AppState | null, hit: IndicatorHit): boolean =>
   current?.indicatorAlerts[hit.symbol]?.some((alert) => alert.id === hit.alertId && alert.armed) ?? false
+
+const stillSet = (current: AppState, hit: FiredAlert, today: string): boolean =>
+  current.lines[hit.symbol]?.some((drawing) => drawing.id === hit.drawingId && isLive(drawing, today)) ?? false
+
+// Only the alerts that could still fire in the state they are recorded on, which may have replaced theirs.
+const standingIn = (current: AppState, { hits, indicatorHits, events, today }: Outcome): Outcome => {
+  const lines = hits.map((hit) => stillSet(current, hit, today))
+  const others = indicatorHits.map((hit) => stillArmed(current, hit))
+  const standing = [...lines, ...others]
+  return {
+    today,
+    hits: hits.filter((_hit, index) => lines[index]),
+    indicatorHits: indicatorHits.filter((_hit, index) => others[index]),
+    events: events.filter((_event, index) => standing[index]),
+  }
+}
 
 const indicatorSymbols = (state: AppState): string[] =>
   Object.entries(state.indicatorAlerts)
@@ -118,23 +136,22 @@ export const createAlertMonitor = (deps: MonitorDeps): AlertMonitor => {
     return found
   }
 
-  const recordOnce = async (result: Outcome): Promise<AppState | null> => {
-    try {
-      const fresh = await deps.read()
-      const next = afterOutcome(fresh, result)
-      const outcome = await deps.save(next, fresh.rev)
-      return outcome.ok ? { ...next, rev: outcome.rev } : null
-    } catch {
-      return null
-    }
-  }
-
-  const record = async (result: Outcome): Promise<AppState | null> => {
+  const record = async (result: Outcome): Promise<Recorded> => {
+    // What gets announced should no attempt be saved: the alerts standing in the last state read.
+    let due = result.events
     for (let attempt = 0; attempt < SAVE_ATTEMPTS; attempt += 1) {
-      const saved = await recordOnce(result)
-      if (saved) return saved
+      try {
+        const fresh = await deps.read()
+        const standing = standingIn(fresh, result)
+        due = standing.events
+        const next = afterOutcome(fresh, standing)
+        const outcome = await deps.save(next, fresh.rev)
+        if (outcome.ok) return { state: { ...next, rev: outcome.rev }, events: due }
+      } catch {
+        continue
+      }
     }
-    return null
+    return { state: null, events: due }
   }
 
   const check = (prices: Record<string, number>): Promise<AlertEvent[]> =>
@@ -169,11 +186,11 @@ export const createAlertMonitor = (deps: MonitorDeps): AlertMonitor => {
         }
       })
       const events = [...lineEvents, ...indicatorEvents]
-      const saved = await record({ hits, indicatorHits, events, today })
+      const { state: saved, events: due } = await record({ hits, indicatorHits, events, today })
       if (saved) stateSaved(saved)
-      if (events.length === 0) return []
-      deps.announce(events)
-      return events
+      if (due.length === 0) return []
+      deps.announce(due)
+      return due
     })
 
   const onTicks = (ticks: LiveTick[]): void => {

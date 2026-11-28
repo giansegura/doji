@@ -3,7 +3,7 @@ import { type CalendarAnswer, askInBatches } from '../../shared/earningsCalendar
 import { changesSince } from '../../shared/stateChanges'
 import type { SymbolMetrics } from '../../shared/symbolMetrics'
 import type { AppState, CompanyProfile, Earnings, History, NewsItem, Quote, SymbolInfo } from '../../shared/types'
-import type { SaveResult } from '../state/stateSync'
+import type { SaveLink, SaveResult } from '../state/stateSync'
 
 export type ApiError = Error & { code: string }
 
@@ -65,6 +65,45 @@ export const backupApi: BackupApi = {
   remove: () => request('/api/backup', { method: 'DELETE' }),
 }
 
+export type GoogleSummary = { lists: number; symbols: number; drawings: number; changedAt: string | null }
+
+export type GoogleStatus = {
+  configured: boolean
+  email: string | null
+  sync: 'signedOut' | 'waiting' | 'idle' | 'syncing' | 'offline' | 'failed' | 'expired' | 'choose'
+  signInUrl: string | null
+  lastSyncAt: string | null
+  choice: { id: string; local: GoogleSummary; drive: GoogleSummary } | null
+  replacedRev: number | null
+}
+
+export type GoogleApi = {
+  status: () => Promise<GoogleStatus>
+  signIn: () => Promise<{ url: string }>
+  syncNow: () => Promise<GoogleStatus>
+  choose: (keep: 'local' | 'drive', choice: string) => Promise<GoogleStatus>
+  signOut: () => Promise<GoogleStatus>
+}
+
+export const googleApi: GoogleApi = {
+  status: () => request('/api/google'),
+  signIn: () => request('/api/google/sign-in', { method: 'POST' }),
+  syncNow: () => request('/api/google/sync', { method: 'POST' }),
+  choose: (keep, choice) =>
+    request('/api/google/choice', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keep, choice }) }),
+  signOut: () => request('/api/google', { method: 'DELETE' }),
+}
+
+// Why the settings now at `rev` differ from those last seen at `since`, when Google Drive replaced them in between.
+// A change that was refused gets a shorter text, so that both facts fit in the top bar.
+export const googleReloadNotice = async (rev: number, since: number, refused: boolean): Promise<string | null> => {
+  const replacedRev = (await googleApi.status().catch(() => null))?.replacedRev ?? null
+  if (replacedRev === null || replacedRev <= since || replacedRev > rev) return null
+  return refused
+    ? 'Replaced by Google Drive. Last change not saved.'
+    : 'Your settings were replaced by the copy in Google Drive.'
+}
+
 export const getHistory = (symbol: string): Promise<History> =>
   request(`/api/history?symbol=${encodeURIComponent(symbol)}`)
 
@@ -109,18 +148,23 @@ export const getQuotes = (symbols: string[]): Promise<Quote[]> =>
 
 export const getState = (): Promise<AppState> => request('/api/state')
 
-const saveRequest = (state: AppState, keepalive: boolean, saved: AppState | null): { method: string; body: string } => {
-  const whole = JSON.stringify(state)
+const saveRequest = (state: AppState, keepalive: boolean, saved: AppState | null, link?: SaveLink): { method: string; body: string } => {
+  const whole = JSON.stringify({ ...state, ...link })
   if (!keepalive || !saved || new TextEncoder().encode(whole).length <= KEEPALIVE_SAFE_BYTES) {
     return { method: 'PUT', body: whole }
   }
-  return { method: 'PATCH', body: JSON.stringify({ rev: state.rev, changes: changesSince(saved, state) }) }
+  return { method: 'PATCH', body: JSON.stringify({ rev: state.rev, changes: changesSince(saved, state), ...link }) }
 }
 
-export const putState = async (state: AppState, keepalive = false, saved: AppState | null = null): Promise<SaveResult> => {
+export const putState = async (
+  state: AppState,
+  keepalive = false,
+  saved: AppState | null = null,
+  link?: SaveLink,
+): Promise<SaveResult> => {
   try {
     const response = await fetch('/api/state', {
-      ...saveRequest(state, keepalive, saved),
+      ...saveRequest(state, keepalive, saved, link),
       headers: { 'Content-Type': 'application/json' },
       keepalive,
     })

@@ -14,7 +14,7 @@ export type AlertWatcher = {
 
 const isArmed = (drawing: Drawing): boolean => drawing.pane === 'price' && canAlert(drawing) && drawing.alert === true
 
-const isLive = (drawing: Drawing, today: string): boolean =>
+export const isLive = (drawing: Drawing, today: string): boolean =>
   isArmed(drawing) && canAlert(drawing) && !expiredAlert(drawing, today) && !(drawing.alertRepeat && drawing.alertFiredOn === today)
 
 const trendLevel = (line: TrendLine, today: string, everyDay: boolean): number | null => {

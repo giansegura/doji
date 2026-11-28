@@ -8,12 +8,14 @@ import type { Logo, LogoStore } from './logoStore'
 import type { EarningsSource } from './provider/earnings'
 import type { BackupHistory } from './backupHistory'
 import { type BackupKey, isBackupKeyError } from './backupKey'
+import { type GoogleErrorKind, isGoogleError } from './googleAuth'
+import type { GoogleSync } from './googleSync'
 import type { NewsCache } from './newsCache'
 import { resolveSymbols } from './resolveSymbols'
 import type { ProfileSource } from './provider/profile'
 import { type Telegram, type TelegramErrorKind, isTelegramError } from './telegram'
 import { type DataProvider, isProviderError } from './provider/yahoo'
-import type { StateStore } from './stateStore'
+import type { SaveOutcome, StateStore } from './stateStore'
 import type { WatchMetrics } from './watchMetrics'
 
 export type ApiRequest = { method: string; path: string; query: URLSearchParams; body: unknown }
@@ -34,6 +36,8 @@ type ApiDeps = {
   backup?: BackupHistory
   backupKey: BackupKey
   testYahoo?: (down: boolean) => void
+  google?: GoogleSync
+  pause?: (ms: number) => Promise<void>
 }
 
 type Route = (request: ApiRequest) => Promise<ApiResult>
@@ -43,6 +47,9 @@ const OWN_FETCH_SITES = ['same-origin', 'none']
 const WRITING_METHODS = ['PUT', 'PATCH']
 const MAX_RESOLVE_GROUPS = 50
 const MAX_CANDIDATES = 5
+const SAVES_REMEMBERED = 20
+const FOLLOWED_WAIT_MS = 2_000
+const REFUSED: SaveOutcome = { ok: false, reason: 'conflict' }
 
 const ok = (body: unknown): ApiResult => ({ status: 200, body })
 
@@ -66,14 +73,27 @@ const TELEGRAM_STATUS: Record<TelegramErrorKind, number> = {
   unavailable: 502,
 }
 
+const GOOGLE_STATUS: Record<GoogleErrorKind, number> = {
+  not_configured: 409,
+  invalid_state: 400,
+  denied: 400,
+  expired: 409,
+  offline: 502,
+  unavailable: 502,
+}
+
 const failureFor = (error: unknown): ApiResult => {
   if (isTelegramError(error)) return fail(TELEGRAM_STATUS[error.kind], error.kind)
+  if (isGoogleError(error)) return fail(GOOGLE_STATUS[error.kind], error.kind)
   if (!isProviderError(error)) return fail(500, 'internal')
   if (error.kind === 'not_found') return fail(404, 'not_found')
   return fail(502, 'unavailable')
 }
 
-const isWholeState = (body: unknown): body is { rev: number } => {
+// A save may carry its own name and the name of the one it follows.
+type SaveRequest = { rev: number; saveId?: unknown; follows?: unknown }
+
+const isWholeState = (body: unknown): body is SaveRequest => {
   const candidate = body as { rev?: unknown; watchlists?: unknown; lines?: unknown } | null
   return (
     typeof candidate === 'object' &&
@@ -89,7 +109,7 @@ const isWholeState = (body: unknown): body is { rev: number } => {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-const isStateChange = (body: unknown): body is { rev: number; changes: StateChanges } => {
+const isStateChange = (body: unknown): body is SaveRequest & { changes: StateChanges } => {
   if (!isRecord(body) || !Number.isInteger(body.rev) || !isRecord(body.changes)) return false
   const { lines } = body.changes
   return lines === undefined || (isRecord(lines) && Object.values(lines).every(Array.isArray))
@@ -111,7 +131,66 @@ export const isLocalHost = (host: string | undefined): boolean =>
 export const isOwnRequest = (fetchSite: string | string[] | undefined): boolean =>
   fetchSite === undefined || (typeof fetchSite === 'string' && OWN_FETCH_SITES.includes(fetchSite))
 
+const savedAnswer = (outcome: SaveOutcome): ApiResult =>
+  outcome.ok ? ok({ ok: true, rev: outcome.rev }) : fail(409, 'conflict')
+
 export const createApi = (deps: ApiDeps): Route => {
+  const recentSaves = new Map<string, Promise<SaveOutcome>>()
+  // What each named save still unanswered follows, however many saves come after it.
+  const unanswered = new Map<string, unknown>()
+  let received: Promise<unknown> = Promise.resolve()
+  const followers = new Map<string, (outcome: Promise<SaveOutcome> | SaveOutcome) => void>()
+  const pause = deps.pause ?? ((ms: number) => new Promise<void>((done) => setTimeout(done, ms)))
+
+  // A follower is sent without waiting, so it can get here before the save it follows: it is given time to arrive.
+  const followed = (id: string): Promise<SaveOutcome> =>
+    recentSaves.get(id) ??
+    new Promise<SaveOutcome>((done) => {
+      followers.set(id, done)
+      pause(FOLLOWED_WAIT_MS).then(() => {
+        // A later follower of the same save has a wait of its own, which this one must not end.
+        if (followers.get(id) === done) followers.delete(id)
+        done(REFUSED)
+      })
+    })
+
+  // Saves that wait on one another would never be answered, nor would any read of the state after them.
+  const waitsOn = (follows: unknown, id: string): boolean => {
+    for (let next = follows; typeof next === 'string'; next = unanswered.get(next)) if (next === id) return true
+    return false
+  }
+
+  // A page being left sends its latest change while the save before it may still be waiting to be written. The
+  // follower waits for that one and goes only on top of what it wrote, so it never undoes what someone else saved.
+  const inOrder = ({ rev, saveId, follows }: SaveRequest, write: (base: number) => Promise<SaveOutcome>) => {
+    // A name still waiting stays with the save that has it: nothing can come to wait on a second one.
+    const name = typeof saveId === 'string' && !unanswered.has(saveId) ? saveId : null
+    const circular = name !== null && waitsOn(follows, name)
+    const before = typeof follows !== 'string' ? null : circular ? Promise.resolve(REFUSED) : followed(follows)
+    const outcome = before ? before.then((first) => (first.ok ? write(first.rev) : first)) : write(rev)
+    received = Promise.allSettled([received, outcome]).then(() => undefined)
+    if (name !== null) {
+      // A save that closes a circle is refused at once, so it is never one of those waiting.
+      if (!circular) {
+        const answered = () => void unanswered.delete(name)
+        unanswered.set(name, follows)
+        outcome.then(answered, answered)
+      }
+      recentSaves.set(name, outcome)
+      followers.get(name)?.(outcome)
+      followers.delete(name)
+    }
+    // The oldest answered saves are forgotten. One still waiting stays, as its follower may yet arrive.
+    for (const old of recentSaves.keys()) {
+      if (recentSaves.size <= SAVES_REMEMBERED) break
+      if (!unanswered.has(old)) recentSaves.delete(old)
+    }
+    return outcome
+  }
+
+  const withGoogle = async (work: (google: GoogleSync) => Promise<unknown>): Promise<ApiResult> =>
+    deps.google ? ok(await work(deps.google)) : fail(404, 'not_found')
+
   const routes: Record<string, Route> = {
     'GET /api/history': async ({ query }) => {
       const symbol = query.get('symbol') ?? ''
@@ -197,6 +276,16 @@ export const createApi = (deps: ApiDeps): Route => {
       return ok({ ok: true })
     },
     'DELETE /api/telegram': async () => ok(await deps.telegram.disconnect()),
+    'GET /api/google': () => withGoogle((google) => google.status()),
+    'POST /api/google/sign-in': () => withGoogle((google) => google.signIn()),
+    'POST /api/google/sync': () => withGoogle((google) => google.syncNow()),
+    'PUT /api/google/choice': async ({ body }) => {
+      if (!deps.google) return fail(404, 'not_found')
+      const { keep, choice } = (body ?? {}) as { keep?: unknown; choice?: unknown }
+      if ((keep !== 'local' && keep !== 'drive') || typeof choice !== 'string') return fail(400, 'invalid_choice')
+      return ok(await deps.google.choose(keep, choice))
+    },
+    'DELETE /api/google': () => withGoogle((google) => google.signOut()),
     'GET /api/backup': async () => ok(await deps.backupKey.status()),
     'PUT /api/backup': async ({ body }) => {
       const key = (body as { key?: unknown } | null)?.key
@@ -224,18 +313,24 @@ export const createApi = (deps: ApiDeps): Route => {
       )
       return ok({ fired: await deps.testPrices(prices) })
     },
-    'GET /api/state': async () => ok(await deps.state.read()),
+    // A page reloaded while a save is held up has to start from what that save writes, or its next one is refused.
+    'GET /api/state': async () => {
+      await received
+      return ok(await deps.state.read())
+    },
     'PUT /api/state': async ({ body }) => {
       if (!isWholeState(body)) return fail(400, 'invalid_state')
-      const outcome = await deps.state.save(normalizeState(body), body.rev)
-      return outcome.ok ? ok({ ok: true, rev: outcome.rev }) : fail(409, 'conflict')
+      const state = normalizeState(body)
+      return savedAnswer(await inOrder(body, (base) => deps.state.save(state, base)))
     },
     'PATCH /api/state': async ({ body }) => {
       if (!isStateChange(body)) return fail(400, 'invalid_state')
-      const current = await deps.state.read()
-      if (current.rev !== body.rev) return fail(409, 'conflict')
-      const outcome = await deps.state.save(normalizeState(applyChanges(current, body.changes)), body.rev)
-      return outcome.ok ? ok({ ok: true, rev: outcome.rev }) : fail(409, 'conflict')
+      const outcome = await inOrder(body, async (base) => {
+        const current = await deps.state.read()
+        if (current.rev !== base) return REFUSED
+        return deps.state.save(normalizeState(applyChanges(current, body.changes)), base)
+      })
+      return savedAnswer(outcome)
     },
   }
 
