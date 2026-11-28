@@ -50,6 +50,8 @@ export const useAppState = (api: StateApi = DEFAULT_API) => {
   const [tools] = useState(() => {
     // Read once: a second load while the app is still opening must not count the first as already seen.
     const seenBefore = lastSeenRev()
+    // Every reload and every outcome of a save puts an explanation still on its way out of date.
+    let latest = 0
     const apply = (loaded: AppState, message: string | null): void => {
       baselineRef.current = loaded
       sync.loaded(loaded)
@@ -58,12 +60,18 @@ export const useAppState = (api: StateApi = DEFAULT_API) => {
       setLoadFailed(false)
       setReplaced((count) => count + 1)
       rememberSeenRev(loaded.rev)
+      latest += 1
+    }
+    const report = (message: string | null): void => {
+      latest += 1
+      setNotice(message)
     }
     const explain = (loaded: AppState, seen: number | null, refused: boolean): void => {
+      const asked = latest
       apiRef.current
         .whyReloaded?.(loaded.rev, unseenSince(seen, loaded.rev), refused)
         .then((reason) => {
-          if (reason && baselineRef.current === loaded) setNotice(reason)
+          if (reason && latest === asked) setNotice(reason)
         })
         .catch(() => undefined)
     }
@@ -79,9 +87,9 @@ export const useAppState = (api: StateApi = DEFAULT_API) => {
     }
     const sync = createStateSync({
       put: (sent, keepalive, saved, link) => apiRef.current.putState(sent, keepalive, saved, link),
-      onSaved: () => setNotice(null),
+      onSaved: () => report(null),
       onConflict: reload,
-      onFailed: () => setNotice(SAVE_FAILED),
+      onFailed: () => report(SAVE_FAILED),
       setTimer: (run, ms) => setTimeout(run, ms),
       clearTimer: (timer) => clearTimeout(timer as ReturnType<typeof setTimeout>),
       delayMs: SAVE_DELAY_MS,

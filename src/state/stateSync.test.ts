@@ -272,3 +272,33 @@ test('Should reload when the save that followed was refused', async () => {
   await answer(1, { kind: 'conflict' })
   expect(events).toEqual(['conflict'])
 })
+
+test('Should try the save that followed again on top of the one that did get written', async () => {
+  const { puts, events, fire, answer, first, second } = leftWhileSaving()
+  await answer(0, { kind: 'saved', rev: 5 })
+  await answer(1, { kind: 'failed' })
+  expect(events).toEqual(['failed'])
+  fire()
+  expect(puts[2].state).toMatchObject({ symbol: second.symbol, rev: 5 })
+  expect(puts[2].saved).toBe(first)
+  await answer(2, { kind: 'saved', rev: 6 })
+  expect(events).toEqual(['failed', 'saved'])
+})
+
+test('Should learn of the save it overtook even when that answer comes after the follower failed', async () => {
+  const { sync, puts, events, fire, answer } = leftWhileSaving()
+  await answer(1, { kind: 'failed' })
+  await answer(0, { kind: 'saved', rev: 5 })
+  expect(events).toEqual(['failed'])
+  expect(sync.hasUnsaved()).toBe(true)
+  fire()
+  expect(puts[2].state.rev).toBe(5)
+})
+
+test('Should not go back to an earlier revision when the save it overtook answers last', async () => {
+  const { sync, answer, events } = leftWhileSaving()
+  await answer(1, { kind: 'saved', rev: 6 })
+  await answer(0, { kind: 'saved', rev: 5 })
+  expect(sync.rev()).toBe(6)
+  expect(events).toEqual(['saved'])
+})

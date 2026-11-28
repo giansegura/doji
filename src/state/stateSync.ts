@@ -80,7 +80,15 @@ export const createStateSync = (deps: SyncDeps): StateSync => {
     inFlight = { state: sent, id }
     const link = { saveId: id, follows: underway?.id }
     deps.put({ ...sent, rev }, keepalive, underway?.state ?? saved, link).then((result) => {
-      if (sentGeneration !== generation || inFlight?.id !== id) return
+      if (sentGeneration !== generation) return
+      if (inFlight?.id !== id) {
+        // Overtaken by a follower. What got written is still the base to try again from, should the follower not be.
+        if (result.kind === 'saved' && result.rev > rev) {
+          rev = result.rev
+          saved = sent
+        }
+        return
+      }
       inFlight = null
       settle(sent, result)
     })

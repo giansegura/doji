@@ -358,6 +358,34 @@ test('Should say that Google Drive replaced the settings and the last change was
   expect(result.current.notice).toBe(UNSAVED_NOTICE)
 })
 
+const slowReason = () => {
+  let answer: (notice: string | null) => void = () => undefined
+  const setup = withReason(() => new Promise<string | null>((done) => (answer = done)))
+  const arrive = () =>
+    act(async () => {
+      answer(UNSAVED_NOTICE)
+      await vi.advanceTimersByTimeAsync(0)
+    })
+  return { setup, arrive }
+}
+
+test.each([
+  ['saved', 'ok', null],
+  ['could not be saved', 'failed', 'Could not save your changes'],
+] as const)('Should not bring back an old reason once a later change %s', async (_name, reply, notice) => {
+  const { setup, arrive } = slowReason()
+  const { result, box } = await mount(setup)
+  box.reply = 'conflict'
+  box.server = { ...DEFAULT_STATE, symbol: 'KO', rev: 9 }
+  act(() => result.current.dispatch({ type: 'setTheme', theme: 'light' }))
+  await wait(300)
+  box.reply = reply
+  act(() => result.current.dispatch({ type: 'setTimeframe', timeframe: 'W' }))
+  await wait(300)
+  await arrive()
+  expect(result.current.notice).toBe(notice)
+})
+
 test('Should keep naming another tab when Google Drive had nothing to do with the reload', async () => {
   const { result, box } = await openedOn(5)
   box.reply = 'conflict'
