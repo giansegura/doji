@@ -1926,6 +1926,7 @@ test.each([
   ['deleted', (file: string) => rm(file)],
   ['broken', (file: string) => writeFile(file, '{ oops')],
   ['emptied', (file: string) => writeFile(file, '{}')],
+  ['cut down to their version', (file: string) => writeFile(file, '{"version":1}')],
 ])('Should refuse the save of an open page over %s settings and keep the newer copy of Drive', async (_name, lose) => {
   const google = fakeGoogle()
   google.put(driveTextOf(stateWith('KO')), NOW - MINUTE)

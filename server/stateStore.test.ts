@@ -231,12 +231,21 @@ test.each([
   ['a list', '[1]'],
   ['a bare value', 'null'],
   ['an empty object', '{ }'],
+  ['only a version', '{"version":1}'],
+  ['watchlists that are no list', '{"version":1,"watchlists":{}}'],
 ])('Should count a file holding %s as one that says nothing about when settings changed', async (_name, text) => {
   const { store, dir, file } = await makeStore()
   await store.save(DEFAULT_STATE, 1)
   await writeFile(file, text)
   expect(await store.changedAt()).toBeNull()
   expect(await readdir(dir)).toEqual(['state.json'])
+})
+
+test('Should count settings that hold the single watchlist of an old doji', async () => {
+  const { store, file } = await makeStore()
+  await store.save(DEFAULT_STATE, 1)
+  await writeFile(file, '{"watchlist":[]}')
+  expect(await store.changedAt()).toBe((await stat(file)).mtimeMs)
 })
 
 test('Should keep a copy of settings from elsewhere as they came, leaving its own file alone', async () => {

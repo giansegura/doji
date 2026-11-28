@@ -45,9 +45,9 @@ const byAge = (a: string, b: string): number => a.localeCompare(b, 'en', { numer
 
 const holdsSettings = (text: string): boolean => {
   try {
-    const raw: unknown = JSON.parse(text)
-    // An empty object holds none either: doji never writes one.
-    return typeof raw === 'object' && raw !== null && !Array.isArray(raw) && Object.keys(raw).length > 0
+    const raw = JSON.parse(text) as { watchlists?: unknown; watchlist?: unknown } | null
+    // doji never writes settings without a watchlist. Old versions wrote a single one, as `watchlist`.
+    return Array.isArray(raw?.watchlists) || Array.isArray(raw?.watchlist)
   } catch {
     return false
   }
